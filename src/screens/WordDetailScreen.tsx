@@ -334,8 +334,7 @@ export const WordDetailScreen: React.FC = () => {
 
     await StorageService.addWord(updatedWord);
     setWord(updatedWord);
-    // Navigate to the new meaning
-    setCurrentIndex(updatedMeanings.length - 1);
+    setCurrentIndex(0);
   };
 
   // --- RENDERING ---
@@ -415,7 +414,9 @@ export const WordDetailScreen: React.FC = () => {
       id: 'loading'
   } as unknown as Word;
 
-  const currentMeaning = displayWord.meanings[currentIndex];
+  // Create a reversed copy for display so newest/user-added meanings usually show first
+  const displayedMeanings = [...displayWord.meanings].reverse();
+  const currentMeaning = displayedMeanings[currentIndex];
   const posAbbr = currentMeaning?.partOfSpeech ? (currentMeaning.partOfSpeech.length > 4 ? currentMeaning.partOfSpeech.substring(0, 3) + '.' : currentMeaning.partOfSpeech.toLowerCase()) : '';
 
   return (
@@ -467,10 +468,10 @@ export const WordDetailScreen: React.FC = () => {
                             ) : null}
                         </View>
                     </View>
-                    {!loading && displayWord.meanings.length > 0 && (
+                    {!loading && displayedMeanings.length > 0 && (
                         <View style={styles.paginationColumn}>
                             <View style={styles.paginationContainer}>
-                                {displayWord.meanings.map((_, i) => (
+                                {displayedMeanings.map((_, i) => (
                                     <View key={i} style={[styles.dot, currentIndex === i && styles.activeDot]} />
                                 ))}
                             </View>
@@ -488,7 +489,7 @@ export const WordDetailScreen: React.FC = () => {
                </View>
           ) : (
                 <FlatList
-                    data={displayWord.meanings}
+                    data={displayedMeanings}
                     keyExtractor={(item) => item.id}
                     renderItem={renderMeaningSlide}
                     horizontal pagingEnabled showsHorizontalScrollIndicator={false}

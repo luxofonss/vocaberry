@@ -1,6 +1,6 @@
 // BottomTabBar - Optimized Navigation Pill
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Keyboard, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { theme, colors, shadows, spacing, borderRadius } from '../theme';
 import { TabType } from '../types';
@@ -17,6 +17,7 @@ interface BottomTabBarProps {
 /**
  * Floating Navigation Component
  * Features a pill-shaped main menu and a separate search trigger.
+ * Automatically hides when keyboard is visible to prevent visual clutter.
  */
 export const BottomTabBar: React.FC<BottomTabBarProps> = ({
   activeTab,
@@ -24,6 +25,27 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
   onAddPress,
   onSearchPress,
 }) => {
+  const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const keyboardDidShowListener = Keyboard.addListener(showEvent, () => {
+      setKeyboardVisible(true);
+    });
+    const keyboardDidHideListener = Keyboard.addListener(hideEvent, () => {
+      setKeyboardVisible(false);
+    });
+
+    return () => {
+      keyboardDidHideListener.remove();
+      keyboardDidShowListener.remove();
+    };
+  }, []);
+
+  if (isKeyboardVisible) return null;
+
   return (
     <View style={styles.containerWrapper}>
       <View style={styles.floatRow}>
@@ -79,11 +101,12 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
 const styles = StyleSheet.create({
   containerWrapper: {
     position: 'absolute',
-    bottom: 25,
+    bottom: 8,
     left: 0,
     right: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 100, // Ensure it stays on top content
   },
   floatRow: {
     flexDirection: 'row',
@@ -99,6 +122,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.4)',
     overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.85)', // Fallback / Base color
   },
   tabItem: {
     paddingHorizontal: 15,

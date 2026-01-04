@@ -9,10 +9,10 @@ import {
   StyleSheet,
   Platform,
   Image,
-  KeyboardAvoidingView,
-  ActivityIndicator,
+  SafeAreaView,
 } from 'react-native';
-import { colors, theme, shadows, typography } from '../theme';
+import { Ionicons } from '@expo/vector-icons';
+import { colors, borderRadius, spacing } from '../theme';
 import { Word } from '../types';
 
 interface SearchModalProps {
@@ -49,7 +49,8 @@ export const SearchModal: React.FC<SearchModalProps> = ({
         w.word.toLowerCase().includes(lowerQuery) || 
         w.meanings.some(m => m.definition.toLowerCase().includes(lowerQuery))
     );
-    setResults(filtered);
+    // Limit results for better performance
+    setResults(filtered.slice(0, 50));
   }, [query, words]);
 
   const renderItem = ({ item }: { item: Word }) => (
@@ -59,12 +60,13 @@ export const SearchModal: React.FC<SearchModalProps> = ({
             onSelectWord(item);
             onClose();
         }}
+        activeOpacity={0.7}
     >
         {item.imageUrl && item.imageUrl.trim() !== '' ? (
             <Image source={{ uri: item.imageUrl }} style={styles.thumbnail} />
         ) : (
-            <View style={[styles.thumbnail, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0F2F5' }]}>
-                <ActivityIndicator size="small" color="#5D5FEF" />
+            <View style={styles.placeholderThumbnail}>
+                <Ionicons name="image-outline" size={20} color={colors.primary} />
             </View>
         )}
         <View style={styles.textContainer}>
@@ -75,156 +77,178 @@ export const SearchModal: React.FC<SearchModalProps> = ({
                 </Text>
             )}
         </View>
-        <Text style={styles.arrow}>→</Text>
+        <Ionicons name="chevron-forward" size={20} color={colors.textLight} />
     </TouchableOpacity>
   );
 
   return (
-    <Modal visible={visible} animationType="fade" transparent>
-        <TouchableOpacity 
-            style={styles.overlay} 
-            activeOpacity={1} 
-            onPress={onClose}
-        >
-             <KeyboardAvoidingView 
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-                style={styles.container}
-             >
-                <TouchableOpacity 
-                    activeOpacity={1} 
-                    onPress={(e) => e.stopPropagation()}
-                    style={{ flex: 1 }}
-                >
-                    {/* Search Header */}
-                    <View style={styles.searchHeader}>
-                        <Text style={styles.searchIcon}>🔍</Text>
-                        <TextInput 
-                            style={styles.input}
-                            placeholder="Search your vocabulary..."
-                            placeholderTextColor={colors.textLight}
-                            value={query}
-                            onChangeText={setQuery}
-                            autoFocus={true}
-                        />
-                        <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                            <Text style={styles.closeText}>Cancel</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Results List */}
-                    {results.length > 0 ? (
-                        <FlatList 
-                            data={results}
-                            renderItem={renderItem}
-                            keyExtractor={item => item.id}
-                            contentContainerStyle={styles.listContent}
-                            keyboardShouldPersistTaps="handled"
-                        />
-                    ) : (
-                        query.length > 0 && (
-                            <View style={styles.emptyContainer}>
-                                <Text style={styles.emptyEmoji}>🤔</Text>
-                                <Text style={styles.emptyText}>No matches found</Text>
-                            </View>
-                        )
+    <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
+        <SafeAreaView style={styles.container}>
+            <View style={styles.header}>
+                <View style={styles.searchBar}>
+                    <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
+                    <TextInput 
+                        style={styles.input}
+                        placeholder="Search vocabulary..."
+                        placeholderTextColor={colors.textLight}
+                        value={query}
+                        onChangeText={setQuery}
+                        autoFocus={true}
+                        returnKeyType="search"
+                        clearButtonMode="while-editing" // iOS only native clear btn
+                    />
+                    {query.length > 0 && Platform.OS !== 'ios' && (
+                         <TouchableOpacity onPress={() => setQuery('')} style={styles.clearBtn}>
+                             <Ionicons name="close-circle" size={18} color={colors.textLight} />
+                         </TouchableOpacity>
                     )}
-                    
-                     {/* Quick Hint */}
-                     {!query && (
-                         <View style={styles.hintContainer}>
-                             <Text style={styles.hintText}>Type to find words definitions...</Text>
-                         </View>
-                     )}
+                </View>
+                <TouchableOpacity onPress={onClose} style={styles.cancelBtn}>
+                    <Text style={styles.cancelText}>Cancel</Text>
                 </TouchableOpacity>
-             </KeyboardAvoidingView>
-        </TouchableOpacity>
-    </Modal>
+            </View>
 
+            <View style={styles.content}>
+                {results.length > 0 ? (
+                    <FlatList 
+                        data={results}
+                        renderItem={renderItem}
+                        keyExtractor={item => item.id}
+                        contentContainerStyle={styles.listContent}
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                    />
+                ) : (
+                    query.length > 0 ? (
+                        <View style={styles.emptyContainer}>
+                            <Ionicons name="search-outline" size={64} color={colors.borderMedium} />
+                            <Text style={styles.emptyText}>No matches found</Text>
+                            <Text style={styles.emptySubText}>Try checking your spelling</Text>
+                        </View>
+                    ) : (
+                         <View style={styles.emptyContainer}>
+                             <Ionicons name="book-outline" size={64} color={colors.borderMedium} />
+                             <Text style={styles.emptyText}>Find your words</Text>
+                             <Text style={styles.emptySubText}>Type to search across your vocabulary</Text>
+                         </View>
+                    )
+                )}
+            </View>
+        </SafeAreaView>
+    </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)', // Glassy white background
-  },
   container: {
       flex: 1,
-      paddingTop: Platform.OS === 'ios' ? 60 : 40,
+      backgroundColor: colors.background, // Solid white background
   },
-  searchHeader: {
+  header: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: 20,
-      paddingBottom: 20,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.md,
       borderBottomWidth: 1,
       borderBottomColor: colors.borderLight,
+      backgroundColor: colors.white,
+  },
+  searchBar: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: colors.backgroundSoft,
+      borderRadius: borderRadius.lg,
+      height: 44,
+      paddingHorizontal: spacing.sm,
   },
   searchIcon: {
-      fontSize: 20,
-      marginRight: 10,
+      marginLeft: spacing.xs,
+      marginRight: spacing.xs,
   },
   input: {
       flex: 1,
-      fontSize: 18,
-      fontWeight: '600',
+      fontSize: 16,
       color: colors.textPrimary,
-      height: 40,
+      height: '100%',
   },
-  closeBtn: {
-      marginLeft: 10,
-      padding: 4,
+  clearBtn: {
+      padding: spacing.xs,
   },
-  closeText: {
+  cancelBtn: {
+      marginLeft: spacing.md,
+      paddingVertical: spacing.xs,
+  },
+  cancelText: {
       color: colors.primary,
       fontSize: 16,
       fontWeight: '600',
   },
 
-  listContent: {
-      paddingHorizontal: 20,
-      paddingTop: 10,
+  content: {
+      flex: 1,
+      backgroundColor: colors.background,
   },
+  listContent: {
+      paddingHorizontal: spacing.md,
+      paddingTop: spacing.sm,
+      paddingBottom: spacing.xl,
+  },
+
   resultItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 12,
+      paddingVertical: spacing.md,
       borderBottomWidth: 1,
-      borderBottomColor: '#f0f0f0',
+      borderBottomColor: colors.borderLight,
+      backgroundColor: colors.white,
   },
   thumbnail: {
-      width: 40,
-      height: 40,
-      borderRadius: 8,
+      width: 48,
+      height: 48,
+      borderRadius: borderRadius.md,
       backgroundColor: colors.backgroundSoft,
-      marginRight: 12,
+      marginRight: spacing.md,
+  },
+  placeholderThumbnail: {
+      width: 48,
+      height: 48,
+      borderRadius: borderRadius.md,
+      backgroundColor: colors.primarySoft,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: spacing.md,
   },
   textContainer: {
       flex: 1,
+      justifyContent: 'center',
   },
   wordText: {
       fontSize: 16,
-      fontWeight: '700',
+      fontWeight: '600',
       color: colors.textPrimary,
+      marginBottom: 2,
   },
   defText: {
-      fontSize: 13,
+      fontSize: 14,
       color: colors.textSecondary,
-      marginTop: 2,
-  },
-  arrow: {
-      fontSize: 18,
-      color: colors.textLight,
   },
 
   emptyContainer: {
+      flex: 1,
       alignItems: 'center',
-      marginTop: 60,
-      opacity: 0.6,
+      justifyContent: 'center',
+      paddingBottom: 100,
   },
-  emptyEmoji: { fontSize: 40, marginBottom: 10 },
-  emptyText: { fontSize: 16, color: colors.textSecondary },
-
-  hintContainer: { alignItems: 'center', marginTop: 100, opacity: 0.5 },
-  hintText: { fontSize: 14, color: colors.textLight },
+  emptyText: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: colors.textPrimary,
+      marginTop: spacing.md,
+  },
+  emptySubText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginTop: spacing.xs,
+  },
 });

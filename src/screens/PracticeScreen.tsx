@@ -454,8 +454,9 @@ export const PracticeScreen: React.FC = () => {
               <ScrollView contentContainerStyle={styles.quizContent} showsVerticalScrollIndicator={false}>
                 {/* Fixed card with sliding content inside */}
                 <View style={[styles.clueCard, shadows.medium]}>
+                  {/* Create a reversed copy for display so newest meanings show first */}
                   <FlatList
-                    data={currentWord.meanings}
+                    data={[...currentWord.meanings].reverse()}
                     keyExtractor={(item) => item.id}
                     renderItem={renderMeaningContent}
                     horizontal

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,14 +13,15 @@ import {
   SafeAreaView,
   Platform,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { colors, spacing, borderRadius, shadows } from '../theme';
+import { Ionicons } from '@expo/vector-icons';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COLUMN_COUNT = 2;
-const ITEM_SIZE = (SCREEN_WIDTH - spacing.xl * 2 - spacing.md) / COLUMN_COUNT;
+const GAP = spacing.sm;
+const PADDING = spacing.md;
+const ITEM_SIZE = (SCREEN_WIDTH - PADDING * 2 - GAP * (COLUMN_COUNT - 1)) / COLUMN_COUNT;
 
-// This would ideally be in a service or .env
 const UNSPLASH_ACCESS_KEY = process.env.EXPO_PUBLIC_UNSPLASH_ACCESS_KEY || '';
 
 interface UnsplashImage {
@@ -102,19 +103,17 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
   const handleSelect = async (imageUrl: string) => {
     setLoading(true);
     try {
-      // Convert to base64 for offline storage if possible or just use the URL
-      // Since our app uses base64 for local persistence of custom images, we should ideally convert it.
       const response = await fetch(imageUrl);
       const blob = await response.blob();
-      const base64: string = await new Promise((resolve) => {
+      const base64: string = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onloadend = () => resolve(reader.result as string);
+        reader.onerror = reject;
         reader.readAsDataURL(blob);
       });
       onSelect(base64);
       onClose();
     } catch (e) {
-      // If conversion fails, just use the URL
       onSelect(imageUrl);
       onClose();
     } finally {
@@ -124,52 +123,76 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
 
   const renderItem = ({ item }: { item: UnsplashImage }) => (
     <TouchableOpacity 
-      style={styles.imageWrapper} 
+      style={styles.imageCard} 
       onPress={() => handleSelect(item.urls.regular)}
+      activeOpacity={0.8}
     >
-      <Image source={{ uri: item.urls.small }} style={styles.image} />
-      <View style={styles.authorBadge}>
-        <Text style={styles.authorText}>{item.user.name}</Text>
+      <Image 
+        source={{ uri: item.urls.small }} 
+        style={styles.thumbnail} 
+        resizeMode="cover"
+      />
+      <View style={styles.creditBadge}>
+        <Text style={styles.creditText} numberOfLines={1}>
+          By {item.user.name}
+        </Text>
       </View>
     </TouchableOpacity>
   );
 
   return (
-    <Modal visible={visible} animationType="slide" transparent>
-      <View style={styles.overlay}>
-        <BlurView intensity={80} tint="dark" style={StyleSheet.absoluteFill} />
-        <SafeAreaView style={styles.container}>
+    <Modal 
+      visible={visible} 
+      animationType="slide" 
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
+      <View style={styles.container}>
+        <SafeAreaView style={styles.safeArea}>
+          {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={styles.closeIcon}>✕</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+              <Ionicons name="close" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
-            <Text style={styles.title}>Search Photos</Text>
-            <View style={{ width: 40 }} />
+            <Text style={styles.headerTitle}>Chọn ảnh từ Unsplash</Text>
+            <View style={styles.placeholderIcon} /> 
           </View>
 
-          <View style={styles.searchBar}>
-            <TextInput
-              style={styles.input}
-              placeholder="Search high-quality photos..."
-              placeholderTextColor="rgba(255,255,255,0.5)"
-              value={query}
-              onChangeText={setQuery}
-              onSubmitEditing={() => searchImages(query)}
-              returnKeyType="search"
-              autoFocus
-            />
-            <TouchableOpacity 
-              style={styles.searchBtn} 
-              onPress={() => searchImages(query)}
-            >
-              <Text style={styles.searchIcon}>🔍</Text>
-            </TouchableOpacity>
+          {/* Search Bar */}
+          <View style={styles.searchContainer}>
+            <View style={styles.searchBox}>
+              <Ionicons name="search" size={20} color={colors.textSecondary} style={styles.searchIcon} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Tìm kiếm ảnh (ví dụ: cat, office...)"
+                placeholderTextColor={colors.textLight}
+                value={query}
+                onChangeText={setQuery}
+                onSubmitEditing={() => searchImages(query)}
+                returnKeyType="search"
+                autoFocus={false}
+              />
+              {query.length > 0 && (
+                <TouchableOpacity onPress={() => setQuery('')} style={styles.clearButton}>
+                  <Ionicons name="close-circle" size={18} color={colors.textLight} />
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
-          {loading && !images.length ? (
-            <View style={styles.center}>
-              <ActivityIndicator size="large" color={colors.white} />
-              <Text style={styles.statusText}>Searching Unsplash...</Text>
+          {/* Error Message */}
+          {error && (
+            <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle-outline" size={20} color={colors.error} />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
+          {/* Content */}
+          {loading && images.length === 0 ? (
+            <View style={styles.centered}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={styles.loadingText}>Đang tìm kiếm...</Text>
             </View>
           ) : (
             <FlatList
@@ -179,20 +202,26 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
               numColumns={COLUMN_COUNT}
               contentContainerStyle={styles.listContent}
               columnWrapperStyle={styles.columnWrapper}
+              showsVerticalScrollIndicator={false}
               ListEmptyComponent={
-                !loading ? (
-                    <View style={styles.center}>
-                        <Text style={styles.statusText}>No photos found. Try another word!</Text>
-                    </View>
+                !loading && initialQuery ? (
+                  <View style={styles.centered}>
+                    <Ionicons name="images-outline" size={80} color={colors.borderMedium} style={{ marginBottom: spacing.md }} />
+                    <Text style={styles.emptyText}>Không tìm thấy ảnh nào</Text>
+                    <Text style={styles.suggestionText}>Hãy thử từ khóa tiếng Anh (VD: Apple, Book)</Text>
+                  </View>
                 ) : null
               }
             />
           )}
 
           {loading && images.length > 0 && (
-              <View style={styles.bottomLoading}>
-                <ActivityIndicator color={colors.white} />
-              </View>
+            <View style={styles.overlayLoading}>
+               <View style={styles.loadingBox}>
+                 <ActivityIndicator color={colors.white} size="large" />
+                 <Text style={styles.processingText}>Đang tải ảnh...</Text>
+               </View>
+            </View>
           )}
         </SafeAreaView>
       </View>
@@ -201,55 +230,162 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: 'transparent' },
-  container: { flex: 1 },
-  header: { 
-    flexDirection: 'row', 
-    justifyContent: 'space-between', 
-    alignItems: 'center', 
-    padding: spacing.md, 
-    marginTop: Platform.OS === 'android' ? 40 : 0 
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
   },
-  closeBtn: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  closeIcon: { color: colors.white, fontSize: 20, fontWeight: 'bold' },
-  title: { color: colors.white, fontSize: 20, fontWeight: 'bold' },
-  
-  searchBar: { 
-    flexDirection: 'row', 
-    margin: spacing.md, 
-    backgroundColor: 'rgba(255,255,255,0.15)', 
-    borderRadius: borderRadius.lg, 
-    paddingHorizontal: spacing.md, 
+  safeArea: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.borderLight,
+    backgroundColor: colors.cardWhite,
+    marginTop: Platform.OS === 'android' ? 30 : 0
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.textPrimary,
+  },
+  closeButton: {
+    padding: spacing.xs,
+    borderRadius: borderRadius.full,
+    backgroundColor: colors.backgroundSoft,
+  },
+  placeholderIcon: {
+    width: 32,
+  },
+  
+  searchContainer: {
+    padding: spacing.md,
+    backgroundColor: colors.cardWhite,
+    ...shadows.sm,
+    zIndex: 1,
+  },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundSoft,
+    borderRadius: borderRadius.lg,
+    paddingHorizontal: spacing.md,
+    height: 48,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)'
+    borderColor: colors.borderLight,
   },
-  input: { flex: 1, height: 50, color: colors.white, fontSize: 16 },
-  searchBtn: { padding: spacing.sm },
-  searchIcon: { fontSize: 18 },
+  searchIcon: {
+    marginRight: spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.textPrimary,
+    height: '100%',
+  },
+  clearButton: {
+    padding: spacing.xs,
+  },
 
-  listContent: { padding: spacing.xl, paddingBottom: 100 },
-  columnWrapper: { justifyContent: 'space-between', marginBottom: spacing.md },
-  imageWrapper: { 
-    width: ITEM_SIZE, 
-    height: ITEM_SIZE, 
-    borderRadius: borderRadius.md, 
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(244, 67, 54, 0.1)',
+    padding: spacing.md,
+    marginHorizontal: spacing.md,
+    marginTop: spacing.md,
+    borderRadius: borderRadius.md,
+  },
+  errorText: {
+    color: colors.error,
+    marginLeft: spacing.sm,
+    flex: 1,
+    fontSize: 14,
+  },
+
+  listContent: {
+    padding: PADDING,
+    paddingBottom: spacing.xxl,
+  },
+  columnWrapper: {
+    gap: GAP,
+  },
+  imageCard: {
+    width: ITEM_SIZE,
+    height: ITEM_SIZE,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.backgroundSoft,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    ...shadows.soft
+    marginBottom: GAP,
+    ...shadows.sm,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
   },
-  image: { width: '100%', height: '100%' },
-  authorBadge: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      backgroundColor: 'rgba(0,0,0,0.4)',
-      padding: spacing.xs,
+  thumbnail: {
+    width: '100%',
+    height: '100%',
   },
-  authorText: { color: colors.white, fontSize: 10, textAlign: 'center' },
+  creditBadge: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+  },
+  creditText: {
+    color: colors.white,
+    fontSize: 10,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
 
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  statusText: { color: 'rgba(255,255,255,0.7)', marginTop: spacing.md, textAlign: 'center' },
-  bottomLoading: { padding: spacing.md },
+  centered: {
+    marginTop: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xl,
+  },
+  loadingText: {
+    marginTop: spacing.md,
+    color: colors.textSecondary,
+    fontSize: 14,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: colors.textPrimary,
+    fontWeight: '600',
+    marginTop: spacing.sm,
+  },
+  suggestionText: {
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+  },
+
+  overlayLoading: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  loadingBox: {
+    padding: spacing.lg,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    borderRadius: borderRadius.lg,
+    alignItems: 'center',
+  },
+  processingText: {
+    color: colors.white,
+    marginTop: spacing.sm,
+    fontSize: 14,
+    fontWeight: '500',
+  }
 });
