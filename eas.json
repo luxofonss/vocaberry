@@ -1,0 +1,43 @@
+{
+  "cli": {
+    "version": ">= 16.28.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_UNSPLASH_ACCESS_KEY": "r9TEQbYfGJri--Ay0gHu3nuD5Xq4h7U2wegYUtuhsRcd",
+        "EXPO_PUBLIC_POLLINATIONS_AUTH_TOKEN": "sk_ODSgAaMjGO02mlEUHmbdvBmdTueCZCcp",
+        "EXPO_PUBLIC_CLAUDE_API_KEY": "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"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_UNSPLASH_ACCESS_KEY": "r9TEQbYfGJri--Ay0gHu3nuD5Xq4h7U2wegYUtuhsRcd",
+        "EXPO_PUBLIC_POLLINATIONS_AUTH_TOKEN": "sk_ODSgAaMjGO02mlEUHmbdvBmdTueCZCcp",
+        "EXPO_PUBLIC_CLAUDE_API_KEY": "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"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_UNSPLASH_ACCESS_KEY": "r9TEQbYfGJri--Ay0gHu3nuD5Xq4h7U2wegYUtuhsRcd",
+        "EXPO_PUBLIC_POLLINATIONS_AUTH_TOKEN": "sk_ODSgAaMjGO02mlEUHmbdvBmdTueCZCcp",
+        "EXPO_PUBLIC_CLAUDE_API_KEY": "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"
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      },
+      "ios": {
+        "buildConfiguration": "Release"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
