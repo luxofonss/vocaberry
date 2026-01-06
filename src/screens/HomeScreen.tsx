@@ -18,13 +18,13 @@ import { theme, colors, typography, spacing, borderRadius, shadows } from '../th
 import { Word, RootStackParamList, TabType } from '../types';
 import { StorageService } from '../services/StorageService';
 import { 
-    BottomTabBar, 
     WordCard, 
     QuickAddModal,
     SearchModal 
 } from '../components';
 import { EventBus } from '../services/EventBus';
 import { PracticeScreen } from './PracticeScreen';
+import { BottomTabBar } from '../components/BottomTabBar';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -125,7 +125,7 @@ export const HomeScreen: React.FC = () => {
       
       // Đếm số từ ít xem nhất (viewCount < max)
       const leastViewed = await StorageService.getLeastViewedWords(5);
-      setLeastViewedCount(leastViewed.length);
+      setLeastViewedCount(leastViewed.length > 0 ? leastViewed.length : 5);
       setLeastViewedWords(leastViewed);
       
       // Check xem có nên hiển thị notification không
