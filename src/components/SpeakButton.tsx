@@ -1,6 +1,6 @@
 // Speak Button Component - Minimalistic Purple Style
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
   TouchableOpacity,
   StyleSheet,
@@ -9,39 +9,45 @@ import {
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { SpeechService } from '../services/SpeechService';
+import { ANIMATION } from '../constants';
+
+type ButtonSize = 'small' | 'medium' | 'large';
 
 interface SpeakButtonProps {
   text: string;
-  size?: 'small' | 'medium' | 'large';
+  size?: ButtonSize;
 }
+
+interface SizeDimensions {
+  width: number;
+  height: number;
+  fontSize: number;
+}
+
+const SIZE_CONFIG: Record<ButtonSize, SizeDimensions> = {
+  small: { width: 36, height: 36, fontSize: 14 },
+  medium: { width: 44, height: 44, fontSize: 20 },
+  large: { width: 56, height: 56, fontSize: 26 },
+} as const;
+
+const SPEAKING_DURATION_MS = 1500;
 
 export const SpeakButton: React.FC<SpeakButtonProps> = ({
   text,
   size = 'medium',
 }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const scaleValue = React.useRef(new Animated.Value(1)).current;
+  const scaleValue = useRef(new Animated.Value(1)).current;
 
-  const getSize = () => {
-    switch (size) {
-      case 'small':
-        return { width: 36, height: 36, fontSize: 14 };
-      case 'large':
-        return { width: 56, height: 56, fontSize: 26 };
-      default:
-        return { width: 44, height: 44, fontSize: 20 };
-    }
-  };
+  const dimensions = useMemo(() => SIZE_CONFIG[size], [size]);
 
-  const dimensions = getSize();
-
-  const handlePress = async () => {
+  const handlePress = useCallback(async () => {
     setIsSpeaking(true);
-    
+
     Animated.sequence([
       Animated.timing(scaleValue, {
         toValue: 1.15,
-        duration: 100,
+        duration: ANIMATION.fast,
         useNativeDriver: true,
       }),
       Animated.spring(scaleValue, {
@@ -51,23 +57,22 @@ export const SpeakButton: React.FC<SpeakButtonProps> = ({
     ]).start();
 
     SpeechService.speakWord(text);
-    
+
     setTimeout(() => {
       setIsSpeaking(false);
-    }, 1500);
-  };
+    }, SPEAKING_DURATION_MS);
+  }, [text, scaleValue]);
+
+  const buttonStyle = useMemo(() => ({
+    width: dimensions.width,
+    height: dimensions.height,
+    backgroundColor: isSpeaking ? colors.primary : colors.primaryLight,
+  }), [dimensions, isSpeaking]);
 
   return (
     <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
       <TouchableOpacity
-        style={[
-          styles.button,
-          {
-            width: dimensions.width,
-            height: dimensions.height,
-            backgroundColor: isSpeaking ? colors.primary : colors.primaryLight,
-          },
-        ]}
+        style={[styles.button, buttonStyle]}
         onPress={handlePress}
         activeOpacity={0.8}
       >

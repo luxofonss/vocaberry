@@ -1,5 +1,5 @@
 // Practice Screen - Optimized Performance & Styling
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -27,6 +27,13 @@ import { Word, RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
 import { SpeakButton, ImageViewerModal } from '../components';
 import { EventBus } from '../services/EventBus';
+import {
+  ANIMATION,
+  PRACTICE_CONFIG,
+  PRACTICE_TEXTS,
+  TIME_FORMAT,
+  DEFAULTS
+} from '../constants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -38,9 +45,9 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
  */
 export const PracticeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  
+
   // -- Setup State --
-  const [questionCount, setQuestionCount] = useState(5);
+  const [questionCount, setQuestionCount] = useState<number>(PRACTICE_CONFIG.defaultQuestionCount);
   const [loading, setLoading] = useState(false);
   const [practiceStats, setPracticeStats] = useState<{
     totalSessions: number;
@@ -61,7 +68,7 @@ export const PracticeScreen: React.FC = () => {
   const [isCorrect, setIsCorrect] = useState(false);
   const [score, setScore] = useState(0);
   const [showHint, setShowHint] = useState(false);
-  
+
   // -- Quiz Results Tracking --
   const [quizResults, setQuizResults] = useState<Array<{
     word: Word;
@@ -110,86 +117,86 @@ export const PracticeScreen: React.FC = () => {
   }, []);
 
   // -- Animations --
-  const startPulse = () => {
+  const startPulse = useCallback(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1.2, duration: 600, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
-        Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(pulseAnim, { toValue: 1.2, duration: ANIMATION.pulse, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: ANIMATION.pulse, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
       ])
     ).start();
-  };
+  }, [pulseAnim]);
 
-  const stopPulse = () => {
+  const stopPulse = useCallback(() => {
     pulseAnim.stopAnimation();
     pulseAnim.setValue(1);
-  };
+  }, [pulseAnim]);
 
   // -- Logic Handlers --
-  const startPractice = async () => {
-      setLoading(true);
-      try {
-        // Lấy các từ ít xem nhất để practice
-        const words = await StorageService.getLeastViewedWords(questionCount);
-        if (words.length === 0) {
-            Alert.alert("No words yet", "Add some words to your inventory first!");
-            return;
-        }
-        setQuizList(words);
-        setCurrentIndex(0);
-        setScore(0);
-        setQuizResults([]); // Reset results
-        resetQuestion();
-        setIsQuizVisible(true);
-        // Lưu timestamp khi bắt đầu practice
-        await StorageService.saveLastPracticeTime();
-      } finally {
-        setLoading(false);
+  const startPractice = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Lấy các từ ít xem nhất để practice
+      const words = await StorageService.getLeastViewedWords(questionCount);
+      if (words.length === 0) {
+        Alert.alert(PRACTICE_TEXTS.noWordsYet, PRACTICE_TEXTS.addWordsFirst);
+        return;
       }
-  };
+      setQuizList(words);
+      setCurrentIndex(0);
+      setScore(0);
+      setQuizResults([]); // Reset results
+      resetQuestion();
+      setIsQuizVisible(true);
+      // Lưu timestamp khi bắt đầu practice
+      await StorageService.saveLastPracticeTime();
+    } finally {
+      setLoading(false);
+    }
+  }, [questionCount]);
 
-  const resetQuestion = () => {
-      setUserAnswer('');
-      setIsAnswered(false);
-      setIsCorrect(false);
-      setShowHint(false);
-      setIsRecording(false);
-      setIsProcessing(false);
-      setMeaningIndex(0); // Reset carousel to first meaning
-      stopPulse();
-  };
+  const resetQuestion = useCallback(() => {
+    setUserAnswer('');
+    setIsAnswered(false);
+    setIsCorrect(false);
+    setShowHint(false);
+    setIsRecording(false);
+    setIsProcessing(false);
+    setMeaningIndex(0); // Reset carousel to first meaning
+    stopPulse();
+  }, [stopPulse]);
 
-  const checkAnswer = (customAnswer?: string) => {
-      const answerToUse = customAnswer !== undefined ? customAnswer : userAnswer;
-      const currentWord = quizList[currentIndex];
-      const normalizedInput = answerToUse.trim().toLowerCase();
-      const normalizedTarget = currentWord.word.trim().toLowerCase();
-      
-      const correct = normalizedInput === normalizedTarget;
-      const skipped = customAnswer === '?'; // User clicked "Show Answer"
-      
-      setIsCorrect(correct);
-      if (correct) setScore(s => s + 1);
-      
-      setIsAnswered(true);
-      setShowHint(true);
+  const checkAnswer = useCallback((customAnswer?: string) => {
+    const answerToUse = customAnswer !== undefined ? customAnswer : userAnswer;
+    const currentWord = quizList[currentIndex];
+    const normalizedInput = answerToUse.trim().toLowerCase();
+    const normalizedTarget = currentWord.word.trim().toLowerCase();
 
-      // Track result for review
-      setQuizResults(prev => [...prev, {
-        word: currentWord,
-        status: skipped ? 'skipped' : (correct ? 'correct' : 'incorrect'),
-        userAnswer: skipped ? undefined : answerToUse,
-      }]);
+    const correct = normalizedInput === normalizedTarget;
+    const skipped = customAnswer === '?'; // User clicked "Show Answer"
 
-      // Track review outcome in storage
-      StorageService.markAsReviewed(currentWord.id, correct);
-  };
+    setIsCorrect(correct);
+    if (correct) setScore(s => s + 1);
 
-  const handleMicPress = () => {
+    setIsAnswered(true);
+    setShowHint(true);
+
+    // Track result for review
+    setQuizResults(prev => [...prev, {
+      word: currentWord,
+      status: skipped ? 'skipped' : (correct ? 'correct' : 'incorrect'),
+      userAnswer: skipped ? undefined : answerToUse,
+    }]);
+
+    // Track review outcome in storage
+    StorageService.markAsReviewed(currentWord.id, correct);
+  }, [userAnswer, quizList, currentIndex]);
+
+  const handleMicPress = useCallback(() => {
     if (isRecording) {
       setIsRecording(false);
       stopPulse();
       setIsProcessing(true);
-      
+
       // Simulated STT Result
       setTimeout(() => {
         setIsProcessing(false);
@@ -203,137 +210,137 @@ export const PracticeScreen: React.FC = () => {
       setIsRecording(true);
       startPulse();
     }
-  };
+  }, [isRecording, stopPulse, startPulse, quizList, currentIndex, checkAnswer]);
 
-  const handleNext = () => {
-      if (currentIndex < quizList.length - 1) {
-          setCurrentIndex(c => c + 1);
-          resetQuestion();
-      } else {
-            setCurrentIndex(c => c + 1);
-            // Update practice stats when session completes
-            StorageService.updatePracticeStats(quizList.length).then(() => {
-              StorageService.getPracticeStats().then(setPracticeStats);
-            });
-      }
-  };
+  const handleNext = useCallback(() => {
+    if (currentIndex < quizList.length - 1) {
+      setCurrentIndex(c => c + 1);
+      resetQuestion();
+    } else {
+      setCurrentIndex(c => c + 1);
+      // Update practice stats when session completes
+      StorageService.updatePracticeStats(quizList.length).then(() => {
+        StorageService.getPracticeStats().then(setPracticeStats);
+      });
+    }
+  }, [currentIndex, quizList.length, resetQuestion]);
 
   // -- Sub-renderers --
 
-  const formatTimeAgo = (timestamp: number | null): string => {
-    if (!timestamp) return 'Never';
+  const formatTimeAgo = useCallback((timestamp: number | null): string => {
+    if (!timestamp) return TIME_FORMAT.never;
     const now = Date.now();
     const diff = now - timestamp;
     const minutes = Math.floor(diff / (1000 * 60));
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    return `${days}d ago`;
-  };
+    if (minutes < 1) return TIME_FORMAT.justNow;
+    if (minutes < 60) return TIME_FORMAT.minutesAgo.replace('{count}', String(minutes));
+    if (hours < 24) return TIME_FORMAT.hoursAgo.replace('{count}', String(hours));
+    return TIME_FORMAT.daysAgo.replace('{count}', String(days));
+  }, []);
 
   const renderSetup = () => (
-      <View style={styles.centerContent}>
-          <Text style={styles.title}>Practice Time 🎯</Text>
-          <Text style={styles.subtitle}>Review your vocabulary to keep it fresh.</Text>
-        
-          <View style={styles.card}>
-              <Text style={styles.label}>How many words?</Text>
-              <View style={styles.countRow}>
-                  {[5, 10, 20].map(num => (
-                      <TouchableOpacity 
-                        key={num} 
-                        style={[styles.countBtn, questionCount === num && styles.countBtnActive]}
-                        onPress={() => setQuestionCount(num)}
-                      >
-                          <Text style={[styles.countText, questionCount === num && styles.countTextActive]}>
-                              {num}
-                          </Text>
-                      </TouchableOpacity>
-                  ))}
-              </View>
-          </View>
+    <View style={styles.centerContent}>
+      <Text style={styles.title}>{PRACTICE_TEXTS.title}</Text>
+      <Text style={styles.subtitle}>{PRACTICE_TEXTS.subtitle}</Text>
 
-          <TouchableOpacity style={styles.primaryButton} onPress={startPractice} disabled={loading}>
-              <Text style={styles.primaryButtonText}>
-                  {loading ? "Preparing..." : "Start Now"}
+      <View style={styles.card}>
+        <Text style={styles.label}>{PRACTICE_TEXTS.howManyWords}</Text>
+        <View style={styles.countRow}>
+          {PRACTICE_CONFIG.questionCountOptions.map(num => (
+            <TouchableOpacity
+              key={num}
+              style={[styles.countBtn, questionCount === num && styles.countBtnActive]}
+              onPress={() => setQuestionCount(num)}
+            >
+              <Text style={[styles.countText, questionCount === num && styles.countTextActive]}>
+                {num}
               </Text>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
 
-          
-          {/* Gamification Stats */}
-          {practiceStats && (
-            <View style={styles.statsContainer}>
-                {practiceStats.lastPracticeTime && (
-                <View style={styles.lastPracticeInfo}>
-                  <Text style={styles.lastPracticeText}>
-                    Last practice: {formatTimeAgo(practiceStats.lastPracticeTime)}
-                  </Text>
-                  {practiceStats.longestStreak > 0 && practiceStats.longestStreak > practiceStats.currentStreak && (
-                    <Text style={styles.bestStreakText}>
-                      🏆 Best streak: {practiceStats.longestStreak} days
-                    </Text>
-                  )}
-                </View>
+      <TouchableOpacity style={styles.primaryButton} onPress={startPractice} disabled={loading}>
+        <Text style={styles.primaryButtonText}>
+          {loading ? PRACTICE_TEXTS.preparing : PRACTICE_TEXTS.startNow}
+        </Text>
+      </TouchableOpacity>
+
+
+      {/* Gamification Stats */}
+      {practiceStats && (
+        <View style={styles.statsContainer}>
+          {practiceStats.lastPracticeTime && (
+            <View style={styles.lastPracticeInfo}>
+              <Text style={styles.lastPracticeText}>
+                {PRACTICE_TEXTS.lastPractice} {formatTimeAgo(practiceStats.lastPracticeTime)}
+              </Text>
+              {practiceStats.longestStreak > 0 && practiceStats.longestStreak > practiceStats.currentStreak && (
+                <Text style={styles.bestStreakText}>
+                  {PRACTICE_TEXTS.bestStreak} {practiceStats.longestStreak} days
+                </Text>
               )}
-              <View style={styles.statsRow}>
-                <View style={styles.statCard}>
-                  <Text style={styles.statValue}>{practiceStats.currentStreak}</Text>
-                  <Text style={styles.statLabel}>🔥 Day Streak</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statValue}>{practiceStats.totalSessions}</Text>
-                  <Text style={styles.statLabel}>📊 Sessions</Text>
-                </View>
-                <View style={styles.statCard}>
-                  <Text style={styles.statValue}>{practiceStats.totalWordsPracticed}</Text>
-                  <Text style={styles.statLabel}>📚 Words</Text>
-                </View>
-              </View>
-            
             </View>
           )}
-      </View>
+          <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>{practiceStats.currentStreak}</Text>
+              <Text style={styles.statLabel}>{PRACTICE_TEXTS.dayStreak}</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>{practiceStats.totalSessions}</Text>
+              <Text style={styles.statLabel}>{PRACTICE_TEXTS.sessions}</Text>
+            </View>
+            <View style={styles.statCard}>
+              <Text style={styles.statValue}>{practiceStats.totalWordsPracticed}</Text>
+              <Text style={styles.statLabel}>{PRACTICE_TEXTS.words}</Text>
+            </View>
+          </View>
+
+        </View>
+      )}
+    </View>
   );
 
   const renderReviewScreen = () => (
-    <View style={{flex: 1}}>
+    <View style={{ flex: 1 }}>
       <View style={styles.modalHeader}>
         <TouchableOpacity onPress={() => setShowReview(false)} style={styles.closeBtn}>
           <Text style={styles.closeText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.progressText}>Review Results</Text>
-        <View style={{width: 40}} />
+        <Text style={styles.progressText}>{PRACTICE_TEXTS.reviewResults}</Text>
+        <View style={{ width: 40 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.reviewContent} showsVerticalScrollIndicator={false}>
         <View style={styles.reviewSummary}>
-          <Text style={styles.reviewTitle}>Your Performance</Text>
+          <Text style={styles.reviewTitle}>{PRACTICE_TEXTS.yourPerformance}</Text>
           <View style={styles.reviewStatsRow}>
             <View style={styles.reviewStatItem}>
               <Text style={styles.reviewStatEmoji}>✅</Text>
               <Text style={styles.reviewStatNumber}>{quizResults.filter(r => r.status === 'correct').length}</Text>
-              <Text style={styles.reviewStatLabel}>Correct</Text>
+              <Text style={styles.reviewStatLabel}>{PRACTICE_TEXTS.correct}</Text>
             </View>
             <View style={styles.reviewStatItem}>
               <Text style={styles.reviewStatEmoji}>❌</Text>
               <Text style={styles.reviewStatNumber}>{quizResults.filter(r => r.status === 'incorrect').length}</Text>
-              <Text style={styles.reviewStatLabel}>Incorrect</Text>
+              <Text style={styles.reviewStatLabel}>{PRACTICE_TEXTS.incorrect}</Text>
             </View>
             <View style={styles.reviewStatItem}>
               <Text style={styles.reviewStatEmoji}>⏭️</Text>
               <Text style={styles.reviewStatNumber}>{quizResults.filter(r => r.status === 'skipped').length}</Text>
-              <Text style={styles.reviewStatLabel}>Skipped</Text>
+              <Text style={styles.reviewStatLabel}>{PRACTICE_TEXTS.skipped}</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.reviewList}>
           {quizResults.map((result, index) => (
-            <TouchableOpacity 
-              key={index} 
+            <TouchableOpacity
+              key={index}
               style={[styles.reviewItem, shadows.subtle]}
               onPress={() => {
                 requestAnimationFrame(() => {
@@ -360,248 +367,250 @@ export const PracticeScreen: React.FC = () => {
           ))}
         </View>
 
-        <TouchableOpacity 
-          style={[styles.primaryButton, {marginTop: spacing.xl}]} 
+        <TouchableOpacity
+          style={[styles.primaryButton, { marginTop: spacing.xl }]}
           onPress={() => {
             setShowReview(false);
             setIsQuizVisible(false);
           }}
         >
-          <Text style={styles.primaryButtonText}>Done</Text>
+          <Text style={styles.primaryButtonText}>{PRACTICE_TEXTS.done}</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
   );
 
   const renderQuizContent = () => {
-      if (currentIndex >= quizList.length) {
-          return (
-            <View style={styles.summaryContainer}>
-                <Text style={styles.summaryEmoji}>{score === quizList.length ? '🏆' : '👍'}</Text>
-                <Text style={styles.title}>Practice Complete!</Text>
-                <Text style={styles.subtitle}>You scored {score} out of {quizList.length}</Text>
-                
-                <TouchableOpacity style={styles.primaryButton} onPress={() => setShowReview(true)}>
-                    <Text style={styles.primaryButtonText}>Review Results</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity style={styles.secondaryButtonOutline} onPress={() => setIsQuizVisible(false)}>
-                    <Text style={styles.secondaryButtonOutlineText}>Close</Text>
-                </TouchableOpacity>
-            </View>
-          );
-      }
+    if (currentIndex >= quizList.length) {
+      return (
+        <View style={styles.summaryContainer}>
+          <Text style={styles.summaryEmoji}>{score === quizList.length ? '🏆' : '👍'}</Text>
+          <Text style={styles.title}>{PRACTICE_TEXTS.practiceComplete}</Text>
+          <Text style={styles.subtitle}>
+            {PRACTICE_TEXTS.scoreText.replace('{score}', String(score)).replace('{total}', String(quizList.length))}
+          </Text>
 
-      const currentWord = quizList[currentIndex];
+          <TouchableOpacity style={styles.primaryButton} onPress={() => setShowReview(true)}>
+            <Text style={styles.primaryButtonText}>{PRACTICE_TEXTS.reviewResultsBtn}</Text>
+          </TouchableOpacity>
 
-      // Render individual meaning content (not the card wrapper)
-      const renderMeaningContent = ({ item: meaning, index }: { item: any, index: number }) => (
-        <View style={styles.meaningContent}>
-          <View style={styles.clueImageWrapper}>
-            {((meaning.exampleImageUrl && meaning.exampleImageUrl.trim() !== '') || (currentWord.imageUrl && currentWord.imageUrl.trim() !== '')) ? (
-              <TouchableOpacity 
-                activeOpacity={0.9}
-                onPress={() => {
-                  const imgUrl = meaning.exampleImageUrl || currentWord.imageUrl;
-                  if (imgUrl) {
-                    setViewingImageUrl(imgUrl);
-                    setImageViewerVisible(true);
-                  }
-                }}
-              >
-                <Image 
-                  source={{ uri: meaning.exampleImageUrl || currentWord.imageUrl }} 
-                  style={styles.clueImage} 
-                  resizeMode="cover"
-                />
-              </TouchableOpacity>
-            ) : (
-              <View style={[styles.clueImage, { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backgroundSoft }]}>
-                <ActivityIndicator size="large" color={colors.primary} />
-              </View>
-            )}
-          </View>
-          
-          {!showHint ? (
-            <TouchableOpacity style={styles.hintButton} onPress={() => setShowHint(true)}>
-              <Text style={styles.hintIcon}>💡</Text>
-              <Text style={styles.hintText}>Show Hint</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.hintContent}>
-              <Text style={styles.clueLabel}>Definition ({meaning.partOfSpeech || '?'})</Text>
-              <Text style={styles.clueText}>{meaning.definition}</Text>
-              {meaning.example && (
-                <Text style={styles.clueExample}>
-                  "{meaning.example.replace(new RegExp(currentWord.word, 'gi'), '_____')}"
-                </Text>
-              )}
-            </View>
-          )}
+          <TouchableOpacity style={styles.secondaryButtonOutline} onPress={() => setIsQuizVisible(false)}>
+            <Text style={styles.secondaryButtonOutlineText}>{PRACTICE_TEXTS.close}</Text>
+          </TouchableOpacity>
         </View>
       );
+    }
 
-      return (
-          <View style={{flex: 1}}>
-              <View style={styles.modalHeader}>
-                  <TouchableOpacity onPress={() => setIsQuizVisible(false)} style={styles.closeBtn}>
-                      <Text style={styles.closeText}>✕</Text>
+    const currentWord = quizList[currentIndex];
+
+    // Render individual meaning content (not the card wrapper)
+    const renderMeaningContent = ({ item: meaning, index }: { item: any, index: number }) => (
+      <View style={styles.meaningContent}>
+        <View style={styles.clueImageWrapper}>
+          {((meaning.exampleImageUrl && meaning.exampleImageUrl.trim() !== '') || (currentWord.imageUrl && currentWord.imageUrl.trim() !== '')) ? (
+            <TouchableOpacity
+              activeOpacity={0.9}
+              onPress={() => {
+                const imgUrl = meaning.exampleImageUrl || currentWord.imageUrl;
+                if (imgUrl) {
+                  setViewingImageUrl(imgUrl);
+                  setImageViewerVisible(true);
+                }
+              }}
+            >
+              <Image
+                source={{ uri: meaning.exampleImageUrl || currentWord.imageUrl }}
+                style={styles.clueImage}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
+          ) : (
+            <View style={[styles.clueImage, { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backgroundSoft }]}>
+              <ActivityIndicator size="large" color={colors.primary} />         </View>
+          )}
+        </View>
+
+        {!showHint ? (
+          <TouchableOpacity style={styles.hintButton} onPress={() => setShowHint(true)}>
+            <Text style={styles.hintIcon}>💡</Text>
+            <Text style={styles.hintText}>{PRACTICE_TEXTS.showHint}</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.hintContent}>
+            <Text style={styles.clueLabel}>{PRACTICE_TEXTS.definition} ({meaning.partOfSpeech || '?'})</Text>
+            <Text style={styles.clueText}>{meaning.definition}</Text>
+            {meaning.example && (
+              <Text style={styles.clueExample}>
+                "{meaning.example.replace(new RegExp(currentWord.word, 'gi'), '_____')}"
+              </Text>
+            )}
+          </View>
+        )}
+      </View>
+    );
+
+    return (
+      <View style={{ flex: 1 }}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity onPress={() => setIsQuizVisible(false)} style={styles.closeBtn}>
+            <Text style={styles.closeText}>✕</Text>
+          </TouchableOpacity>
+          <Text style={styles.progressText}>
+            {PRACTICE_TEXTS.step.replace('{current}', String(currentIndex + 1)).replace('{total}', String(quizList.length))}
+          </Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <ScrollView contentContainerStyle={styles.quizContent} showsVerticalScrollIndicator={false}>
+          {/* Fixed card with sliding content inside */}
+          <View style={[styles.clueCard, shadows.medium]}>
+            {/* Create a reversed copy for display so newest meanings show first */}
+            <FlatList
+              data={[...currentWord.meanings].reverse()}
+              keyExtractor={(item) => item.id}
+              renderItem={renderMeaningContent}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onMomentumScrollEnd={(ev) => {
+                const newIndex = Math.round(ev.nativeEvent.contentOffset.x / (SCREEN_WIDTH - (spacing.xl * 2)));
+                setMeaningIndex(newIndex);
+              }}
+              style={{ flexGrow: 0 }}
+            />
+
+            {/* Pagination dots inside card */}
+            {currentWord.meanings.length > 1 && (
+              <View style={styles.paginationContainer}>
+                {currentWord.meanings.map((_, i) => (
+                  <View key={i} style={[styles.paginationDot, meaningIndex === i && styles.paginationDotActive]} />
+                ))}               </View>
+            )}
+          </View>
+
+          {!isAnswered ? (
+            <View style={styles.inputArea}>
+              <View style={styles.modeSwitch}>
+                {(['TYPE', 'SPEAK'] as const).map(mode => (
+                  <TouchableOpacity
+                    key={mode}
+                    style={[styles.switchBtn, inputMode === mode && styles.switchBtnActive]}
+                    onPress={() => setInputMode(mode)}
+                    disabled={isProcessing || isRecording}
+                  >
+                    <Text style={[styles.switchText, inputMode === mode && styles.switchTextActive]}>
+                      {mode === 'TYPE' ? PRACTICE_TEXTS.type : PRACTICE_TEXTS.speak}
+                    </Text>
                   </TouchableOpacity>
-                  <Text style={styles.progressText}>Step {currentIndex + 1} / {quizList.length}</Text>
-                  <View style={{width: 40}} /> 
+                ))}
               </View>
 
-              <ScrollView contentContainerStyle={styles.quizContent} showsVerticalScrollIndicator={false}>
-                {/* Fixed card with sliding content inside */}
-                <View style={[styles.clueCard, shadows.medium]}>
-                  {/* Create a reversed copy for display so newest meanings show first */}
-                  <FlatList
-                    data={[...currentWord.meanings].reverse()}
-                    keyExtractor={(item) => item.id}
-                    renderItem={renderMeaningContent}
-                    horizontal
-                    pagingEnabled
-                    showsHorizontalScrollIndicator={false}
-                    onMomentumScrollEnd={(ev) => {
-                      const newIndex = Math.round(ev.nativeEvent.contentOffset.x / (SCREEN_WIDTH - (spacing.xl * 2)));
-                      setMeaningIndex(newIndex);
-                    }}
-                    style={{ flexGrow: 0 }}
-                  />
-                  
-                  {/* Pagination dots inside card */}
-                  {currentWord.meanings.length > 1 && (
-                    <View style={styles.paginationContainer}>
-                      {currentWord.meanings.map((_, i) => (
-                        <View key={i} style={[styles.paginationDot, meaningIndex === i && styles.paginationDotActive]} />
-                      ))}
-                    </View>
-                  )}
+              {inputMode === 'TYPE' ? (
+                <TextInput
+                  style={styles.textInput}
+                  placeholder={PRACTICE_TEXTS.whatIsThisWord}
+                  placeholderTextColor={colors.textLight}
+                  value={userAnswer}
+                  onChangeText={setUserAnswer}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  onSubmitEditing={() => checkAnswer()}
+                />
+              ) : (
+                <View style={styles.speechContainer}>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[
+                      styles.micButtonLarge,
+                      isRecording && styles.micButtonRecording,
+                      isProcessing && styles.micButtonProcessing,
+                      shadows.medium
+                    ]}
+                    onPress={handleMicPress}
+                    disabled={isProcessing}
+                  >
+                    <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                      <Text style={styles.micIconLarge}>{isProcessing ? '⏳' : '🎙️'}</Text>
+                    </Animated.View>
+                  </TouchableOpacity>
+                  <Text style={styles.speechStatus}>
+                    {isRecording ? PRACTICE_TEXTS.listening : isProcessing ? PRACTICE_TEXTS.thinking : PRACTICE_TEXTS.tapToAnswer}
+                  </Text>
                 </View>
+              )}
 
-                {!isAnswered ? (
-                    <View style={styles.inputArea}>
-                        <View style={styles.modeSwitch}>
-                            { (['TYPE', 'SPEAK'] as const).map(mode => (
-                                <TouchableOpacity 
-                                    key={mode}
-                                    style={[styles.switchBtn, inputMode === mode && styles.switchBtnActive]}
-                                      onPress={() => setInputMode(mode)}
-                                      disabled={isProcessing || isRecording}
-                                  >
-                                      <Text style={[styles.switchText, inputMode === mode && styles.switchTextActive]}>
-                                        {mode === 'TYPE' ? '⌨️ Type' : '🎙️ Speak'}
-                                      </Text>
-                                  </TouchableOpacity>
-                            ))}
-                        </View>
+              <View style={styles.actionRow}>
+                <TouchableOpacity style={styles.giveUpButton} onPress={() => checkAnswer('?')}>
+                  <Text style={styles.giveUpText}>{PRACTICE_TEXTS.showAnswer}</Text>
+                </TouchableOpacity>
 
-                        {inputMode === 'TYPE' ? (
-                            <TextInput 
-                                style={styles.textInput}
-                                placeholder="What is this word?"
-                                placeholderTextColor={colors.textLight}
-                                value={userAnswer}
-                                onChangeText={setUserAnswer}
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                onSubmitEditing={() => checkAnswer()}
-                            />
-                        ) : (
-                            <View style={styles.speechContainer}>
-                                <TouchableOpacity 
-                                    activeOpacity={0.8}
-                                    style={[
-                                        styles.micButtonLarge,
-                                        isRecording && styles.micButtonRecording,
-                                        isProcessing && styles.micButtonProcessing,
-                                        shadows.medium
-                                    ]} 
-                                    onPress={handleMicPress}
-                                    disabled={isProcessing}
-                                >
-                                    <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                                       <Text style={styles.micIconLarge}>{isProcessing ? '⏳' : '🎙️'}</Text>
-                                    </Animated.View>
-                                </TouchableOpacity>
-                                <Text style={styles.speechStatus}>
-                                    {isRecording ? "Listening..." : isProcessing ? "Thinking..." : "Tap to Answer"}
-                                </Text>
-                            </View>
-                        )}
+                <TouchableOpacity
+                  style={[styles.checkButton, (!userAnswer && inputMode === 'TYPE') && styles.checkButtonDisabled]}
+                  onPress={() => checkAnswer()}
+                  disabled={!userAnswer && inputMode === 'TYPE' || isProcessing || isRecording}
+                >
+                  <Text style={styles.checkButtonText}>{PRACTICE_TEXTS.verify}</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.resultArea}>
+              <View style={[styles.resultBadge, isCorrect ? styles.badgeCorrect : styles.badgeWrong]}>
+                <Text style={styles.resultEmoji}>{isCorrect ? '🎉' : '❌'}</Text>
+                <Text style={styles.resultTitle}>{isCorrect ? PRACTICE_TEXTS.splendid : PRACTICE_TEXTS.notQuite}</Text>
+              </View>
 
-                        <View style={styles.actionRow}>
-                            <TouchableOpacity style={styles.giveUpButton} onPress={() => checkAnswer('?')}>
-                                <Text style={styles.giveUpText}>Show Answer</Text>
-                            </TouchableOpacity>
+              <View style={[styles.correctAnswerBox, shadows.subtle]}>
+                <Text style={styles.labelSmall}>{PRACTICE_TEXTS.correctWordIs}</Text>
+                <Text style={styles.correctWord}>{currentWord.word}</Text>
 
-                            <TouchableOpacity 
-                                style={[styles.checkButton, (!userAnswer && inputMode === 'TYPE') && styles.checkButtonDisabled]} 
-                                onPress={() => checkAnswer()}
-                                disabled={!userAnswer && inputMode === 'TYPE' || isProcessing || isRecording}
-                            >
-                                <Text style={styles.checkButtonText}>Verify</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                ) : (
-                    <View style={styles.resultArea}>
-                        <View style={[styles.resultBadge, isCorrect ? styles.badgeCorrect : styles.badgeWrong]}>
-                            <Text style={styles.resultEmoji}>{isCorrect ? '🎉' : '❌'}</Text>
-                            <Text style={styles.resultTitle}>{isCorrect ? 'Splendid!' : 'Not quite'}</Text>
-                        </View>
-                        
-                        <View style={[styles.correctAnswerBox, shadows.subtle]}>
-                            <Text style={styles.labelSmall}>The correct word is:</Text>
-                            <Text style={styles.correctWord}>{currentWord.word}</Text>
-                            
-                            <View style={styles.phoneticRow}>
-                                <Text style={styles.phoneticText}>{currentWord.phonetic || '/.../'}</Text>
-                                <SpeakButton text={currentWord.word} size="medium" />
-                            </View>
-                        </View>
+                <View style={styles.phoneticRow}>
+                  <Text style={styles.phoneticText}>{currentWord.phonetic || DEFAULTS.phonetic}</Text>
+                  <SpeakButton text={currentWord.word} size="medium" />
+                </View>
+              </View>
 
-                        <TouchableOpacity style={[styles.nextButton, shadows.strong]} onPress={handleNext}>
-                            <Text style={styles.nextButtonText}>
-                                {currentIndex === quizList.length - 1 ? "Finish Test" : "Continue →"}
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
-                )}
-            </ScrollView>
-          </View>
-      );
+              <TouchableOpacity style={[styles.nextButton, shadows.strong]} onPress={handleNext}>
+                <Text style={styles.nextButtonText}>
+                  {currentIndex === quizList.length - 1 ? PRACTICE_TEXTS.finishTest : PRACTICE_TEXTS.continue}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </ScrollView>
+      </View>
+    );
   }
 
   if (isQuizVisible) {
-      return (
-        <SafeAreaView style={{flex: 1, backgroundColor: colors.background}}>
-           {showReview ? renderReviewScreen() : (
-             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{flex: 1}}>
-                {renderQuizContent()}
-             </KeyboardAvoidingView>
-           )}
-           
-           <ImageViewerModal
-            visible={imageViewerVisible}
-            imageUrl={viewingImageUrl}
-            onClose={() => setImageViewerVisible(false)}
-            allowEdit={false}
-          />
-        </SafeAreaView>
-      );
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        {showReview ? renderReviewScreen() : (
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+            {renderQuizContent()}
+          </KeyboardAvoidingView>
+        )}
+
+        <ImageViewerModal
+          visible={imageViewerVisible}
+          imageUrl={viewingImageUrl}
+          onClose={() => setImageViewerVisible(false)}
+          allowEdit={false}
+        />
+      </SafeAreaView>
+    );
   }
 
   return (
     <View style={styles.container}>
-          {renderSetup()}
-          
-          <ImageViewerModal
-            visible={imageViewerVisible}
-            imageUrl={viewingImageUrl}
-            onClose={() => setImageViewerVisible(false)}
-            allowEdit={false}
-          />
+      {renderSetup()}
+
+      <ImageViewerModal
+        visible={imageViewerVisible}
+        imageUrl={viewingImageUrl}
+        onClose={() => setImageViewerVisible(false)}
+        allowEdit={false}
+      />
     </View>
   );
 };
@@ -609,10 +618,10 @@ export const PracticeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   centerContent: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
-  
+
   title: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.extraBold, color: colors.textPrimary, marginBottom: spacing.xs, textAlign: 'center' },
   subtitle: { fontSize: typography.sizes.md, color: colors.textSecondary, marginBottom: spacing.xxl, textAlign: 'center' },
-  
+
   card: { width: '100%', backgroundColor: colors.white, borderRadius: borderRadius.lg, padding: spacing.xl, marginBottom: spacing.xxl, borderWidth: 1, borderColor: colors.borderLight },
   label: { fontSize: typography.sizes.md, fontWeight: typography.weights.semibold, color: colors.textPrimary, marginBottom: spacing.lg },
   countRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
@@ -633,11 +642,11 @@ const styles = StyleSheet.create({
   clueCard: { backgroundColor: colors.white, borderRadius: borderRadius.xxxl, padding: spacing.xl, marginBottom: spacing.xxl, alignItems: 'center', marginHorizontal: spacing.xl },
   clueImageWrapper: { width: SCREEN_WIDTH * 0.45, height: SCREEN_WIDTH * 0.45, borderRadius: borderRadius.lg, backgroundColor: colors.backgroundSoft, marginBottom: spacing.lg, overflow: 'hidden' },
   clueImage: { width: '100%', height: '100%' },
-  
+
   hintButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.backgroundSoft, paddingVertical: 10, paddingHorizontal: 20, borderRadius: borderRadius.round },
   hintIcon: { marginRight: 8, fontSize: typography.sizes.lg },
   hintText: { fontWeight: typography.weights.bold, color: colors.primary, fontSize: typography.sizes.base },
-  
+
   hintContent: { alignItems: 'center', width: '100%' },
   clueLabel: { fontSize: typography.sizes.sm, fontWeight: typography.weights.extraBold, color: colors.primary, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
   clueText: { fontSize: typography.sizes.lg, color: colors.textPrimary, textAlign: 'center', lineHeight: 26, marginBottom: spacing.md, fontWeight: typography.weights.semibold },
@@ -649,7 +658,7 @@ const styles = StyleSheet.create({
   switchBtnActive: { backgroundColor: colors.white, ...shadows.subtle },
   switchText: { fontWeight: typography.weights.bold, color: colors.textSecondary, fontSize: typography.sizes.base },
   switchTextActive: { color: colors.primary },
-  
+
   textInput: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderMedium, borderRadius: borderRadius.xl, padding: spacing.lg, fontSize: typography.sizes.xxl, textAlign: 'center', color: colors.textPrimary, marginBottom: spacing.xxl, ...shadows.subtle },
 
   speechContainer: { alignItems: 'center', marginBottom: spacing.xxxl },
@@ -672,13 +681,13 @@ const styles = StyleSheet.create({
   badgeWrong: { backgroundColor: '#FEE2E2' },
   resultEmoji: { fontSize: typography.sizes.xl, marginRight: 8 },
   resultTitle: { fontSize: typography.sizes.lg, fontWeight: typography.weights.extraBold, color: colors.textPrimary },
-  
+
   correctAnswerBox: { alignItems: 'center', marginBottom: spacing.xxl, width: '100%', padding: spacing.xl, backgroundColor: colors.white, borderRadius: borderRadius.xxxl, borderWidth: 1, borderColor: colors.borderLight },
   labelSmall: { fontSize: typography.sizes.base, color: colors.textLight, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 },
   correctWord: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.heavy, color: colors.textPrimary, marginBottom: spacing.sm, letterSpacing: -0.5 },
   phoneticRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   phoneticText: { fontSize: typography.sizes.lg, color: colors.textSecondary, fontStyle: 'italic' },
-  
+
   nextButton: { width: '100%', backgroundColor: colors.primary, borderRadius: borderRadius.lg, paddingVertical: 14, alignItems: 'center', ...shadows.strong },
   nextButtonText: { color: colors.white, fontSize: typography.sizes.md, fontWeight: typography.weights.bold, letterSpacing: 0.3 },
 
@@ -740,7 +749,7 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: typography.weights.semibold,
   },
-  
+
   // Carousel styles
   meaningContent: {
     width: SCREEN_WIDTH - (spacing.xl * 4), // Trừ padding của card và margin

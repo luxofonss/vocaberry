@@ -1,6 +1,6 @@
 // WordCard Component - Modern Minimal Design
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef, useCallback, memo, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,34 +8,44 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
-  Dimensions,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { Word } from '../types';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-// Logic for grid sizing - 20px side padding, 8px gap between cards
-const SIDE_PADDING = 20;
-const GAP = 8;
-const CARD_WIDTH_STANDARD = (SCREEN_WIDTH - (SIDE_PADDING * 2) - GAP) / 2;
-const CARD_WIDTH_COMPACT = (SCREEN_WIDTH - (SIDE_PADDING * 2) - (GAP * 2)) / 3;
-
 import { EventBus } from '../services/EventBus';
-import { ActivityIndicator } from 'react-native';
+import { calculateCardWidth, isWordLearned, isValidImageUrl } from '../utils';
+import { spacing } from '../theme';
+
+// Grid configuration
+const GRID_CONFIG = {
+  standard: { columns: 2, sidePadding: spacing.screenPadding, gap: spacing.itemGap },
+  compact: { columns: 3, sidePadding: spacing.screenPadding, gap: spacing.itemGap },
+} as const;
+
+type CardVariant = 'standard' | 'compact';
 
 interface WordCardProps {
   word: Word;
   onPress: () => void;
-  variant?: 'standard' | 'compact';
+  variant?: CardVariant;
 }
 
-export const WordCard: React.FC<WordCardProps> = ({ word: originalWord, onPress, variant = 'standard' }) => {
+interface ImageUpdateEvent {
+  wordId: string;
+  word: Word;
+}
+
+const WordCardComponent: React.FC<WordCardProps> = ({
+  word: originalWord,
+  onPress,
+  variant = 'standard'
+}) => {
   const [word, setWord] = useState(originalWord);
-  const scaleValue = React.useRef(new Animated.Value(1)).current;
+  const scaleValue = useRef(new Animated.Value(1)).current;
+
   const isCompact = variant === 'compact';
-  const cardWidth = isCompact ? CARD_WIDTH_COMPACT : CARD_WIDTH_STANDARD;
+  const cardWidth = useMemo(() => calculateCardWidth(GRID_CONFIG[variant]), [variant]);
 
   useEffect(() => {
     setWord(originalWord);
@@ -43,39 +53,44 @@ export const WordCard: React.FC<WordCardProps> = ({ word: originalWord, onPress,
 
   // Listen for live update
   useEffect(() => {
-    function onImageUpdate({ wordId, word: updated }) {
+    const onImageUpdate = ({ wordId, word: updated }: ImageUpdateEvent) => {
       if (wordId === word.id) setWord(updated);
-    }
+    };
+
     EventBus.on('wordImageUpdated', onImageUpdate);
-    return () => { EventBus.off('wordImageUpdated', onImageUpdate); };
+    return () => {
+      EventBus.off('wordImageUpdated', onImageUpdate);
+    };
   }, [word.id]);
 
-  // Custom logic for "learned" status
-  const isLearned = word.reviewCount >= 5;
+  const isLearned = useMemo(() => isWordLearned(word.reviewCount), [word.reviewCount]);
+  const hasValidImage = useMemo(() => isValidImageUrl(word.imageUrl), [word.imageUrl]);
 
-  const handlePressIn = () => {
-    Animated.spring(scaleValue, { 
-      toValue: 0.94, 
+  const handlePressIn = useCallback(() => {
+    Animated.spring(scaleValue, {
+      toValue: 0.94,
       useNativeDriver: true,
       tension: 100,
-      friction: 5 
+      friction: 5
     }).start();
-  };
+  }, [scaleValue]);
 
-  const handlePressOut = () => {
-    Animated.spring(scaleValue, { 
-      toValue: 1, 
+  const handlePressOut = useCallback(() => {
+    Animated.spring(scaleValue, {
+      toValue: 1,
       useNativeDriver: true,
       tension: 100,
-      friction: 5 
+      friction: 5
     }).start();
-  };
+  }, [scaleValue]);
+
+  const containerStyle = useMemo(() => [
+    styles.container,
+    { width: cardWidth, transform: [{ scale: scaleValue }] }
+  ], [cardWidth, scaleValue]);
 
   return (
-    <Animated.View style={[
-      styles.container, 
-      { width: cardWidth, transform: [{ scale: scaleValue }] }
-    ]}>
+    <Animated.View style={containerStyle}>
       <TouchableOpacity
         activeOpacity={1}
         onPress={onPress}
@@ -83,10 +98,9 @@ export const WordCard: React.FC<WordCardProps> = ({ word: originalWord, onPress,
         onPressOut={handlePressOut}
         style={styles.touchable}
       >
-        {/* Image Container with Square Aspect Ratio and Soft Borders */}
         <View style={styles.imageContainer}>
-          {!word.imageUrl || word.imageUrl.trim() === '' ? (
-            <View style={[styles.image, {alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backgroundSoft}]}> 
+          {!hasValidImage ? (
+            <View style={[styles.image, styles.imagePlaceholder]}>
               <ActivityIndicator size="large" color={colors.primary} />
             </View>
           ) : (
@@ -96,19 +110,17 @@ export const WordCard: React.FC<WordCardProps> = ({ word: originalWord, onPress,
               resizeMode="cover"
             />
           )}
-          
-          {/* Learned Badge (Checkmark) */}
+
           {isLearned && (
             <View style={styles.learnedBadge}>
               <Text style={styles.checkIcon}>✓</Text>
             </View>
           )}
         </View>
-        
-        {/* Word Text below image */}
+
         <View style={styles.textContainer}>
-          <Text 
-            style={[styles.wordLabel, isCompact && styles.wordLabelCompact]} 
+          <Text
+            style={[styles.wordLabel, isCompact && styles.wordLabelCompact]}
             numberOfLines={1}
           >
             {word.word}
@@ -119,47 +131,68 @@ export const WordCard: React.FC<WordCardProps> = ({ word: originalWord, onPress,
   );
 };
 
+// Memoize component to prevent unnecessary re-renders
+export const WordCard = memo(WordCardComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.word.id === nextProps.word.id &&
+    prevProps.word.imageUrl === nextProps.word.imageUrl &&
+    prevProps.word.reviewCount === nextProps.word.reviewCount &&
+    prevProps.word.word === nextProps.word.word &&
+    prevProps.variant === nextProps.variant
+  );
+});
+
+// Style constants
+const STYLES = {
+  borderRadius: 28,
+  learnedBadgeSize: 24,
+  learnedBadgeColor: '#4ade80',
+  textColor: '#1f2937',
+} as const;
+
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 20,
+    marginBottom: spacing.lg,
   },
   touchable: {
     width: '100%',
   },
   imageContainer: {
     width: '100%',
-    aspectRatio: 1, // Keep it square
-    borderRadius: 28, // rounded-3xl approx
+    aspectRatio: 1,
+    borderRadius: STYLES.borderRadius,
     backgroundColor: colors.backgroundSoft,
     overflow: 'hidden',
-    // Gradient effect emulation using background color
     position: 'relative',
-    
-    // Modern soft shadow
     ...Platform.select({
-        ios: {
-            shadowColor: '#000',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.08,
-            shadowRadius: 10,
-        },
-        android: {
-            elevation: 3,
-        }
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+      },
+      android: {
+        elevation: 3,
+      }
     })
   },
   image: {
     width: '100%',
     height: '100%',
   },
+  imagePlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.backgroundSoft,
+  },
   learnedBadge: {
     position: 'absolute',
     top: 10,
     right: 10,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: '#4ade80', // green-400
+    width: STYLES.learnedBadgeSize,
+    height: STYLES.learnedBadgeSize,
+    borderRadius: STYLES.learnedBadgeSize / 2,
+    backgroundColor: STYLES.learnedBadgeColor,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
@@ -179,8 +212,8 @@ const styles = StyleSheet.create({
   },
   wordLabel: {
     fontSize: 16,
-    fontWeight: '600', // font-medium approx
-    color: '#1f2937', // gray-800
+    fontWeight: '600',
+    color: STYLES.textColor,
     textAlign: 'center',
   },
   wordLabelCompact: {

@@ -1,6 +1,6 @@
 // Settings Screen - User Settings
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,29 +12,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { theme, colors, typography, spacing, borderRadius, shadows } from '../theme';
+import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import { RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
+import { LANGUAGES } from '../constants';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Settings'>;
-
-// Common languages with their codes and display names
-const LANGUAGES = [
-  { code: 'vi', name: 'Tiếng Việt', flag: '🇻🇳' },
-  { code: 'zh', name: '中文 (Chinese)', flag: '🇨🇳' },
-  { code: 'es', name: 'Español (Spanish)', flag: '🇪🇸' },
-  { code: 'fr', name: 'Français (French)', flag: '🇫🇷' },
-  { code: 'de', name: 'Deutsch (German)', flag: '🇩🇪' },
-  { code: 'ja', name: '日本語 (Japanese)', flag: '🇯🇵' },
-  { code: 'ko', name: '한국어 (Korean)', flag: '🇰🇷' },
-  { code: 'pt', name: 'Português (Portuguese)', flag: '🇵🇹' },
-  { code: 'it', name: 'Italiano (Italian)', flag: '🇮🇹' },
-  { code: 'ru', name: 'Русский (Russian)', flag: '🇷🇺' },
-  { code: 'ar', name: 'العربية (Arabic)', flag: '🇸🇦' },
-  { code: 'th', name: 'ไทย (Thai)', flag: '🇹🇭' },
-  { code: 'id', name: 'Bahasa Indonesia', flag: '🇮🇩' },
-  { code: 'hi', name: 'हिन्दी (Hindi)', flag: '🇮🇳' },
-];
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -45,7 +28,7 @@ export const SettingsScreen: React.FC = () => {
     loadMotherLanguage();
   }, []);
 
-  const loadMotherLanguage = async () => {
+  const loadMotherLanguage = useCallback(async () => {
     try {
       const lang = await StorageService.getMotherLanguage();
       setSelectedLanguage(lang);
@@ -54,25 +37,29 @@ export const SettingsScreen: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const handleLanguageSelect = async (languageCode: string) => {
+  const handleLanguageSelect = useCallback(async (languageCode: string) => {
     try {
       await StorageService.saveMotherLanguage(languageCode);
       setSelectedLanguage(languageCode);
     } catch (error) {
       console.error('[SettingsScreen] Failed to save mother language:', error);
     }
-  };
+  }, []);
 
-  const handleClearLanguage = async () => {
+  const handleClearLanguage = useCallback(async () => {
     try {
       await StorageService.saveMotherLanguage('');
       setSelectedLanguage(null);
     } catch (error) {
       console.error('[SettingsScreen] Failed to clear mother language:', error);
     }
-  };
+  }, []);
+
+  const handleGoBack = useCallback(() => {
+    navigation.goBack();
+  }, [navigation]);
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -80,7 +67,7 @@ export const SettingsScreen: React.FC = () => {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={handleGoBack}
         >
           <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
         </TouchableOpacity>
@@ -213,7 +200,7 @@ const styles = StyleSheet.create({
     borderRadius: borderRadius.lg,
     borderWidth: 1,
     borderColor: colors.borderLight,
-    ...shadows.small,
+    ...shadows.soft,
   },
   languageItemSelected: {
     borderColor: colors.primary,

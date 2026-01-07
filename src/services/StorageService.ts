@@ -4,7 +4,7 @@ import { Word } from '../types';
 import { DatabaseService } from './DatabaseService';
 
 const STORAGE_KEYS = {
-     IS_SEEDED: 'vocaberry_is_seeded_v11', // Bumped version for new schema
+     IS_SEEDED: 'vocaberry_is_seeded_v12', // Bumped version for mock data
      USER_NAME: 'vocaberry_user_name', // User's name
      MOTHER_LANGUAGE: 'vocaberry_mother_language', // User's mother language code (e.g., 'vi', 'zh', 'es')
      LAST_PRACTICE_TIME: 'vocaberry_last_practice_time', // Timestamp of last practice session
@@ -12,12 +12,151 @@ const STORAGE_KEYS = {
      PRACTICE_STATS: 'vocaberry_practice_stats', // Practice statistics (JSON)
 };
 
+// Mock data for initial seeding
+const MOCK_IMAGE = 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRtkzZMTh_n9DE3CznuCnA8wVdQI7IQT9sDng&s';
+
+// Helper to generate Google TTS URL
+const getGoogleAudioUrl = (text: string): string => {
+     return `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=en&client=tw-ob`;
+};
+
+const MOCK_WORDS: Word[] = [
+     {
+          id: 'mock_1',
+          word: 'apple',
+          phonetic: '/ˈæp.əl/',
+          audioUrl: getGoogleAudioUrl('apple'),
+          imageUrl: MOCK_IMAGE,
+          topics: ['Food', 'Daily Life'],
+          nextReviewDate: new Date().toISOString().split('T')[0],
+          reviewCount: 0,
+          viewCount: 0,
+          createdAt: new Date().toISOString(),
+          meanings: [
+               {
+                    id: 'mock_1_m1',
+                    partOfSpeech: 'noun',
+                    definition: 'A round fruit with red or green skin and a white inside.',
+                    example: 'I eat an apple every day for breakfast.',
+                    exampleImageUrl: MOCK_IMAGE,
+                    exampleAudioUrl: getGoogleAudioUrl('I eat an apple every day for breakfast.'),
+                    imageDescription: 'A fresh red apple on white background'
+               }
+          ]
+     },
+     {
+          id: 'mock_2',
+          word: 'book',
+          phonetic: '/bʊk/',
+          audioUrl: getGoogleAudioUrl('book'),
+          imageUrl: MOCK_IMAGE,
+          topics: ['Daily Life', 'Education'],
+          nextReviewDate: new Date().toISOString().split('T')[0],
+          reviewCount: 0,
+          viewCount: 1,
+          createdAt: new Date(Date.now() - 86400000).toISOString(),
+          meanings: [
+               {
+                    id: 'mock_2_m1',
+                    partOfSpeech: 'noun',
+                    definition: 'A written or printed work consisting of pages glued or sewn together.',
+                    example: 'She sat in the garden reading a book.',
+                    exampleImageUrl: MOCK_IMAGE,
+                    exampleAudioUrl: getGoogleAudioUrl('She sat in the garden reading a book.'),
+                    imageDescription: 'An open book on a wooden table'
+               },
+               {
+                    id: 'mock_2_m2',
+                    partOfSpeech: 'verb',
+                    definition: 'To make a reservation for accommodation or a place.',
+                    example: 'I need to book a flight to London.',
+                    exampleImageUrl: MOCK_IMAGE,
+                    exampleAudioUrl: getGoogleAudioUrl('I need to book a flight to London.'),
+                    imageDescription: 'A person booking a flight on laptop'
+               }
+          ]
+     },
+     {
+          id: 'mock_3',
+          word: 'computer',
+          phonetic: '/kəmˈpjuː.tər/',
+          audioUrl: getGoogleAudioUrl('computer'),
+          imageUrl: MOCK_IMAGE,
+          topics: ['Technology'],
+          nextReviewDate: new Date().toISOString().split('T')[0],
+          reviewCount: 0,
+          viewCount: 2,
+          createdAt: new Date(Date.now() - 172800000).toISOString(),
+          meanings: [
+               {
+                    id: 'mock_3_m1',
+                    partOfSpeech: 'noun',
+                    definition: 'An electronic machine used for storing, organizing, and finding information.',
+                    example: 'My computer crashed and I lost all my work.',
+                    exampleImageUrl: MOCK_IMAGE,
+                    exampleAudioUrl: getGoogleAudioUrl('My computer crashed and I lost all my work.'),
+                    imageDescription: 'A modern laptop computer'
+               }
+          ]
+     },
+     {
+          id: 'mock_4',
+          word: 'sunshine',
+          phonetic: '/ˈsʌn.ʃaɪn/',
+          audioUrl: getGoogleAudioUrl('sunshine'),
+          imageUrl: MOCK_IMAGE,
+          topics: ['Nature', 'Weather'],
+          nextReviewDate: new Date().toISOString().split('T')[0],
+          reviewCount: 0,
+          viewCount: 0,
+          createdAt: new Date(Date.now() - 259200000).toISOString(),
+          meanings: [
+               {
+                    id: 'mock_4_m1',
+                    partOfSpeech: 'noun',
+                    definition: 'The light and warmth that come from the sun.',
+                    example: 'The sunshine made everyone feel happy.',
+                    exampleImageUrl: MOCK_IMAGE,
+                    exampleAudioUrl: getGoogleAudioUrl('The sunshine made everyone feel happy.'),
+                    imageDescription: 'Bright sunshine through clouds'
+               }
+          ]
+     },
+     {
+          id: 'mock_5',
+          word: 'coffee',
+          phonetic: '/ˈkɒf.i/',
+          audioUrl: getGoogleAudioUrl('coffee'),
+          imageUrl: MOCK_IMAGE,
+          topics: ['Food', 'Daily Life'],
+          nextReviewDate: new Date().toISOString().split('T')[0],
+          reviewCount: 0,
+          viewCount: 3,
+          createdAt: new Date(Date.now() - 345600000).toISOString(),
+          meanings: [
+               {
+                    id: 'mock_5_m1',
+                    partOfSpeech: 'noun',
+                    definition: 'A dark brown drink made from roasted coffee beans.',
+                    example: 'I need a cup of coffee to wake up in the morning.',
+                    exampleImageUrl: MOCK_IMAGE,
+                    exampleAudioUrl: getGoogleAudioUrl('I need a cup of coffee to wake up in the morning.'),
+                    imageDescription: 'A steaming cup of coffee'
+               }
+          ]
+     }
+];
+
 export const StorageService = {
      /**
       * Seeds the initial data if the app is launched for the first time.
       */
      seedSampleData: async (): Promise<Word[]> => {
           try {
+               // Save all mock words to database
+               for (const word of MOCK_WORDS) {
+                    await DatabaseService.saveWord(word);
+               }
                await AsyncStorage.setItem(STORAGE_KEYS.IS_SEEDED, STORAGE_KEYS.IS_SEEDED);
                return await DatabaseService.getAllWords();
           } catch (e) {
@@ -37,6 +176,19 @@ export const StorageService = {
                }
           } catch (e) {
                console.error('[StorageService] Failed to check seed status', e);
+          }
+     },
+
+     /**
+      * Force reset and re-seed mock data (useful for testing/refresh)
+      */
+     forceSeedMockData: async (): Promise<Word[]> => {
+          try {
+               await DatabaseService.clearAllData();
+               return await StorageService.seedSampleData();
+          } catch (e) {
+               console.error('[StorageService] Failed to force seed data', e);
+               return [];
           }
      },
 
@@ -185,12 +337,12 @@ export const StorageService = {
           const words = await DatabaseService.getAllWords();
           const today = new Date().toISOString().split('T')[0];
           const dueWords = words.filter(w => w.nextReviewDate <= today);
-          
+
           // Nếu có từ cần review theo SRS, ưu tiên những từ đó
           if (dueWords.length > 0) {
                return dueWords;
           }
-          
+
           // Nếu không có, trả về 5 từ ít xem nhất
           return await StorageService.getLeastViewedWords(5);
      },
@@ -352,7 +504,7 @@ export const StorageService = {
           try {
                const statsJson = await AsyncStorage.getItem(STORAGE_KEYS.PRACTICE_STATS);
                const lastPractice = await StorageService.getLastPracticeTime();
-               
+
                if (!statsJson) {
                     return {
                          totalSessions: 0,
@@ -389,7 +541,7 @@ export const StorageService = {
                const stats = await StorageService.getPracticeStats();
                const now = Date.now();
                const lastPractice = stats.lastPracticeTime;
-               
+
                // Calculate streak
                let currentStreak = stats.currentStreak;
                if (lastPractice) {
@@ -397,9 +549,9 @@ export const StorageService = {
                     const today = new Date();
                     lastDate.setHours(0, 0, 0, 0);
                     today.setHours(0, 0, 0, 0);
-                    
+
                     const daysDiff = Math.floor((today.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
-                    
+
                     if (daysDiff === 0) {
                          // Same day, keep streak
                          currentStreak = stats.currentStreak;
@@ -427,5 +579,5 @@ export const StorageService = {
           } catch (e) {
                console.error('[StorageService] Failed to update practice stats', e);
           }
-     }
+     },
 };

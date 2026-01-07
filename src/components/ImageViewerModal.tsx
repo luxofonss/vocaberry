@@ -1,5 +1,5 @@
 // Image Viewer Modal - Full Screen Image with Edit Option
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Modal,
   View,
@@ -15,6 +15,7 @@ import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, spacing, borderRadius } from '../theme';
 import { ImageSearchModal } from './ImageSearchModal';
+import { IMAGE_VIEWER_TEXTS, UI_LIMITS } from '../constants';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -37,43 +38,43 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
 }) => {
   const [imageSearchVisible, setImageSearchVisible] = useState(false);
 
-  const handlePickImage = () => {
+  const handlePickImage = useCallback(() => {
     if (!allowEdit || !onImageChange) return;
-    
+
     Alert.alert(
-      "Thay đổi ảnh",
-      "Bạn muốn cập nhật ảnh bằng cách nào?",
+      IMAGE_VIEWER_TEXTS.changeImage,
+      IMAGE_VIEWER_TEXTS.howToUpdate,
       [
-        { 
-          text: "🔍 Tìm trên Unsplash", 
-          onPress: () => setImageSearchVisible(true) 
+        {
+          text: IMAGE_VIEWER_TEXTS.searchUnsplash,
+          onPress: () => setImageSearchVisible(true)
         },
-        { 
-          text: "📸 Chụp ảnh", 
-          onPress: () => handleCaptureImage() 
+        {
+          text: IMAGE_VIEWER_TEXTS.takePhoto,
+          onPress: () => handleCaptureImage()
         },
-        { 
-          text: "🖼️ Thư viện", 
-          onPress: () => handleChooseFromLibrary() 
+        {
+          text: IMAGE_VIEWER_TEXTS.library,
+          onPress: () => handleChooseFromLibrary()
         },
-        { text: "Hủy", style: "cancel" }
+        { text: IMAGE_VIEWER_TEXTS.cancel, style: "cancel" }
       ]
     );
-  };
+  }, [allowEdit, onImageChange]);
 
-  const handleCaptureImage = async () => {
+  const handleCaptureImage = useCallback(async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert("Thông báo", "Cần quyền camera để chụp ảnh.");
+        Alert.alert(IMAGE_VIEWER_TEXTS.notification, IMAGE_VIEWER_TEXTS.cameraPermission);
         return;
       }
 
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
+        aspect: UI_LIMITS.imageAspectRatio.square,
+        quality: UI_LIMITS.imageQuality,
         base64: true,
       });
 
@@ -83,17 +84,17 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
         onClose();
       }
     } catch (error) {
-      Alert.alert("Lỗi", "Không thể chụp ảnh.");
+      Alert.alert(IMAGE_VIEWER_TEXTS.error, IMAGE_VIEWER_TEXTS.cannotTakePhoto);
     }
-  };
+  }, [onImageChange, onClose]);
 
-  const handleChooseFromLibrary = async () => {
+  const handleChooseFromLibrary = useCallback(async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
+        aspect: UI_LIMITS.imageAspectRatio.square,
+        quality: UI_LIMITS.imageQuality,
         base64: true,
       });
 
@@ -103,16 +104,16 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
         onClose();
       }
     } catch (error) {
-      Alert.alert("Lỗi", "Không thể mở thư viện ảnh.");
+      Alert.alert(IMAGE_VIEWER_TEXTS.error, IMAGE_VIEWER_TEXTS.cannotOpenLibrary);
     }
-  };
+  }, [onImageChange, onClose]);
 
-  const handleSearchSelect = (url: string) => {
+  const handleSearchSelect = useCallback((url: string) => {
     if (onImageChange) {
       onImageChange(url);
       onClose();
     }
-  };
+  }, [onImageChange, onClose]);
 
   if (!visible || !imageUrl || imageUrl.trim() === '') return null;
 
@@ -124,18 +125,18 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
       onRequestClose={onClose}
     >
       <BlurView intensity={100} tint="dark" style={styles.overlay}>
-        <TouchableOpacity 
-          style={styles.closeArea} 
-          activeOpacity={1} 
+        <TouchableOpacity
+          style={styles.closeArea}
+          activeOpacity={1}
           onPress={onClose}
         >
           <View style={styles.imageContainer}>
-            <Image 
-              source={{ uri: imageUrl }} 
+            <Image
+              source={{ uri: imageUrl }}
               style={styles.fullImage}
               resizeMode="contain"
             />
-            
+
             {/* Close Button */}
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Text style={styles.closeText}>✕</Text>

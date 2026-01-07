@@ -64,11 +64,11 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
 
   const searchImages = async (searchQuery: string) => {
     if (!searchQuery.trim()) return;
-    
+
     setLoading(true);
     setError(null);
     setImages([]);
-    
+
     try {
       if (!UNSPLASH_ACCESS_KEY) {
         setError('Vui lòng cấu hình EXPO_PUBLIC_UNSPLASH_ACCESS_KEY trong file .env để sử dụng Unsplash.');
@@ -84,12 +84,12 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
           },
         }
       );
-      
+
       if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.errors?.[0] || 'Failed to fetch from Unsplash');
+        const errorData = await response.json();
+        throw new Error(errorData.errors?.[0] || 'Failed to fetch from Unsplash');
       }
-      
+
       const data = await response.json();
       setImages(data.results);
     } catch (err: any) {
@@ -122,14 +122,14 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
   };
 
   const renderItem = ({ item }: { item: UnsplashImage }) => (
-    <TouchableOpacity 
-      style={styles.imageCard} 
+    <TouchableOpacity
+      style={styles.imageCard}
       onPress={() => handleSelect(item.urls.regular)}
       activeOpacity={0.8}
     >
-      <Image 
-        source={{ uri: item.urls.small }} 
-        style={styles.thumbnail} 
+      <Image
+        source={{ uri: item.urls.small }}
+        style={styles.thumbnail}
         resizeMode="cover"
       />
       <View style={styles.creditBadge}>
@@ -141,9 +141,9 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
   );
 
   return (
-    <Modal 
-      visible={visible} 
-      animationType="slide" 
+    <Modal
+      visible={visible}
+      animationType="slide"
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
@@ -155,7 +155,7 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
               <Ionicons name="close" size={24} color={colors.textPrimary} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Chọn ảnh từ Unsplash</Text>
-            <View style={styles.placeholderIcon} /> 
+            <View style={styles.placeholderIcon} />
           </View>
 
           {/* Search Bar */}
@@ -217,10 +217,10 @@ export const ImageSearchModal: React.FC<ImageSearchModalProps> = ({
 
           {loading && images.length > 0 && (
             <View style={styles.overlayLoading}>
-               <View style={styles.loadingBox}>
-                 <ActivityIndicator color={colors.white} size="large" />
-                 <Text style={styles.processingText}>Đang tải ảnh...</Text>
-               </View>
+              <View style={styles.loadingBox}>
+                <ActivityIndicator color={colors.white} size="large" />
+                <Text style={styles.processingText}>Đang tải ảnh...</Text>
+              </View>
             </View>
           )}
         </SafeAreaView>
@@ -255,17 +255,17 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: spacing.xs,
-    borderRadius: borderRadius.full,
+    borderRadius: borderRadius.round,
     backgroundColor: colors.backgroundSoft,
   },
   placeholderIcon: {
     width: 32,
   },
-  
+
   searchContainer: {
     padding: spacing.md,
     backgroundColor: colors.cardWhite,
-    ...shadows.sm,
+    ...shadows.soft,
     zIndex: 1,
   },
   searchBox: {
@@ -321,7 +321,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.backgroundSoft,
     overflow: 'hidden',
     marginBottom: GAP,
-    ...shadows.sm,
+    ...shadows.soft,
     borderWidth: 1,
     borderColor: colors.borderLight,
   },

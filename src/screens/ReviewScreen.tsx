@@ -1,6 +1,6 @@
 // Review Screen - Minimalistic Purple Pastel Style
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -19,9 +19,9 @@ import { colors } from '../theme/colors';
 import { Word, RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
 import { SpeakButton, ImageViewerModal } from '../components';
+import { ANIMATION, SWIPE_THRESHOLD, REVIEW_TEXTS } from '../constants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-const SWIPE_THRESHOLD = 100;
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Review'>;
 
@@ -42,7 +42,7 @@ export const ReviewScreen: React.FC = () => {
     loadWordsForReview();
   }, []);
 
-  const loadWordsForReview = async () => {
+  const loadWordsForReview = useCallback(async () => {
     try {
       const reviewWords = await StorageService.getWordsForReview();
       if (reviewWords.length === 0) {
@@ -56,7 +56,7 @@ export const ReviewScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -80,28 +80,28 @@ export const ReviewScreen: React.FC = () => {
     })
   ).current;
 
-  const handleSwipe = (direction: 'left' | 'right') => {
+  const handleSwipe = useCallback((direction: 'left' | 'right') => {
     const toValue = direction === 'right' ? SCREEN_WIDTH + 100 : -SCREEN_WIDTH - 100;
-    
+
     Animated.parallel([
       Animated.timing(position, {
         toValue: { x: toValue, y: 0 },
-        duration: 250,
+        duration: ANIMATION.normal,
         useNativeDriver: true,
       }),
       Animated.timing(cardOpacity, {
         toValue: 0,
-        duration: 250,
+        duration: ANIMATION.normal,
         useNativeDriver: true,
       }),
     ]).start(() => {
       handleAnswer(direction === 'right');
     });
-  };
+  }, [position, cardOpacity]);
 
-  const handleAnswer = async (remembered: boolean) => {
+  const handleAnswer = useCallback(async (remembered: boolean) => {
     const currentWord = words[currentIndex];
-    
+
     try {
       await StorageService.markAsReviewed(currentWord.id, remembered);
     } catch (error) {
@@ -117,23 +117,23 @@ export const ReviewScreen: React.FC = () => {
     } else {
       setCompleted(true);
     }
-  };
+  }, [words, currentIndex, position, cardOpacity, revealAnim]);
 
-  const handleReveal = () => {
+  const handleReveal = useCallback(() => {
     setRevealed(true);
     Animated.spring(revealAnim, {
       toValue: 1,
       useNativeDriver: true,
     }).start();
-  };
+  }, [revealAnim]);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     navigation.goBack();
-  };
+  }, [navigation]);
 
-  const handleButtonPress = (remembered: boolean) => {
+  const handleButtonPress = useCallback((remembered: boolean) => {
     handleSwipe(remembered ? 'right' : 'left');
-  };
+  }, [handleSwipe]);
 
   const getCardRotation = () => {
     return position.x.interpolate({
@@ -149,7 +149,7 @@ export const ReviewScreen: React.FC = () => {
           <View style={styles.loadingIconBg}>
             <Text style={styles.loadingEmoji}>📖</Text>
           </View>
-          <Text style={styles.loadingText}>Loading...</Text>
+          <Text style={styles.loadingText}>{REVIEW_TEXTS.loading}</Text>
         </View>
       </SafeAreaView>
     );
@@ -162,19 +162,19 @@ export const ReviewScreen: React.FC = () => {
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Practice</Text>
+          <Text style={styles.headerTitle}>{REVIEW_TEXTS.practice}</Text>
           <View style={styles.placeholder} />
         </View>
         <View style={styles.centerContainer}>
           <View style={styles.emptyIconBg}>
             <Text style={styles.emptyEmoji}>🎉</Text>
           </View>
-          <Text style={styles.emptyTitle}>No words to review!</Text>
+          <Text style={styles.emptyTitle}>{REVIEW_TEXTS.noWordsToReview}</Text>
           <Text style={styles.emptySubtitle}>
-            Add some words to start practicing
+            {REVIEW_TEXTS.addWordsToStart}
           </Text>
           <TouchableOpacity style={styles.backButtonLarge} onPress={handleBack}>
-            <Text style={styles.backButtonLargeText}>Go Back</Text>
+            <Text style={styles.backButtonLargeText}>{REVIEW_TEXTS.goBack}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -189,14 +189,14 @@ export const ReviewScreen: React.FC = () => {
             <View style={styles.completedIconBg}>
               <Text style={styles.completedEmoji}>🎉</Text>
             </View>
-            <Text style={styles.completedTitle}>Amazing!</Text>
+            <Text style={styles.completedTitle}>{REVIEW_TEXTS.amazing}</Text>
             <Text style={styles.completedSubtitle}>
-              You've reviewed all {words.length} words
+              {REVIEW_TEXTS.reviewedAllWords.replace('{count}', String(words.length))}
             </Text>
           </View>
-          
+
           <TouchableOpacity style={styles.doneButton} onPress={handleBack}>
-            <Text style={styles.doneButtonText}>Continue</Text>
+            <Text style={styles.doneButtonText}>{REVIEW_TEXTS.continueBtn}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -213,14 +213,14 @@ export const ReviewScreen: React.FC = () => {
         <TouchableOpacity style={styles.backButton} onPress={handleBack}>
           <Text style={styles.backIcon}>✕</Text>
         </TouchableOpacity>
-        
+
         {/* Progress Bar */}
         <View style={styles.progressContainer}>
           <View style={styles.progressBar}>
             <View style={[styles.progressFill, { width: `${progress}%` }]} />
           </View>
         </View>
-        
+
         <Text style={styles.progressText}>
           {currentIndex + 1}/{words.length}
         </Text>
@@ -243,7 +243,7 @@ export const ReviewScreen: React.FC = () => {
         >
           {/* Image */}
           {currentWord.imageUrl && currentWord.imageUrl.trim() !== '' ? (
-            <TouchableOpacity 
+            <TouchableOpacity
               activeOpacity={0.9}
               onPress={() => setImageViewerVisible(true)}
             >
@@ -262,9 +262,9 @@ export const ReviewScreen: React.FC = () => {
           {/* Question or Answer */}
           {!revealed ? (
             <View style={styles.questionContainer}>
-              <Text style={styles.questionText}>What is this?</Text>
+              <Text style={styles.questionText}>{REVIEW_TEXTS.whatIsThis}</Text>
               <TouchableOpacity style={styles.revealButton} onPress={handleReveal}>
-                <Text style={styles.revealButtonText}>Tap to reveal</Text>
+                <Text style={styles.revealButtonText}>{REVIEW_TEXTS.tapToReveal}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -288,7 +288,7 @@ export const ReviewScreen: React.FC = () => {
                 <Text style={styles.wordText}>{currentWord.word}</Text>
                 <SpeakButton text={currentWord.word} size="small" />
               </View>
-              <Text style={styles.definitionText}>{currentWord.meanings[0]?.definition || 'No definition available'}</Text>
+              <Text style={styles.definitionText}>{currentWord.meanings[0]?.definition || REVIEW_TEXTS.noDefinition}</Text>
             </Animated.View>
           )}
         </Animated.View>
@@ -301,13 +301,13 @@ export const ReviewScreen: React.FC = () => {
             style={[styles.actionButton, styles.forgotButton]}
             onPress={() => handleButtonPress(false)}
           >
-            <Text style={styles.forgotButtonText}>Forgot</Text>
+            <Text style={styles.forgotButtonText}>{REVIEW_TEXTS.forgot}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, styles.rememberedButton]}
             onPress={() => handleButtonPress(true)}
           >
-            <Text style={styles.rememberedButtonText}>Got it!</Text>
+            <Text style={styles.rememberedButtonText}>{REVIEW_TEXTS.gotIt}</Text>
           </TouchableOpacity>
         </View>
       )}

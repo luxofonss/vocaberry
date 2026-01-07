@@ -7,27 +7,27 @@ import {
   TouchableOpacity,
   RefreshControl,
   FlatList,
-  Dimensions,
   Animated,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { theme, colors, typography, spacing, borderRadius, shadows } from '../theme';
+import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import { Word, RootStackParamList, TabType } from '../types';
 import { StorageService } from '../services/StorageService';
-import { 
-    WordCard, 
-    QuickAddModal,
-    SearchModal 
+import {
+  WordCard,
+  QuickAddModal,
+  SearchModal
 } from '../components';
 import { EventBus } from '../services/EventBus';
 import { PracticeScreen } from './PracticeScreen';
 import { BottomTabBar } from '../components/BottomTabBar';
+import { UI_LIMITS, ANIMATION } from '../constants';
+import { getNotificationByTime, getGreetingText, getUserInitial } from '../utils';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 /**
  * Main Application Hub
@@ -35,7 +35,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
  */
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
-  
+
   // -- State --
   const [words, setWords] = useState<Word[]>([]);
   const [loading, setLoading] = useState(false);
@@ -54,9 +54,17 @@ export const HomeScreen: React.FC = () => {
   const notificationAnim = useRef(new Animated.Value(-100)).current;
 
   // -- Effects --
-  // Chạy 1 lần duy nhất khi khởi động App
+  // Chạy 1 lần duy nhất khi khởi động App - Force seed mock data
   useEffect(() => {
-    StorageService.checkAndSeedData();
+    const initData = async () => {
+      const allWords = await StorageService.getWords();
+      if (allWords.length === 0) {
+        // Nếu chưa có data, seed mock data
+        await StorageService.forceSeedMockData();
+        loadData();
+      }
+    };
+    initData();
   }, []);
 
   // Listen for image update event to update word list UI instantly
@@ -75,86 +83,41 @@ export const HomeScreen: React.FC = () => {
     }, [])
   );
 
-  const getNotificationMessage = (minutesSinceLastPractice: number): { emoji: string; title: string; message: string } => {
-    if (minutesSinceLastPractice < 30) {
-      return {
-        emoji: '⚡',
-        title: 'Keep the momentum!',
-        message: `${leastViewedCount} word${leastViewedCount > 1 ? 's' : ''} are waiting for you!`
-      };
-    } else if (minutesSinceLastPractice < 60) {
-      return {
-        emoji: '🎯',
-        title: 'Time to level up!',
-        message: `Your vocabulary needs attention - ${leastViewedCount} word${leastViewedCount > 1 ? 's' : ''} ready to practice!`
-      };
-    } else if (minutesSinceLastPractice < 120) {
-      return {
-        emoji: '🔥',
-        title: 'Don\'t lose your streak!',
-        message: `It's been a while! ${leastViewedCount} word${leastViewedCount > 1 ? 's' : ''} are calling your name!`
-      };
-    } else if (minutesSinceLastPractice < 360) {
-      return {
-        emoji: '💪',
-        title: 'Come back, champion!',
-        message: `Your words miss you! ${leastViewedCount} word${leastViewedCount > 1 ? 's' : ''} need your practice!`
-      };
-    } else if (minutesSinceLastPractice < 1440) {
-      return {
-        emoji: '🌟',
-        title: 'Ready for a comeback?',
-        message: `It's been hours! ${leastViewedCount} word${leastViewedCount > 1 ? 's' : ''} are ready to be mastered!`
-      };
-    } else {
-      return {
-        emoji: '🚀',
-        title: 'Let\'s get back on track!',
-        message: `Time to refresh your memory! ${leastViewedCount} word${leastViewedCount > 1 ? 's' : ''} need your attention!`
-      };
-    }
-  };
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const allWords = await StorageService.getWords();
       setWords(allWords);
-      
+
       const reviewList = await StorageService.getWordsForReview();
       setWordsForReview(reviewList.length);
-      
-      // Đếm số từ ít xem nhất (viewCount < max)
+
       const leastViewed = await StorageService.getLeastViewedWords(5);
       setLeastViewedCount(leastViewed.length > 0 ? leastViewed.length : 5);
       setLeastViewedWords(leastViewed);
-      
-      // Check xem có nên hiển thị notification không
+
       const shouldShow = await StorageService.shouldShowPracticeNotification();
-      
+
       if (shouldShow && leastViewed.length > 0) {
-        // Lấy thời gian từ lần practice cuối để tạo message động
         const lastPractice = await StorageService.getLastPracticeTime();
         const minutesSince = lastPractice ? Math.floor((Date.now() - lastPractice) / (60 * 1000)) : 0;
-        const notificationData = getNotificationMessage(minutesSince);
-        
+        const notification = getNotificationByTime(minutesSince, leastViewed.length);
+
         setShowNotification(true);
-        setNotificationData(notificationData);
-        
-        // Lưu timestamp khi hiển thị notification
+        setNotificationData(notification);
+
         await StorageService.saveLastNotificationShown();
-        
+
         Animated.spring(notificationAnim, {
           toValue: 0,
           useNativeDriver: true,
-          tension: 50,
-          friction: 8,
+          tension: ANIMATION.spring.tension,
+          friction: ANIMATION.spring.friction,
         }).start();
       } else {
         setShowNotification(false);
         notificationAnim.setValue(-100);
       }
-      
-      // Load user name
+
       const name = await StorageService.getUserName();
       setUserName(name);
     } catch (error) {
@@ -163,51 +126,48 @@ export const HomeScreen: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [notificationAnim]);
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     setRefreshing(true);
     loadData();
-  };
+  }, [loadData]);
 
-  const handleAddWordSuccess = async (newWord: Word) => {
-      setQuickAddVisible(false);
-      const updatedWords = await StorageService.addWord(newWord);
-      setWords(updatedWords);
-  };
+  const handleAddWordSuccess = useCallback(async (newWord: Word) => {
+    setQuickAddVisible(false);
+    const updatedWords = await StorageService.addWord(newWord);
+    setWords(updatedWords);
+  }, []);
 
-  const toggleTopicExpand = (topic: string) => {
-      setExpandedTopics(prev => ({ ...prev, [topic]: !prev[topic] }));
-  };
+  const toggleTopicExpand = useCallback((topic: string) => {
+    setExpandedTopics(prev => ({ ...prev, [topic]: !prev[topic] }));
+  }, []);
 
-  const handleNotificationPress = () => {
-    // Ẩn notification
+  const handleNotificationPress = useCallback(() => {
     Animated.timing(notificationAnim, {
       toValue: -100,
-      duration: 300,
+      duration: ANIMATION.slow,
       useNativeDriver: true,
     }).start(() => {
       setShowNotification(false);
     });
-    
-    // Chuyển sang tab practice và tự động start với leastViewed words
+
     setActiveTab('practice');
-    
-    // Emit event để PracticeScreen nhận danh sách từ
+
     setTimeout(() => {
       EventBus.emit('startPracticeWithWords', { words: leastViewedWords });
     }, 100);
-  };
+  }, [notificationAnim, leastViewedWords]);
 
-  const handleNotificationDismiss = () => {
+  const handleNotificationDismiss = useCallback(() => {
     Animated.timing(notificationAnim, {
       toValue: -100,
-      duration: 300,
+      duration: ANIMATION.slow,
       useNativeDriver: true,
     }).start(() => {
       setShowNotification(false);
     });
-  };
+  }, [notificationAnim]);
 
   // -- Computed Data --
   const inventoryData = useMemo(() => {
@@ -220,7 +180,6 @@ export const HomeScreen: React.FC = () => {
       });
     });
 
-    // Object comparison for sorting
     const topicList = Object.keys(groups).sort().map(topic => {
       let sortedItems = [...groups[topic]];
       if (sortBy === 'alphabet') {
@@ -230,171 +189,165 @@ export const HomeScreen: React.FC = () => {
       }
       return { title: topic, data: sortedItems };
     });
-    
+
     return topicList;
   }, [words, sortBy]);
 
   // -- Render Components --
 
-  const renderHeader = () => {
-    const greetingText = userName 
-      ? `Hello ${userName}! 👋` 
-      : 'Hello! 👋';
-    const avatarInitial = userName 
-      ? userName.charAt(0).toUpperCase() 
-      : 'A';
+  const renderHeader = useCallback(() => {
+    const greeting = getGreetingText(userName);
+    const avatarInitial = getUserInitial(userName);
 
     return (
       <View style={styles.header}>
-          <View style={styles.headerTop}>
-              <View>
-                  <Text style={styles.greeting}>{greetingText}</Text>
-                  {wordsForReview > 0 ? (
-                      <Text style={styles.subGreeting}>{wordsForReview} words to review.💡</Text>
-                  ) : leastViewedCount > 0 ? (
-                      <Text style={styles.subGreeting}>
-                          💡 {leastViewedCount} least viewed word needs practice.💡
-                      </Text>
-                  ) : (
-                      <Text style={styles.subGreeting}>All caught up! 🎉</Text>
-                  )}
-              </View>
-              <TouchableOpacity 
-                  style={styles.avatar}
-                  onPress={() => navigation.navigate('Settings')}
-              >
-                  <Text style={styles.avatarText}>{avatarInitial}</Text>
-              </TouchableOpacity>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.greeting}>{greeting}</Text>
+            {wordsForReview > 0 ? (
+              <Text style={styles.subGreeting}>{wordsForReview} words to review.💡</Text>
+            ) : leastViewedCount > 0 ? (
+              <Text style={styles.subGreeting}>
+                💡 {leastViewedCount} least viewed word needs practice.💡
+              </Text>
+            ) : (
+              <Text style={styles.subGreeting}>All caught up! 🎉</Text>
+            )}
           </View>
+          <TouchableOpacity
+            style={styles.avatar}
+            onPress={() => navigation.navigate('Settings')}
+          >
+            <Text style={styles.avatarText}>{avatarInitial}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     );
-  };
+  }, [userName, wordsForReview, leastViewedCount, navigation]);
 
-  const renderEmpty = () => (
+  const renderEmpty = useCallback(() => (
     <View style={styles.emptyContainer}>
-        <Text style={styles.emptyEmoji}>📦</Text>
-        <Text style={styles.emptyText}>No words yet.</Text>
-        <Text style={styles.emptySubText}>Tap the + button to add one!</Text>
+      <Text style={styles.emptyEmoji}>📦</Text>
+      <Text style={styles.emptyText}>No words yet.</Text>
+      <Text style={styles.emptySubText}>Tap the + button to add one!</Text>
     </View>
-  );
+  ), []);
 
-  const renderTopicBlock = ({ item }: { item: { title: string, data: Word[] } }) => {
+  const renderTopicBlock = useCallback(({ item }: { item: { title: string, data: Word[] } }) => {
     const isExpanded = expandedTopics[item.title];
-    const LIMIT = 6;
-    const displayData = isExpanded ? item.data : item.data.slice(0, LIMIT);
-    const hasMore = item.data.length > LIMIT;
+    const displayData = isExpanded ? item.data : item.data.slice(0, UI_LIMITS.topicExpandLimit);
+    const hasMore = item.data.length > UI_LIMITS.topicExpandLimit;
 
     return (
       <View style={styles.topicSection}>
-          <View style={styles.topicHeaderRow}>
-              <Text style={styles.topicBlockTitle}>
-                {item.title} <Text style={styles.topicCount}>({item.data.length})</Text>
-              </Text>
-              {hasMore && (
-                  <TouchableOpacity onPress={() => toggleTopicExpand(item.title)}>
-                      <Text style={styles.expandText}>{isExpanded ? 'Collapse' : 'Expand'}</Text>
-                  </TouchableOpacity>
-              )}
-          </View>
-
-          <View style={styles.topicGridContainer}>
-              {displayData.map((word) => (
-                  <WordCard 
-                    key={word.id}
-                    word={word}
-                    variant="compact"
-                    onPress={() => navigation.navigate('WordDetail', { wordId: word.id })}
-                  />
-              ))}
-          </View>
-
-          {!isExpanded && hasMore && (
-              <TouchableOpacity style={styles.seeMoreBtn} onPress={() => toggleTopicExpand(item.title)}>
-                  <Text style={styles.seeMoreText}>Show {item.data.length - LIMIT} more items...</Text>
-              </TouchableOpacity>
+        <View style={styles.topicHeaderRow}>
+          <Text style={styles.topicBlockTitle}>
+            {item.title} <Text style={styles.topicCount}>({item.data.length})</Text>
+          </Text>
+          {hasMore && (
+            <TouchableOpacity onPress={() => toggleTopicExpand(item.title)}>
+              <Text style={styles.expandText}>{isExpanded ? 'Collapse' : 'Expand'}</Text>
+            </TouchableOpacity>
           )}
+        </View>
+
+        <View style={styles.topicGridContainer}>
+          {displayData.map((word) => (
+            <WordCard
+              key={word.id}
+              word={word}
+              variant="compact"
+              onPress={() => navigation.navigate('WordDetail', { wordId: word.id })}
+            />
+          ))}
+        </View>
+
+        {!isExpanded && hasMore && (
+          <TouchableOpacity style={styles.seeMoreBtn} onPress={() => toggleTopicExpand(item.title)}>
+            <Text style={styles.seeMoreText}>Show {item.data.length - UI_LIMITS.topicExpandLimit} more items...</Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
-  };
+  }, [expandedTopics, navigation, toggleTopicExpand]);
 
-  const renderFilterToolbar = () => (
+  const renderFilterToolbar = useCallback(() => (
     <View style={styles.filterToolbar}>
-        <Text style={styles.filterLabel}>Sort by:</Text>
-        <View style={styles.filterOptions}>
-            {(['newest', 'alphabet', 'views'] as const).map(option => (
-                <TouchableOpacity 
-                  key={option} 
-                  style={[styles.filterChip, sortBy === option && styles.filterChipActive]}
-                  onPress={() => setSortBy(option)}
-                >
-                    <Text style={[styles.filterChipText, sortBy === option && styles.filterChipTextActive]}>
-                        {option.charAt(0).toUpperCase() + option.slice(1)}
-                    </Text>
-                </TouchableOpacity>
-            ))}
-        </View>
+      <Text style={styles.filterLabel}>Sort by:</Text>
+      <View style={styles.filterOptions}>
+        {(['newest', 'alphabet', 'views'] as const).map(option => (
+          <TouchableOpacity
+            key={option}
+            style={[styles.filterChip, sortBy === option && styles.filterChipActive]}
+            onPress={() => setSortBy(option)}
+          >
+            <Text style={[styles.filterChipText, sortBy === option && styles.filterChipTextActive]}>
+              {option.charAt(0).toUpperCase() + option.slice(1)}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
     </View>
-  );
+  ), [sortBy]);
 
   // -- Tab Content --
-  const renderContent = () => {
-       if (activeTab === 'practice') return <PracticeScreen />;
+  const renderContent = useCallback(() => {
+    if (activeTab === 'practice') return <PracticeScreen />;
 
-       if (activeTab === 'home') {
-           return (
-               <FlatList 
-                   key="home-grid"
-                   data={words}
-                   renderItem={({ item }) => (
-                     <WordCard 
-                        word={item} variant="compact" 
-                        onPress={() => navigation.navigate('WordDetail', { wordId: item.id })} 
-                     />
-                   )}
-                   keyExtractor={(item) => item.id}
-                   numColumns={3}
-                   columnWrapperStyle={styles.columnWrapper}
-                   ListHeaderComponent={renderHeader}
-                   ListEmptyComponent={renderEmpty}
-                   contentContainerStyle={styles.listContent}
-                   showsVerticalScrollIndicator={false}
-                   refreshControl={
-                        <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
-                   }
-               />
-           );
-       }
-
-       // Topics / Inventory Tab
-       return (
-            <FlatList
-                key="topics-list"
-                data={inventoryData}
-                renderItem={renderTopicBlock}
-                keyExtractor={(item) => item.title}
-                ListHeaderComponent={() => (
-                    <>
-                        {renderHeader()}
-                        {renderFilterToolbar()}
-                    </>
-                )}
-                ListEmptyComponent={renderEmpty}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
-                }
+    if (activeTab === 'home') {
+      return (
+        <FlatList
+          key="home-grid"
+          data={words}
+          renderItem={({ item }) => (
+            <WordCard
+              word={item} variant="compact"
+              onPress={() => navigation.navigate('WordDetail', { wordId: item.id })}
             />
-       );
-  };
+          )}
+          keyExtractor={(item) => item.id}
+          numColumns={3}
+          columnWrapperStyle={styles.columnWrapper}
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={renderEmpty}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
+          }
+        />
+      );
+    }
+
+    // Topics / Inventory Tab
+    return (
+      <FlatList
+        key="topics-list"
+        data={inventoryData}
+        renderItem={renderTopicBlock}
+        keyExtractor={(item) => item.title}
+        ListHeaderComponent={() => (
+          <>
+            {renderHeader()}
+            {renderFilterToolbar()}
+          </>
+        )}
+        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
+        }
+      />
+    );
+  }, [activeTab, words, navigation, renderHeader, renderEmpty, refreshing, handleRefresh, inventoryData, renderTopicBlock, renderFilterToolbar]);
 
 
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        {/* Notification Popup - Inside SafeAreaView */}
         {showNotification && leastViewedCount > 0 && notificationData && (
-          <Animated.View 
+          <Animated.View
             style={[
               styles.notificationContainer,
               {
@@ -402,7 +355,7 @@ export const HomeScreen: React.FC = () => {
               }
             ]}
           >
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.notificationContent}
               onPress={handleNotificationPress}
               activeOpacity={0.8}
@@ -416,7 +369,7 @@ export const HomeScreen: React.FC = () => {
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={handleNotificationDismiss}
                 style={styles.notificationClose}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -428,10 +381,10 @@ export const HomeScreen: React.FC = () => {
         )}
 
         <View style={{ flex: 1 }}>
-            {renderContent()}
+          {renderContent()}
         </View>
 
-        <BottomTabBar 
+        <BottomTabBar
           activeTab={activeTab}
           wordCount={words.length}
           reviewCount={wordsForReview}
@@ -439,18 +392,18 @@ export const HomeScreen: React.FC = () => {
           onAddPress={() => setQuickAddVisible(true)}
           onSearchPress={() => setSearchVisible(true)}
         />
-        
-        <QuickAddModal 
+
+        <QuickAddModal
           visible={quickAddVisible}
           onClose={() => setQuickAddVisible(false)}
           onSuccess={handleAddWordSuccess}
         />
 
-        <SearchModal 
-            visible={isSearchVisible}
-            words={words}
-            onClose={() => setSearchVisible(false)}
-            onSelectWord={(word) => navigation.navigate('WordDetail', { wordId: word.id })}
+        <SearchModal
+          visible={isSearchVisible}
+          words={words}
+          onClose={() => setSearchVisible(false)}
+          onSelectWord={(word) => navigation.navigate('WordDetail', { wordId: word.id })}
         />
       </SafeAreaView>
     </View>
@@ -462,17 +415,17 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: colors.textSecondary, fontSize: typography.sizes.base },
-  
+
   header: { paddingHorizontal: spacing.screenPadding, paddingTop: spacing.lg, paddingBottom: spacing.sm },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
   greeting: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.extraBold, color: colors.textPrimary },
   subGreeting: { fontSize: typography.sizes.base, color: colors.textSecondary, marginTop: 4 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.backgroundSoft, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: colors.primary, fontWeight: typography.weights.bold, fontSize: typography.sizes.lg },
-  
+
   listContent: { paddingBottom: 120 },
   columnWrapper: { paddingHorizontal: spacing.screenPadding, gap: spacing.itemGap, marginBottom: spacing.md },
-  
+
   emptyContainer: { alignItems: 'center', marginTop: 60 },
   emptyEmoji: { fontSize: typography.sizes.hero, marginBottom: spacing.lg },
   emptyText: { fontSize: typography.sizes.lg, fontWeight: typography.weights.bold, color: colors.textSecondary },
@@ -483,9 +436,9 @@ const styles = StyleSheet.create({
   topicBlockTitle: { fontSize: typography.sizes.lg, fontWeight: typography.weights.bold, color: colors.textPrimary },
   topicCount: { color: colors.textLight, fontWeight: typography.weights.regular, fontSize: typography.sizes.base },
   expandText: { color: colors.primary, fontWeight: typography.weights.semibold, fontSize: typography.sizes.sm },
-  
-  topicGridContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.itemGap, paddingHorizontal: spacing.screenPadding }, 
-  
+
+  topicGridContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.itemGap, paddingHorizontal: spacing.screenPadding },
+
   seeMoreBtn: { marginTop: spacing.lg, marginHorizontal: spacing.screenPadding, paddingVertical: spacing.md, alignItems: 'center', backgroundColor: colors.white, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.borderLight, ...shadows.subtle },
   seeMoreText: { color: colors.textSecondary, fontSize: typography.sizes.sm, fontWeight: typography.weights.semibold },
 
@@ -546,8 +499,8 @@ const styles = StyleSheet.create({
     marginLeft: spacing.sm,
   },
   notificationCloseText: {
-    color: colors.white,
     fontSize: typography.sizes.base,
+    color: colors.white,
     fontWeight: typography.weights.bold,
   },
 });

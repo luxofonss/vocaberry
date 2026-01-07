@@ -10,4 +10,5 @@ export * from './SearchModal';
 export * from './ImageSearchModal';
 export * from './ImageViewerModal';
 export * from './AddMeaningModal';
+export * from './LazyImage';
 // No need to export PracticeScreen here, it's a screen
