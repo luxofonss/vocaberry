@@ -669,16 +669,14 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                             }}
                         />
                         <View style={styles.translateModalContainer}>
-                            <TouchableOpacity
-                                activeOpacity={1}
-                                onPress={(e) => e.stopPropagation()}
-                            >
+                            <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
                                 <View style={styles.translateModalContent}>
                                     <View style={styles.translateModalHeader}>
                                         <View style={styles.translateModalHeaderLeft}>
                                             <Text style={styles.translateModalIcon}>🌐</Text>
                                             <Text style={styles.translateModalTitle}>Translate</Text>
-                                        </View>                              <TouchableOpacity
+                                        </View>
+                                        <TouchableOpacity
                                             onPress={() => {
                                                 setTranslateModalVisible(false);
                                                 setTranslateInput('');
@@ -742,7 +740,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                         {translateResult && (
                                             <View style={styles.translateSection}>
                                                 <Text style={styles.translateSectionLabel}>English</Text>
-                                                <View style={styles.translateOutputContainer}>                             <Text style={styles.translateResultText}>{translateResult}</Text>
+                                                <View style={styles.translateOutputContainer}>
+                                                    <Text style={styles.translateResultText}>{translateResult}</Text>
                                                 </View>
                                             </View>
                                         )}
@@ -765,7 +764,6 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                     </View>
                 </Modal>
 
-                {/* LANGUAGE SELECT MODAL */}
                 <Modal
                     visible={languageSelectModalVisible}
                     animationType="fade"
@@ -783,6 +781,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                             <TouchableOpacity
                                 activeOpacity={1}
                                 onPress={(e) => e.stopPropagation()}
+                                style={{ width: '100%' }}
                             >
                                 <View style={styles.languageSelectModalContent}>
                                     <View style={styles.languageSelectModalHeader}>
@@ -803,6 +802,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                         style={styles.languageSelectModalBodyScroll}
                                         contentContainerStyle={styles.languageSelectModalBody}
                                         showsVerticalScrollIndicator={false}
+                                        keyboardShouldPersistTaps="handled"
                                     >
                                         <Text style={styles.languageSelectModalDescription}>
                                             Select your native language to enable translation feature.
@@ -815,7 +815,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                                     style={styles.languageSelectItem}
                                                     onPress={() => handleLanguageSelect(lang.code)}
                                                     activeOpacity={0.7}
-                                                >                                    <Text style={styles.languageSelectFlag}>{lang.flag}</Text>
+                                                >
+                                                    <Text style={styles.languageSelectFlag}>{lang.flag}</Text>
                                                     <Text style={styles.languageSelectName}>{lang.name}</Text>
                                                     <Ionicons
                                                         name="chevron-forward"
@@ -829,10 +830,10 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                 </View>
                             </TouchableOpacity>
                         </View>
-                    </View >
-                </Modal >
-            </Animated.View >
-        </Modal >
+                    </View>
+                </Modal>
+            </Animated.View>
+        </Modal>
     );
 };
 
@@ -1300,7 +1301,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     languageSelectModalBodyScroll: {
-        flex: 1,
+        flexGrow: 1,
         maxHeight: SCREEN_HEIGHT - 320,
     },
     languageSelectModalBody: {

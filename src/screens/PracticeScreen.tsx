@@ -763,6 +763,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
     borderLeftWidth: 0,
     borderRightWidth: 0,
+    marginBottom: 8,
     ...shadows.claySoft,
   },
   hintIcon: { marginRight: 8, fontSize: typography.sizes.lg },

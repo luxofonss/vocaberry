@@ -508,7 +508,7 @@ export const WordDetailScreen: React.FC = () => {
   }, [word]);
 
   // Create a reversed copy for display so newest/user-added meanings usually show first
-  const displayedMeanings = [...displayWord.meanings].reverse();
+  const displayedMeanings = [...displayWord.meanings];
   const currentMeaning = displayedMeanings[currentIndex];
   const posAbbr = currentMeaning?.partOfSpeech ? (currentMeaning.partOfSpeech.length > 4 ? currentMeaning.partOfSpeech.substring(0, 3) + '.' : currentMeaning.partOfSpeech.toLowerCase()) : '';
 

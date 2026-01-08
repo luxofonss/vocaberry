@@ -10,6 +10,7 @@ import {
     Platform,
     Image,
     Pressable,
+    KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, borderRadius, spacing, shadows } from '../theme';
@@ -108,72 +109,82 @@ export const SearchModal: React.FC<SearchModalProps> = ({
     const keyExtractor = useCallback((item: Word) => item.id, []);
 
     return (
-        <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
-            <SafeAreaView style={styles.container}>
-                <View style={styles.header}>
-                    <View style={[
-                        styles.searchBar,
-                        isInputFocused && styles.searchBarFocused
-                    ]}>
-                        <Ionicons name="search" size={20} color={isInputFocused ? colors.primary : colors.textSecondary} style={styles.searchIcon} />
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Search vocabulary..."
-                            placeholderTextColor={colors.textLight}
-                            value={query}
-                            onChangeText={setQuery}
-                            onFocus={() => setIsInputFocused(true)}
-                            onBlur={() => setIsInputFocused(false)}
-                            autoFocus={true}
-                            returnKeyType="search"
-                            clearButtonMode="while-editing"
-                        />
-                        {query.length > 0 && Platform.OS !== 'ios' && (
-                            <TouchableOpacity onPress=
-                                {() => setQuery('')} style={styles.clearBtn}>
-                                <Ionicons name="close-circle" size={18} color={colors.textLight} />
-                            </TouchableOpacity>
+        <Modal
+            visible={visible}
+            animationType="slide"
+            presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
+            onRequestClose={onClose}
+        >
+            <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={{ flex: 1 }}
+                >
+                    <View style={styles.header}>
+                        <View style={[
+                            styles.searchBar,
+                            isInputFocused && styles.searchBarFocused
+                        ]}>
+                            <Ionicons name="search" size={20} color={isInputFocused ? colors.primary : colors.textSecondary} style={styles.searchIcon} />
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Search vocabulary..."
+                                placeholderTextColor={colors.textLight}
+                                value={query}
+                                onChangeText={setQuery}
+                                onFocus={() => setIsInputFocused(true)}
+                                onBlur={() => setIsInputFocused(false)}
+                                autoFocus={true}
+                                returnKeyType="search"
+                                clearButtonMode="while-editing"
+                            />
+                            {query.length > 0 && Platform.OS !== 'ios' && (
+                                <TouchableOpacity onPress=
+                                    {() => setQuery('')} style={styles.clearBtn}>
+                                    <Ionicons name="close-circle" size={18} color={colors.textLight} />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                        <Pressable
+                            onPress={onClose}
+                            style={({ pressed }) => [
+                                styles.cancelBtn,
+                                pressed && styles.cancelBtnPressed
+                            ]}
+                        >
+                            <Text style={styles.cancelText}>Cancel</Text>
+                        </Pressable>
+                    </View>
+
+                    <View style={styles.content}>
+                        {results.length > 0 ? (
+                            <FlatList
+                                data={results}
+                                renderItem={renderItem}
+                                keyExtractor={keyExtractor}
+                                contentContainerStyle={styles.listContent}
+                                keyboardShouldPersistTaps="handled"
+                                showsVerticalScrollIndicator={false}
+                                removeClippedSubviews={true}
+                                maxToRenderPerBatch={10}
+                                windowSize={5}
+                                initialNumToRender={10}
+                            />
+                        ) : query.length > 0 ? (
+                            <View style={styles.emptyContainer}>
+                                <Ionicons name="search-outline" size={64} color={colors.borderMedium} />
+                                <Text style={styles.emptyText}>No matches found</Text>
+                                <Text style={styles.emptySubText}>Try checking your spelling</Text>
+                            </View>
+                        ) : (
+                            <View style={styles.emptyContainer}>
+                                <Ionicons name="book-outline" size={64} color={colors.borderMedium} />
+                                <Text style={styles.emptyText}>No words yet</Text>
+                                <Text style={styles.emptySubText}>Add some words to get started</Text>
+                            </View>
                         )}
                     </View>
-                    <Pressable
-                        onPress={onClose}
-                        style={({ pressed }) => [
-                            styles.cancelBtn,
-                            pressed && styles.cancelBtnPressed
-                        ]}
-                    >
-                        <Text style={styles.cancelText}>Cancel</Text>
-                    </Pressable>
-                </View>
-
-                <View style={styles.content}>
-                    {results.length > 0 ? (
-                        <FlatList
-                            data={results}
-                            renderItem={renderItem}
-                            keyExtractor={keyExtractor}
-                            contentContainerStyle={styles.listContent}
-                            keyboardShouldPersistTaps="handled"
-                            showsVerticalScrollIndicator={false}
-                            removeClippedSubviews={true}
-                            maxToRenderPerBatch={10}
-                            windowSize={5}
-                            initialNumToRender={10}
-                        />
-                    ) : query.length > 0 ? (
-                        <View style={styles.emptyContainer}>
-                            <Ionicons name="search-outline" size={64} color={colors.borderMedium} />
-                            <Text style={styles.emptyText}>No matches found</Text>
-                            <Text style={styles.emptySubText}>Try checking your spelling</Text>
-                        </View>
-                    ) : (
-                        <View style={styles.emptyContainer}>
-                            <Ionicons name="book-outline" size={64} color={colors.borderMedium} />
-                            <Text style={styles.emptyText}>No words yet</Text>
-                            <Text style={styles.emptySubText}>Add some words to get started</Text>
-                        </View>
-                    )}
-                </View>
+                </KeyboardAvoidingView>
             </SafeAreaView>
         </Modal>
     );
