@@ -606,7 +606,7 @@ export const PracticeScreen: React.FC = () => {
         end={gradients.backgroundMain.end}
         style={styles.container}
       >
-        <SafeAreaView style={{ flex: 1 }}>
+        <SafeAreaView style={{ flex: 1 }} edges={['bottom', 'left', 'right']}>
           {showReview ? renderReviewScreen() : (
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
               {renderQuizContent()}
