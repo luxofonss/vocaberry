@@ -169,8 +169,16 @@ export const AddMeaningModal: React.FC<AddMeaningModalProps> = ({
   if (!word) return null;
 
   return (
-    <Modal visible={visible} animationType="slide" transparent={false}>
-      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle={Platform.OS === 'ios' ? 'pageSheet' : 'fullScreen'}
+      onRequestClose={onClose}
+    >
+      <SafeAreaView
+        style={styles.container}
+        edges={Platform.OS === 'ios' ? ['bottom'] : ['top', 'bottom']}
+      >
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.keyboardView}
@@ -187,6 +195,7 @@ export const AddMeaningModal: React.FC<AddMeaningModalProps> = ({
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
             keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
             {/* Part of Speech */}
             <View style={styles.section}>

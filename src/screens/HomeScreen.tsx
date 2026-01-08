@@ -192,7 +192,11 @@ export const HomeScreen: React.FC = () => {
       if (sortBy === 'alphabet') {
         sortedItems.sort((a, b) => a.word.localeCompare(b.word));
       } else if (sortBy === 'newest') {
-        sortedItems.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+        sortedItems.sort((a, b) => {
+          const dateA = a.localCreatedAt || a.createdAt || '';
+          const dateB = b.localCreatedAt || b.createdAt || '';
+          return dateB.localeCompare(dateA);
+        });
       }
       return { title: topic, data: sortedItems };
     });

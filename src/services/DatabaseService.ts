@@ -12,7 +12,13 @@ const STORAGE_KEYS = {
 const getAllWords = async (): Promise<Word[]> => {
      try {
           const data = await AsyncStorage.getItem(STORAGE_KEYS.WORDS);
-          return data ? JSON.parse(data) : [];
+          const words: Word[] = data ? JSON.parse(data) : [];
+          // Sort by creation date descending (newest first)
+          return words.sort((a, b) => {
+               const dateA = a.localCreatedAt || a.createdAt || '';
+               const dateB = b.localCreatedAt || b.createdAt || '';
+               return dateB.localeCompare(dateA);
+          });
      } catch (e) {
           console.error('[DatabaseService] Failed to get all words', e);
           return [];
@@ -27,7 +33,8 @@ const saveWord = async (word: Word): Promise<void> => {
           if (existingIndex >= 0) {
                words[existingIndex] = word;
           } else {
-               words.push(word);
+               // New word: add to the beginning
+               words.unshift(word);
           }
 
           await AsyncStorage.setItem(STORAGE_KEYS.WORDS, JSON.stringify(words));

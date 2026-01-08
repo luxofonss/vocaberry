@@ -61,6 +61,18 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const [imageSearchVisible, setImageSearchVisible] = useState(false);
 
+    // Thinking State
+    const [thinkingIndex, setThinkingIndex] = useState(0);
+    const thinkingFadeAnim = useRef(new Animated.Value(0)).current;
+
+    const thinkingTexts = [
+        "Hmm, let me think... 🤔",
+        "Processing... ⚙️",
+        "Almost there... 🎯",
+        "Getting smarter... 🧠",
+        "Aha! Found something... ✨",
+    ];
+
     const handleCaptureImage = async () => {
         try {
             const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -151,6 +163,34 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
     const [translateResult, setTranslateResult] = useState<string | null>(null);
     const [isTranslating, setIsTranslating] = useState(false);
     const [languageSelectModalVisible, setLanguageSelectModalVisible] = useState(false);
+
+    useEffect(() => {
+        if (isLookingUp) {
+            // Reset khi bắt đầu
+            setThinkingIndex(0);
+            thinkingFadeAnim.setValue(1); // Set ban đầu là 1 để text đầu tiên hiện lên luôn
+
+            // Đổi text mỗi 1 giây
+            const interval = setInterval(() => {
+                // Fade out trước khi đổi text
+                Animated.timing(thinkingFadeAnim, {
+                    toValue: 0,
+                    duration: 300,
+                    useNativeDriver: true,
+                }).start(() => {
+                    setThinkingIndex(prev => (prev + 1) % thinkingTexts.length);
+                    // Fade in sau khi đổi text
+                    Animated.timing(thinkingFadeAnim, {
+                        toValue: 1,
+                        duration: 300,
+                        useNativeDriver: true,
+                    }).start();
+                });
+            }, 1000);
+
+            return () => clearInterval(interval);
+        }
+    }, [isLookingUp]);
 
     useEffect(() => {
         if (visible) {
@@ -638,7 +678,14 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                             <BlurView intensity={95} tint="light" style={StyleSheet.absoluteFill}>
                                 <View style={styles.loadingOverlayContent}>
                                     <ActivityIndicator size="large" color={colors.primary} />
-                                    <Text style={styles.loadingOverlayTitle}>Magic is happening...</Text>
+                                    <Animated.Text
+                                        style={[
+                                            styles.loadingOverlayTitle,
+                                            { opacity: thinkingFadeAnim }
+                                        ]}
+                                    >
+                                        {thinkingTexts[thinkingIndex]}
+                                    </Animated.Text>
                                     <Text style={styles.loadingOverlaySub}>{loadingStatus}</Text>
                                 </View>
                             </BlurView>
