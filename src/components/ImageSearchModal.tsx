@@ -10,11 +10,11 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
-  SafeAreaView,
   Platform,
 } from 'react-native';
 import { colors, spacing, borderRadius, shadows } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const COLUMN_COUNT = 2;

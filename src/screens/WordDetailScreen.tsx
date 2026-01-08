@@ -234,55 +234,6 @@ export const WordDetailScreen: React.FC = () => {
     }
   }, []);
 
-  const pickAndSaveImage = useCallback(async (type: 'main' | 'meaning', meaningId?: string) => {
-    const aspect: [number, number] = type === 'main' ? UI_LIMITS.imageAspectRatio.square : UI_LIMITS.imageAspectRatio.wide;
-
-    Alert.alert(
-      IMAGE_VIEWER_TEXTS.changeImage,
-      IMAGE_VIEWER_TEXTS.howToUpdate,
-      [
-        {
-          text: IMAGE_VIEWER_TEXTS.searchUnsplash,
-          onPress: () => {
-            setSearchTarget({ type, meaningId });
-            setImageSearchVisible(true);
-          }
-        },
-        {
-          text: IMAGE_VIEWER_TEXTS.takePhoto,
-          onPress: () => executePick('camera', type, aspect, meaningId)
-        },
-        {
-          text: IMAGE_VIEWER_TEXTS.library,
-          onPress: () => executePick('library', type, aspect, meaningId)
-        },
-        { text: IMAGE_VIEWER_TEXTS.cancel, style: "cancel" }
-      ]
-    );
-  }, []);
-
-  const handleSearchSelect = useCallback(async (imageUrl: string) => {
-    if (!word) return;
-
-    let updatedWord: Word;
-    if (searchTarget.type === 'main') {
-      updatedWord = {
-        ...word,
-        customImageUrl: imageUrl,
-        isUsingCustomImage: true,
-        localUpdatedAt: new Date().toISOString()
-      };
-    } else {
-      const updatedMeanings = word.meanings.map((m: Meaning) =>
-        m.id === searchTarget.meaningId ? { ...m, exampleImageUrl: imageUrl } : m
-      );
-      updatedWord = { ...word, meanings: updatedMeanings, localUpdatedAt: new Date().toISOString() };
-    }
-
-    await DatabaseService.saveWord(updatedWord);
-    setWord(updatedWord);
-  }, [word, searchTarget]);
-
   const executePick = useCallback(async (mode: 'camera' | 'library', type: 'main' | 'meaning', aspect: [number, number], meaningId?: string) => {
     try {
       const options: ImagePicker.ImagePickerOptions = {
@@ -334,6 +285,55 @@ export const WordDetailScreen: React.FC = () => {
       Alert.alert(DETAIL_TEXTS.error, DETAIL_TEXTS.cannotUpdateImage);
     }
   }, [word]);
+
+  const pickAndSaveImage = useCallback(async (type: 'main' | 'meaning', meaningId?: string) => {
+    const aspect: [number, number] = type === 'main' ? UI_LIMITS.imageAspectRatio.square : UI_LIMITS.imageAspectRatio.wide;
+
+    Alert.alert(
+      IMAGE_VIEWER_TEXTS.changeImage,
+      IMAGE_VIEWER_TEXTS.howToUpdate,
+      [
+        {
+          text: IMAGE_VIEWER_TEXTS.searchUnsplash,
+          onPress: () => {
+            setSearchTarget({ type, meaningId });
+            setImageSearchVisible(true);
+          }
+        },
+        {
+          text: IMAGE_VIEWER_TEXTS.takePhoto,
+          onPress: () => executePick('camera', type, aspect, meaningId)
+        },
+        {
+          text: IMAGE_VIEWER_TEXTS.library,
+          onPress: () => executePick('library', type, aspect, meaningId)
+        },
+        { text: IMAGE_VIEWER_TEXTS.cancel, style: "cancel" }
+      ]
+    );
+  }, [executePick]);
+
+  const handleSearchSelect = useCallback(async (imageUrl: string) => {
+    if (!word) return;
+
+    let updatedWord: Word;
+    if (searchTarget.type === 'main') {
+      updatedWord = {
+        ...word,
+        customImageUrl: imageUrl,
+        isUsingCustomImage: true,
+        localUpdatedAt: new Date().toISOString()
+      };
+    } else {
+      const updatedMeanings = word.meanings.map((m: Meaning) =>
+        m.id === searchTarget.meaningId ? { ...m, exampleImageUrl: imageUrl } : m
+      );
+      updatedWord = { ...word, meanings: updatedMeanings, localUpdatedAt: new Date().toISOString() };
+    }
+
+    await DatabaseService.saveWord(updatedWord);
+    setWord(updatedWord);
+  }, [word, searchTarget]);
 
   const handleEditMainImage = useCallback(() => pickAndSaveImage('main'), [pickAndSaveImage]);
   const handleEditMeaningImage = useCallback((id: string) => pickAndSaveImage('meaning', id), [pickAndSaveImage]);

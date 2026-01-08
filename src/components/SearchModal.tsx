@@ -9,7 +9,6 @@ import {
     StyleSheet,
     Platform,
     Image,
-    SafeAreaView,
     Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +16,7 @@ import { colors, borderRadius, spacing, shadows } from '../theme';
 import { Word } from '../types';
 import { useDebounce } from '../hooks';
 import { UI_LIMITS } from '../constants';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface SearchModalProps {
     visible: boolean;
