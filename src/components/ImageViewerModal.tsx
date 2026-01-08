@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
-import { colors, spacing, borderRadius } from '../theme';
+import { colors, spacing, borderRadius, shadows } from '../theme';
 import { ImageSearchModal } from './ImageSearchModal';
 import { IMAGE_VIEWER_TEXTS, UI_LIMITS } from '../constants';
 
@@ -187,42 +187,56 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  // Claymorphism close button - floating 3D clay circle
   closeButton: {
     position: 'absolute',
     top: 50,
     right: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.cardSurface,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    shadowColor: colors.shadowOuter,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 1,
+    shadowRadius: 20,
+    elevation: 8,
   },
   closeText: {
-    color: 'white',
+    color: colors.textPrimary,
     fontSize: 20,
     fontWeight: 'bold',
   },
+  // Claymorphism edit button - floating 3D clay circle with primary color
   editButton: {
     position: 'absolute',
     bottom: 50,
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    shadowColor: colors.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
     elevation: 8,
   },
   editIcon: {
     fontSize: 24,
   },
 });
-

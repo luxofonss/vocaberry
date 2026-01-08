@@ -21,8 +21,10 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { theme, colors, typography, spacing, borderRadius, shadows } from '../theme';
+import { gradients } from '../theme/styles';
 import { Word, RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
 import { SpeakButton, ImageViewerModal } from '../components';
@@ -316,59 +318,85 @@ export const PracticeScreen: React.FC = () => {
       </View>
 
       <ScrollView contentContainerStyle={styles.reviewContent} showsVerticalScrollIndicator={false}>
+        {/* Compact Summary Card */}
         <View style={styles.reviewSummary}>
-          <Text style={styles.reviewTitle}>{PRACTICE_TEXTS.yourPerformance}</Text>
           <View style={styles.reviewStatsRow}>
-            <View style={styles.reviewStatItem}>
-              <Text style={styles.reviewStatEmoji}>✅</Text>
+            <View style={[styles.reviewStatItem, styles.reviewStatCorrect]}>
               <Text style={styles.reviewStatNumber}>{quizResults.filter(r => r.status === 'correct').length}</Text>
-              <Text style={styles.reviewStatLabel}>{PRACTICE_TEXTS.correct}</Text>
+              <Text style={styles.reviewStatLabel}>✓ {PRACTICE_TEXTS.correct}</Text>
             </View>
-            <View style={styles.reviewStatItem}>
-              <Text style={styles.reviewStatEmoji}>❌</Text>
+            <View style={[styles.reviewStatItem, styles.reviewStatIncorrect]}>
               <Text style={styles.reviewStatNumber}>{quizResults.filter(r => r.status === 'incorrect').length}</Text>
-              <Text style={styles.reviewStatLabel}>{PRACTICE_TEXTS.incorrect}</Text>
+              <Text style={styles.reviewStatLabel}>✗ {PRACTICE_TEXTS.incorrect}</Text>
             </View>
-            <View style={styles.reviewStatItem}>
-              <Text style={styles.reviewStatEmoji}>⏭️</Text>
+            <View style={[styles.reviewStatItem, styles.reviewStatSkipped]}>
               <Text style={styles.reviewStatNumber}>{quizResults.filter(r => r.status === 'skipped').length}</Text>
-              <Text style={styles.reviewStatLabel}>{PRACTICE_TEXTS.skipped}</Text>
+              <Text style={styles.reviewStatLabel}>⏭ {PRACTICE_TEXTS.skipped}</Text>
             </View>
           </View>
         </View>
 
+        {/* Word List with full details */}
         <View style={styles.reviewList}>
           {quizResults.map((result, index) => (
             <TouchableOpacity
               key={index}
-              style={[styles.reviewItem, shadows.subtle]}
+              style={[
+                styles.reviewItem,
+                result.status === 'correct' && styles.reviewItemCorrect,
+                result.status === 'incorrect' && styles.reviewItemIncorrect,
+              ]}
               onPress={() => {
                 requestAnimationFrame(() => {
                   navigation.navigate('WordDetail', { wordId: result.word.id });
                 });
               }}
+              activeOpacity={0.7}
             >
-              <View style={styles.reviewItemHeader}>
-                <Text style={styles.reviewItemNumber}>#{index + 1}</Text>
-                <Text style={styles.reviewItemStatus}>
-                  {result.status === 'correct' ? '✅' : result.status === 'incorrect' ? '❌' : '⏭️'}
+              <View style={styles.reviewItemContent}>
+                {/* Correct Answer */}
+                <View style={styles.reviewItemRow}>
+                  <Text style={styles.reviewItemLabel}>Correct:</Text>
+                  <Text style={styles.reviewItemWord}>{result.word.word}</Text>
+                </View>
+
+                {/* User's Answer */}
+                {result.status !== 'skipped' && (
+                  <View style={styles.reviewItemRow}>
+                    <Text style={styles.reviewItemLabel}>You:</Text>
+
+                    <Text style={[
+                      styles.reviewItemUserAnswer,
+                      result.status === 'correct' ? styles.answerCorrect : styles.answerIncorrect
+                    ]}>
+                      {result.userAnswer || '—'}
+                    </Text>
+                  </View>
+                )}
+
+                {result.status === 'skipped' && (
+                  <Text style={styles.reviewItemSkippedText}>Skipped</Text>
+                )}
+              </View>
+
+              {/* Status Icon */}
+              <View style={[
+                styles.reviewItemIconContainer,
+                result.status === 'correct' && styles.iconContainerCorrect,
+                result.status === 'incorrect' && styles.iconContainerIncorrect,
+                result.status === 'skipped' && styles.iconContainerSkipped,
+              ]}>
+                <Text style={styles.reviewItemIcon}>
+                  {result.status === 'correct' ? '✓' : result.status === 'incorrect' ? '✗' : '⏭'}
                 </Text>
               </View>
-              <Text style={styles.reviewItemWord}>{result.word.word}</Text>
-              {result.userAnswer && (
-                <Text style={[
-                  styles.reviewItemAnswer,
-                  result.status === 'correct' ? styles.reviewItemAnswerCorrect : styles.reviewItemAnswerIncorrect
-                ]}>
-                  Your answer: "{result.userAnswer}"
-                </Text>
-              )}
             </TouchableOpacity>
           ))}
         </View>
 
+        {/* Done Button */}
         <TouchableOpacity
-          style={[styles.primaryButton, { marginTop: spacing.xl }]}
+          style={styles.reviewDoneButton}
           onPress={() => {
             setShowReview(false);
             setIsQuizVisible(false);
@@ -403,9 +431,9 @@ export const PracticeScreen: React.FC = () => {
 
     const currentWord = quizList[currentIndex];
 
-    // Render individual meaning content (not the card wrapper)
-    const renderMeaningContent = ({ item: meaning, index }: { item: any, index: number }) => (
-      <View style={styles.meaningContent}>
+    // Render individual meaning content for horizontal scroll
+    const renderMeaningContent = (meaning: any, index: number) => (
+      <View key={meaning.id} style={styles.meaningSlide}>
         <View style={styles.clueImageWrapper}>
           {((meaning.exampleImageUrl && meaning.exampleImageUrl.trim() !== '') || (currentWord.imageUrl && currentWord.imageUrl.trim() !== '')) ? (
             <TouchableOpacity
@@ -426,7 +454,8 @@ export const PracticeScreen: React.FC = () => {
             </TouchableOpacity>
           ) : (
             <View style={[styles.clueImage, { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backgroundSoft }]}>
-              <ActivityIndicator size="large" color={colors.primary} />         </View>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
           )}
         </View>
 
@@ -449,6 +478,12 @@ export const PracticeScreen: React.FC = () => {
       </View>
     );
 
+    // Get meanings in reverse order (newest first)
+    const displayedMeanings = [...currentWord.meanings].reverse();
+
+    // Calculate card inner width (card has marginHorizontal: spacing.xl and padding: spacing.xl)
+    const cardInnerWidth = SCREEN_WIDTH - (spacing.xl * 4);
+
     return (
       <View style={{ flex: 1 }}>
         <View style={styles.modalHeader}>
@@ -462,82 +497,68 @@ export const PracticeScreen: React.FC = () => {
         </View>
 
         <ScrollView contentContainerStyle={styles.quizContent} showsVerticalScrollIndicator={false}>
-          {/* Fixed card with sliding content inside */}
+          {/* Fixed card with swipeable meaning content */}
           <View style={[styles.clueCard, shadows.medium]}>
-            {/* Create a reversed copy for display so newest meanings show first */}
-            <FlatList
-              data={[...currentWord.meanings].reverse()}
-              keyExtractor={(item) => item.id}
-              renderItem={renderMeaningContent}
+            {/* Horizontal ScrollView for swiping meanings */}
+            <ScrollView
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
               onMomentumScrollEnd={(ev) => {
-                const newIndex = Math.round(ev.nativeEvent.contentOffset.x / (SCREEN_WIDTH - (spacing.xl * 2)));
+                const newIndex = Math.round(ev.nativeEvent.contentOffset.x / cardInnerWidth);
                 setMeaningIndex(newIndex);
               }}
-              style={{ flexGrow: 0 }}
-            />
+              style={styles.meaningScrollView}
+              contentContainerStyle={styles.meaningScrollContent}
+            >
+              {displayedMeanings.map((meaning, index) => renderMeaningContent(meaning, index))}
+            </ScrollView>
 
-            {/* Pagination dots inside card */}
-            {currentWord.meanings.length > 1 && (
+            {/* Pagination dots - larger and tappable */}
+            {displayedMeanings.length > 1 && (
               <View style={styles.paginationContainer}>
-                {currentWord.meanings.map((_, i) => (
-                  <View key={i} style={[styles.paginationDot, meaningIndex === i && styles.paginationDotActive]} />
-                ))}               </View>
+                {displayedMeanings.map((_, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    onPress={() => setMeaningIndex(i)}
+                    hitSlop={{ top: 10, bottom: 10, left: 5, right: 5 }}
+                  >
+                    <View style={[styles.paginationDot, meaningIndex === i && styles.paginationDotActive]} />
+                  </TouchableOpacity>
+                ))}
+              </View>
             )}
           </View>
 
           {!isAnswered ? (
             <View style={styles.inputArea}>
-              <View style={styles.modeSwitch}>
-                {(['TYPE', 'SPEAK'] as const).map(mode => (
-                  <TouchableOpacity
-                    key={mode}
-                    style={[styles.switchBtn, inputMode === mode && styles.switchBtnActive]}
-                    onPress={() => setInputMode(mode)}
-                    disabled={isProcessing || isRecording}
-                  >
-                    <Text style={[styles.switchText, inputMode === mode && styles.switchTextActive]}>
-                      {mode === 'TYPE' ? PRACTICE_TEXTS.type : PRACTICE_TEXTS.speak}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {/* Mode switch temporarily disabled - only TYPE mode available */}
+              {/* <View style={styles.modeSwitch}>
+                            { (['TYPE', 'SPEAK'] as const).map(mode => (
+                                <TouchableOpacity 
+                                    key={mode}
+                                    style={[styles.switchBtn, inputMode === mode && styles.switchBtnActive]}
+                                      onPress={() => setInputMode(mode)}
+                                      disabled={isProcessing || isRecording}
+                                  >
+                                      <Text style={[styles.switchText, inputMode === mode && styles.switchTextActive]}>
+                                        {mode === 'TYPE' ? PRACTICE_TEXTS.type : PRACTICE_TEXTS.speak}
+                                      </Text>
+                                  </TouchableOpacity>
+                            ))}
+                        </View> */}
 
-              {inputMode === 'TYPE' ? (
-                <TextInput
-                  style={styles.textInput}
-                  placeholder={PRACTICE_TEXTS.whatIsThisWord}
-                  placeholderTextColor={colors.textLight}
-                  value={userAnswer}
-                  onChangeText={setUserAnswer}
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  onSubmitEditing={() => checkAnswer()}
-                />
-              ) : (
-                <View style={styles.speechContainer}>
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    style={[
-                      styles.micButtonLarge,
-                      isRecording && styles.micButtonRecording,
-                      isProcessing && styles.micButtonProcessing,
-                      shadows.medium
-                    ]}
-                    onPress={handleMicPress}
-                    disabled={isProcessing}
-                  >
-                    <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                      <Text style={styles.micIconLarge}>{isProcessing ? '⏳' : '🎙️'}</Text>
-                    </Animated.View>
-                  </TouchableOpacity>
-                  <Text style={styles.speechStatus}>
-                    {isRecording ? PRACTICE_TEXTS.listening : isProcessing ? PRACTICE_TEXTS.thinking : PRACTICE_TEXTS.tapToAnswer}
-                  </Text>
-                </View>
-              )}
+              {/* Always show TYPE input - SPEAK mode temporarily disabled */}
+              <TextInput
+                style={styles.textInput}
+                placeholder={PRACTICE_TEXTS.whatIsThisWord}
+                placeholderTextColor={colors.textLight}
+                value={userAnswer}
+                onChangeText={setUserAnswer}
+                autoCapitalize="none"
+                autoCorrect={false}
+                onSubmitEditing={() => checkAnswer()}
+              />
 
               <View style={styles.actionRow}>
                 <TouchableOpacity style={styles.giveUpButton} onPress={() => checkAnswer('?')}>
@@ -545,9 +566,9 @@ export const PracticeScreen: React.FC = () => {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.checkButton, (!userAnswer && inputMode === 'TYPE') && styles.checkButtonDisabled]}
-                  onPress={() => checkAnswer()}
-                  disabled={!userAnswer && inputMode === 'TYPE' || isProcessing || isRecording}
+                  style={[styles.checkButton]}
+                  onPress={() => userAnswer && checkAnswer()}
+                  disabled={!userAnswer}
                 >
                   <Text style={styles.checkButtonText}>{PRACTICE_TEXTS.verify}</Text>
                 </TouchableOpacity>
@@ -555,11 +576,6 @@ export const PracticeScreen: React.FC = () => {
             </View>
           ) : (
             <View style={styles.resultArea}>
-              <View style={[styles.resultBadge, isCorrect ? styles.badgeCorrect : styles.badgeWrong]}>
-                <Text style={styles.resultEmoji}>{isCorrect ? '🎉' : '❌'}</Text>
-                <Text style={styles.resultTitle}>{isCorrect ? PRACTICE_TEXTS.splendid : PRACTICE_TEXTS.notQuite}</Text>
-              </View>
-
               <View style={[styles.correctAnswerBox, shadows.subtle]}>
                 <Text style={styles.labelSmall}>{PRACTICE_TEXTS.correctWordIs}</Text>
                 <Text style={styles.correctWord}>{currentWord.word}</Text>
@@ -584,12 +600,39 @@ export const PracticeScreen: React.FC = () => {
 
   if (isQuizVisible) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-        {showReview ? renderReviewScreen() : (
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
-            {renderQuizContent()}
-          </KeyboardAvoidingView>
-        )}
+      <LinearGradient
+        colors={gradients.backgroundMain.colors as [string, string, ...string[]]}
+        start={gradients.backgroundMain.start}
+        end={gradients.backgroundMain.end}
+        style={styles.container}
+      >
+        <SafeAreaView style={{ flex: 1 }}>
+          {showReview ? renderReviewScreen() : (
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+              {renderQuizContent()}
+            </KeyboardAvoidingView>
+          )}
+
+          <ImageViewerModal
+            visible={imageViewerVisible}
+            imageUrl={viewingImageUrl}
+            onClose={() => setImageViewerVisible(false)}
+            allowEdit={false}
+          />
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
+
+  return (
+    <LinearGradient
+      colors={gradients.backgroundMain.colors as [string, string, ...string[]]}
+      start={gradients.backgroundMain.start}
+      end={gradients.backgroundMain.end}
+      style={styles.container}
+    >
+      <View style={styles.innerContainer}>
+        {renderSetup()}
 
         <ImageViewerModal
           visible={imageViewerVisible}
@@ -597,53 +640,131 @@ export const PracticeScreen: React.FC = () => {
           onClose={() => setImageViewerVisible(false)}
           allowEdit={false}
         />
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      {renderSetup()}
-
-      <ImageViewerModal
-        visible={imageViewerVisible}
-        imageUrl={viewingImageUrl}
-        onClose={() => setImageViewerVisible(false)}
-        allowEdit={false}
-      />
-    </View>
+      </View>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1 },
+  innerContainer: { flex: 1 },
   centerContent: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
 
   title: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.extraBold, color: colors.textPrimary, marginBottom: spacing.xs, textAlign: 'center' },
   subtitle: { fontSize: typography.sizes.md, color: colors.textSecondary, marginBottom: spacing.xxl, textAlign: 'center' },
 
-  card: { width: '100%', backgroundColor: colors.white, borderRadius: borderRadius.lg, padding: spacing.xl, marginBottom: spacing.xxl, borderWidth: 1, borderColor: colors.borderLight },
+  // Claymorphism card - floating 3D clay tile with soft shadows
+  card: {
+    width: '100%',
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.clayCard,
+    padding: spacing.xl,
+    marginBottom: spacing.xxl,
+    borderWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.clayMedium,
+  },
   label: { fontSize: typography.sizes.md, fontWeight: typography.weights.semibold, color: colors.textPrimary, marginBottom: spacing.lg },
   countRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
-  countBtn: { flex: 1, paddingVertical: 12, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.borderMedium, alignItems: 'center' },
-  countBtnActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  countBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: borderRadius.clayInput,
+    borderWidth: 0,
+    alignItems: 'center',
+    backgroundColor: colors.cardSurface,
+    ...shadows.claySoft,
+  },
+  countBtnActive: {
+    backgroundColor: colors.primary,
+    ...shadows.clayPrimary,
+  },
   countText: { fontSize: typography.sizes.md, fontWeight: typography.weights.semibold, color: colors.textSecondary },
-  countTextActive: { color: colors.white },
+  countTextActive: { color: colors.white, fontWeight: typography.weights.bold },
 
-  primaryButton: { width: '100%', backgroundColor: colors.primary, paddingVertical: 16, borderRadius: borderRadius.lg, alignItems: 'center', ...shadows.medium },
+  // Claymorphism primary button - pill shape with clay shadow
+  primaryButton: {
+    width: '100%',
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.puffyMd,
+    borderRadius: borderRadius.clayButton,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.clayPrimary,
+  },
   primaryButtonText: { color: colors.white, fontSize: typography.sizes.lg, fontWeight: typography.weights.bold, letterSpacing: 0.3 },
 
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.sm },
-  closeBtn: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: colors.backgroundSoft },
+  // Claymorphism modal header
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.xs },
+  closeBtn: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 21,
+    backgroundColor: colors.cardSurface,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.claySoft,
+  },
   closeText: { fontSize: typography.sizes.lg, fontWeight: typography.weights.bold, color: colors.textSecondary },
   progressText: { fontSize: typography.sizes.md, fontWeight: typography.weights.semibold, color: colors.textLight, textTransform: 'uppercase', letterSpacing: 1 },
 
-  quizContent: { paddingTop: spacing.xl, flexGrow: 1, paddingBottom: spacing.massive },
-  clueCard: { backgroundColor: colors.white, borderRadius: borderRadius.xxxl, padding: spacing.xl, marginBottom: spacing.xxl, alignItems: 'center', marginHorizontal: spacing.xl },
-  clueImageWrapper: { width: SCREEN_WIDTH * 0.45, height: SCREEN_WIDTH * 0.45, borderRadius: borderRadius.lg, backgroundColor: colors.backgroundSoft, marginBottom: spacing.lg, overflow: 'hidden' },
+  quizContent: { paddingTop: spacing.sm, flexGrow: 1, paddingBottom: spacing.massive },
+  // Claymorphism clue card - floating 3D clay tile
+  clueCard: {
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.xxxl,
+    padding: spacing.xl,
+    marginBottom: spacing.sm,
+    alignItems: 'center',
+    marginHorizontal: spacing.xl,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.clayMedium,
+  },
+  clueImageWrapper: {
+    width: SCREEN_WIDTH * 0.45,
+    height: SCREEN_WIDTH * 0.45,
+    borderRadius: borderRadius.clayCard,
+    backgroundColor: colors.backgroundSoft,
+    marginBottom: spacing.lg,
+    overflow: 'hidden',
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerDark,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.shadowInnerLight,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+  },
   clueImage: { width: '100%', height: '100%' },
 
-  hintButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.backgroundSoft, paddingVertical: 10, paddingHorizontal: 20, borderRadius: borderRadius.round },
+  // Claymorphism hint button - soft clay pill
+  hintButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.cardSurface,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: borderRadius.clayBadge,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.claySoft,
+  },
   hintIcon: { marginRight: 8, fontSize: typography.sizes.lg },
   hintText: { fontWeight: typography.weights.bold, color: colors.primary, fontSize: typography.sizes.base },
 
@@ -653,48 +774,166 @@ const styles = StyleSheet.create({
   clueExample: { fontSize: typography.sizes.md, fontStyle: 'italic', color: colors.textSecondary, textAlign: 'center', lineHeight: 24 },
 
   inputArea: { width: '100%', paddingHorizontal: spacing.xl },
-  modeSwitch: { flexDirection: 'row', justifyContent: 'center', marginBottom: spacing.xxl, backgroundColor: colors.backgroundSoft, padding: 4, borderRadius: borderRadius.lg, alignSelf: 'center' },
-  switchBtn: { paddingHorizontal: spacing.xl, paddingVertical: 10, borderRadius: 12 },
-  switchBtnActive: { backgroundColor: colors.white, ...shadows.subtle },
+  // Claymorphism mode switch - soft clay container
+  modeSwitch: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginBottom: spacing.xxl,
+    backgroundColor: colors.backgroundSoft,
+    padding: 6,
+    borderRadius: borderRadius.clayInput,
+    alignSelf: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerDark,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.shadowInnerLight,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+  },
+  switchBtn: { paddingHorizontal: spacing.xl, paddingVertical: 12, borderRadius: borderRadius.md },
+  switchBtnActive: {
+    backgroundColor: colors.white,
+    ...shadows.claySoft,
+  },
   switchText: { fontWeight: typography.weights.bold, color: colors.textSecondary, fontSize: typography.sizes.base },
   switchTextActive: { color: colors.primary },
 
-  textInput: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderMedium, borderRadius: borderRadius.xl, padding: spacing.lg, fontSize: typography.sizes.xxl, textAlign: 'center', color: colors.textPrimary, marginBottom: spacing.xxl, ...shadows.subtle },
+  // Claymorphism text input - soft clay with inner shadow
+  textInput: {
+    backgroundColor: colors.cardSurface,
+    borderWidth: 0,
+    borderRadius: borderRadius.clayInput,
+    padding: spacing.lg,
+    fontSize: typography.sizes.xxl,
+    textAlign: 'center',
+    color: colors.textPrimary,
+    marginBottom: spacing.xxl,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerDark,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.shadowInnerLight,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.claySoft,
+  },
 
   speechContainer: { alignItems: 'center', marginBottom: spacing.xxxl },
-  micButtonLarge: { backgroundColor: colors.white, width: 110, height: 110, borderRadius: 55, alignItems: 'center', justifyContent: 'center', marginBottom: spacing.lg, borderWidth: 6, borderColor: colors.backgroundSoft },
-  micButtonRecording: { borderColor: '#FFDEDE', backgroundColor: '#FFF5F5' },
-  micButtonProcessing: { borderColor: '#E0E7FF', backgroundColor: '#F8FAFF' },
+  // Claymorphism mic button - floating 3D clay circle
+  micButtonLarge: {
+    backgroundColor: colors.cardSurface,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.lg,
+    borderWidth: 0,
+    borderTopWidth: 2,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.clayMedium,
+  },
+  micButtonRecording: {
+    backgroundColor: '#FFF5F5',
+    borderTopColor: 'rgba(255, 200, 200, 0.6)',
+  },
+  micButtonProcessing: {
+    backgroundColor: '#F8FAFF',
+    borderTopColor: 'rgba(200, 210, 255, 0.6)',
+  },
   micIconLarge: { fontSize: 40 },
   speechStatus: { fontWeight: typography.weights.semibold, color: colors.textSecondary, fontSize: typography.sizes.base },
 
   actionRow: { flexDirection: 'row', gap: spacing.md },
-  giveUpButton: { flex: 1, backgroundColor: colors.backgroundSoft, borderRadius: borderRadius.lg, paddingVertical: 16, alignItems: 'center' },
+  // Claymorphism give up button - soft clay
+  giveUpButton: {
+    flex: 1,
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.clayInput,
+    paddingVertical: 18,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.claySoft,
+  },
   giveUpText: { color: colors.textSecondary, fontSize: typography.sizes.md, fontWeight: typography.weights.bold },
-  checkButton: { flex: 1, backgroundColor: colors.primary, borderRadius: borderRadius.lg, paddingVertical: 16, alignItems: 'center', ...shadows.medium },
-  checkButtonDisabled: { backgroundColor: colors.borderMedium, elevation: 0, shadowOpacity: 0 },
+  // Claymorphism check button - primary clay
+  checkButton: {
+    flex: 1,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.clayInput,
+    paddingVertical: 18,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.clayPrimary,
+  },
   checkButtonText: { color: colors.white, fontSize: typography.sizes.md, fontWeight: typography.weights.bold },
 
   resultArea: { alignItems: 'center', width: '100%', paddingVertical: spacing.sm, paddingHorizontal: spacing.xl },
-  resultBadge: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: 10, borderRadius: borderRadius.round, marginBottom: spacing.xl },
+  // Claymorphism result badge - floating 3D pill
+  resultBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: 12,
+    borderRadius: borderRadius.clayBadge,
+    marginBottom: spacing.xl,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.claySoft,
+  },
   badgeCorrect: { backgroundColor: '#D1FAE5' },
   badgeWrong: { backgroundColor: '#FEE2E2' },
   resultEmoji: { fontSize: typography.sizes.xl, marginRight: 8 },
   resultTitle: { fontSize: typography.sizes.lg, fontWeight: typography.weights.extraBold, color: colors.textPrimary },
 
-  correctAnswerBox: { alignItems: 'center', marginBottom: spacing.xxl, width: '100%', padding: spacing.xl, backgroundColor: colors.white, borderRadius: borderRadius.xxxl, borderWidth: 1, borderColor: colors.borderLight },
+  // Claymorphism correct answer box - floating 3D clay tile
+  correctAnswerBox: {
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+    width: '100%',
+    padding: spacing.xl,
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.clayCard,
+    borderWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.clayMedium,
+  },
   labelSmall: { fontSize: typography.sizes.base, color: colors.textLight, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 },
   correctWord: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.heavy, color: colors.textPrimary, marginBottom: spacing.sm, letterSpacing: -0.5 },
   phoneticRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   phoneticText: { fontSize: typography.sizes.lg, color: colors.textSecondary, fontStyle: 'italic' },
 
-  nextButton: { width: '100%', backgroundColor: colors.primary, borderRadius: borderRadius.lg, paddingVertical: 14, alignItems: 'center', ...shadows.strong },
+  // Claymorphism next button - primary clay
+  nextButton: {
+    width: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.clayInput,
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.clayPrimary,
+  },
   nextButtonText: { color: colors.white, fontSize: typography.sizes.md, fontWeight: typography.weights.bold, letterSpacing: 0.3 },
 
   summaryContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },
   summaryEmoji: { fontSize: 72, marginBottom: spacing.lg },
 
-  // Gamification Stats Styles
+  // Gamification Stats Styles - Claymorphism
   statsContainer: {
     width: '100%',
     marginBottom: spacing.md,
@@ -706,15 +945,17 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     marginBottom: spacing.md,
   },
+  // Claymorphism stat card - floating 3D clay tile
   statCard: {
     flex: 1,
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.lg,
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.clayCard,
     padding: spacing.md,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    ...shadows.subtle,
+    borderWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.claySoft,
   },
   statEmoji: {
     fontSize: 28,
@@ -731,12 +972,19 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: typography.weights.medium,
   },
+  // Claymorphism last practice info - soft clay container
   lastPracticeInfo: {
-    backgroundColor: colors.backgroundSoft,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.clayCard,
     padding: spacing.md,
     alignItems: 'center',
-    marginBottom: spacing.md
+    marginBottom: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.claySoft,
   },
   lastPracticeText: {
     fontSize: typography.sizes.base,
@@ -750,38 +998,49 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.semibold,
   },
 
-  // Carousel styles
-  meaningContent: {
-    width: SCREEN_WIDTH - (spacing.xl * 4), // Trừ padding của card và margin
+  // Meaning carousel styles
+  meaningScrollView: {
+    width: '100%',
+  },
+  meaningScrollContent: {
+    alignItems: 'flex-start',
+  },
+  meaningSlide: {
+    width: SCREEN_WIDTH - (spacing.xl * 4),
     alignItems: 'center',
   },
   paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    gap: 6,
-    marginTop: spacing.sm,
+    alignItems: 'center',
+    gap: 8,
+    marginTop: spacing.lg,
+    paddingVertical: spacing.sm,
   },
   paginationDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: colors.borderMedium,
   },
   paginationDotActive: {
     backgroundColor: colors.primary,
     width: 20,
+    borderRadius: 4,
   },
 
-  // Review Screen Styles
+  // Review Screen Styles - Claymorphism
   secondaryButtonOutline: {
     width: '100%',
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: colors.borderMedium,
-    paddingVertical: 14,
-    borderRadius: borderRadius.lg,
+    backgroundColor: colors.cardSurface,
+    borderWidth: 0,
+    paddingVertical: 16,
+    borderRadius: borderRadius.clayInput,
     alignItems: 'center',
     marginTop: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.claySoft,
   },
   secondaryButtonOutlineText: {
     color: colors.textSecondary,
@@ -789,88 +1048,144 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.bold,
   },
   reviewContent: {
-    padding: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: 120,
     flexGrow: 1,
   },
+  // Claymorphism review summary - compact floating card
   reviewSummary: {
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.xl,
-    padding: spacing.xl,
-    marginBottom: spacing.xl,
-    ...shadows.medium,
-  },
-  reviewTitle: {
-    fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.extraBold,
-    color: colors.textPrimary,
-    textAlign: 'center',
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.clayCard,
+    padding: spacing.lg,
     marginBottom: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.clayMedium,
   },
   reviewStatsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'space-between',
     gap: spacing.sm,
   },
+  // Claymorphism review stat item - compact pill
   reviewStatItem: {
     flex: 1,
     alignItems: 'center',
-    padding: spacing.md,
-    backgroundColor: colors.backgroundSoft,
-    borderRadius: borderRadius.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderRadius: borderRadius.lg,
   },
-  reviewStatEmoji: {
-    fontSize: 32,
-    marginBottom: spacing.xs,
+  reviewStatCorrect: {
+    backgroundColor: 'rgba(52, 211, 153, 0.15)',
+  },
+  reviewStatIncorrect: {
+    backgroundColor: 'rgba(248, 113, 113, 0.15)',
+  },
+  reviewStatSkipped: {
+    backgroundColor: 'rgba(156, 163, 175, 0.15)',
   },
   reviewStatNumber: {
-    fontSize: typography.sizes.xxl,
+    fontSize: typography.sizes.xl,
     fontWeight: typography.weights.extraBold,
     color: colors.textPrimary,
-    marginBottom: 2,
   },
   reviewStatLabel: {
     fontSize: typography.sizes.xs,
     color: colors.textSecondary,
-    fontWeight: typography.weights.medium,
+    fontWeight: typography.
+      weights.semibold,
+    marginTop: 2,
   },
   reviewList: {
-    gap: spacing.md,
+    gap: spacing.sm,
   },
+  // Claymorphism review item - compact card
   reviewItem: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-  },
-  reviewItemHeader: {
+    padding: spacing.md,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    justifyContent: 'space-between',
+    borderLeftWidth: 3,
+    borderLeftColor: colors.borderMedium,
+    ...shadows.claySoft,
   },
-  reviewItemNumber: {
-    fontSize: typography.sizes.sm,
+  reviewItemCorrect: {
+    borderLeftColor: colors.success,
+    backgroundColor: 'rgba(52, 211, 153, 0.05)',
+  },
+  reviewItemIncorrect: {
+    borderLeftColor: colors.error,
+    backgroundColor: 'rgba(248, 113, 113, 0.05)',
+  },
+  reviewItemContent: {
+    flex: 1,
+  },
+  reviewItemRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  reviewItemLabel: {
+    fontSize: typography.sizes.xs,
     color: colors.textLight,
-    fontWeight: typography.weights.bold,
-  },
-  reviewItemStatus: {
-    fontSize: 24,
+    fontWeight: typography.weights.medium,
+    width: 55,
   },
   reviewItemWord: {
-    fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.extraBold,
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.bold,
     color: colors.textPrimary,
-    marginBottom: spacing.xs,
+    flex: 1,
   },
-  reviewItemAnswer: {
+  reviewItemUserAnswer: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.semibold,
+    flex: 1,
+  },
+  answerCorrect: {
+    color: colors.success,
+  },
+  answerIncorrect: {
+    color: colors.error,
+  },
+  reviewItemSkippedText: {
     fontSize: typography.sizes.sm,
+    color: colors.textLight,
     fontStyle: 'italic',
   },
-  reviewItemAnswerCorrect: {
-    color: '#059669',
+  reviewItemIconContainer: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: spacing.sm,
   },
-  reviewItemAnswerIncorrect: {
-    color: '#DC2626',
+  iconContainerCorrect: {
+    backgroundColor: colors.success,
+  },
+  iconContainerIncorrect: {
+    backgroundColor: colors.error,
+  },
+  iconContainerSkipped: {
+    backgroundColor: colors.textLight,
+  },
+  reviewItemIcon: {
+    fontSize: 16,
+    fontWeight: typography.weights.bold,
+    color: colors.white,
+  },
+  reviewDoneButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.puffyMd,
+    borderRadius: borderRadius.clayButton,
+    alignItems: 'center',
+    marginTop: spacing.xl,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    ...shadows.clayPrimary,
   },
 });

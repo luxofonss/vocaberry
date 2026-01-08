@@ -1,7 +1,7 @@
 // Storage Service - Proxying calls to DatabaseService for relational storage
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Word } from '../types';
-import { DatabaseService } from './DatabaseService';
+import DatabaseService from './DatabaseService';
 
 const STORAGE_KEYS = {
      IS_SEEDED: 'vocaberry_is_seeded_v12', // Bumped version for mock data

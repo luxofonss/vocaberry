@@ -1,6 +1,6 @@
 // Add Meaning Modal - Form to add new meaning to a word
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Modal,
   View,
@@ -14,7 +14,6 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography, spacing, shadows, borderRadius } from '../theme';
@@ -22,19 +21,8 @@ import { Meaning, Word } from '../types';
 import { ImageSearchModal } from './ImageSearchModal';
 import { ImageViewerModal } from './ImageViewerModal';
 import * as ImagePicker from 'expo-image-picker';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
-const PARTS_OF_SPEECH = [
-  'noun',
-  'verb',
-  'adjective',
-  'adverb',
-  'pronoun',
-  'preposition',
-  'conjunction',
-  'interjection',
-];
+import { PARTS_OF_SPEECH, UI_LIMITS, MESSAGES } from '../constants';
+import { toBase64Uri, generateMeaningId } from '../utils';
 
 interface AddMeaningModalProps {
   visible: boolean;
@@ -60,90 +48,91 @@ export const AddMeaningModal: React.FC<AddMeaningModalProps> = ({
 
   useEffect(() => {
     if (visible && word) {
-      // Reset form and set defaults
-      setPartOfSpeech('');
-      setPhonetic(word.phonetic || '');
-      setDefinition('');
-      setExample('');
-      setExampleImageUrl('');
+      resetForm();
     }
   }, [visible, word]);
 
-  const handlePickImage = async () => {
+  const resetForm = useCallback(() => {
+    setPartOfSpeech('');
+    setPhonetic(word?.phonetic || '');
+    setDefinition('');
+    setExample('');
+    setExampleImageUrl('');
+  }, [word?.phonetic]);
+
+  const handlePickImage = useCallback(async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'We need access to your photos to add images.');
+        Alert.alert(MESSAGES.errors.permissionDenied, MESSAGES.errors.galleryPermission);
         return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.7,
+        aspect: UI_LIMITS.imageAspectRatio.standard,
+        quality: UI_LIMITS.imageQuality,
         base64: true,
       });
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
+      if (!result.canceled && result.assets?.[0]) {
         const asset = result.assets[0];
-        const base64Uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-        setExampleImageUrl(base64Uri);
+        setExampleImageUrl(toBase64Uri(asset.base64 ?? undefined, asset.uri));
       }
     } catch (error) {
       console.error('[AddMeaningModal] Error picking image:', error);
       Alert.alert('Error', 'Failed to pick image');
     }
-  };
+  }, []);
 
-  const handleTakePhoto = async () => {
+  const handleTakePhoto = useCallback(async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'We need camera access to take photos.');
+        Alert.alert(MESSAGES.errors.permissionDenied, MESSAGES.errors.cameraPermission);
         return;
       }
 
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
         allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.7,
+        aspect: UI_LIMITS.imageAspectRatio.standard,
+        quality: UI_LIMITS.imageQuality,
         base64: true,
       });
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
+      if (!result.canceled && result.assets?.[0]) {
         const asset = result.assets[0];
-        const base64Uri = asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : asset.uri;
-        setExampleImageUrl(base64Uri);
+        setExampleImageUrl(toBase64Uri(asset.base64 ?? undefined, asset.uri));
       }
     } catch (error) {
       console.error('[AddMeaningModal] Error taking photo:', error);
       Alert.alert('Error', 'Failed to take photo');
     }
-  };
+  }, []);
 
-  const handleSearchImage = () => {
+  const handleSearchImage = useCallback(() => {
     setImageSearchVisible(true);
-  };
+  }, []);
 
-  const handleImageSearchSelect = (imageUrl: string) => {
+  const handleImageSearchSelect = useCallback((imageUrl: string) => {
     setExampleImageUrl(imageUrl);
     setImageSearchVisible(false);
-  };
+  }, []);
 
-  const handleViewImage = () => {
+  const handleViewImage = useCallback(() => {
     if (exampleImageUrl) {
       setImageViewerVisible(true);
     }
-  };
+  }, [exampleImageUrl]);
 
-  const handleImageChange = (newImageUrl: string) => {
+  const handleImageChange = useCallback((newImageUrl: string) => {
     setExampleImageUrl(newImageUrl);
     setImageViewerVisible(false);
-  };
+  }, []);
 
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     if (!definition.trim()) {
       Alert.alert('Required Field', 'Please enter a definition.');
       return;
@@ -152,7 +141,7 @@ export const AddMeaningModal: React.FC<AddMeaningModalProps> = ({
     if (!word) return;
 
     const newMeaning: Meaning = {
-      id: `${word.id}-meaning-${Date.now()}`,
+      id: generateMeaningId(word.id),
       partOfSpeech: partOfSpeech.trim() || undefined,
       phonetic: phonetic.trim() || word.phonetic || undefined,
       definition: definition.trim(),
@@ -163,20 +152,19 @@ export const AddMeaningModal: React.FC<AddMeaningModalProps> = ({
     setIsSaving(true);
     try {
       onSave(newMeaning);
-      // Reset form
-      setPartOfSpeech('');
-      setPhonetic(word.phonetic || '');
-      setDefinition('');
-      setExample('');
-      setExampleImageUrl('');
+      resetForm();
       onClose();
     } catch (error) {
       console.error('[AddMeaningModal] Error saving:', error);
-      Alert.alert('Error', 'Failed to save meaning');
+      Alert.alert('Error', MESSAGES.errors.saveFailed);
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [definition, word, partOfSpeech, phonetic, example, exampleImageUrl, onSave, resetForm, onClose]);
+
+  const togglePartOfSpeech = useCallback((pos: string) => {
+    setPartOfSpeech(prev => prev === pos ? '' : pos);
+  }, []);
 
   if (!word) return null;
 
@@ -192,134 +180,110 @@ export const AddMeaningModal: React.FC<AddMeaningModalProps> = ({
               <Text style={styles.closeIcon}>✕</Text>
             </TouchableOpacity>
             <Text style={styles.title}>Add Meaning</Text>
-            <View style={{ width: 40 }} />
+            <View style={styles.placeholder} />
           </View>
 
-            <ScrollView
-              style={styles.scrollView}
-              contentContainerStyle={styles.scrollContent}
-              keyboardShouldPersistTaps="handled"
-            >
-              {/* Part of Speech */}
-              <View style={styles.section}>
-                <Text style={styles.label}>Part of Speech (Optional)</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.posScroll}>
-                  {PARTS_OF_SPEECH.map((pos) => (
-                    <TouchableOpacity
-                      key={pos}
-                      style={[
-                        styles.posChip,
-                        partOfSpeech === pos && styles.posChipActive,
-                      ]}
-                      onPress={() => setPartOfSpeech(partOfSpeech === pos ? '' : pos)}
-                    >
-                      <Text
-                        style={[
-                          styles.posChipText,
-                          partOfSpeech === pos && styles.posChipTextActive,
-                        ]}
-                      >
-                        {pos}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-              {/* Phonetic */}
-              <View style={styles.section}>
-                <Text style={styles.label}>Pronunciation (Optional)</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={word.phonetic || '/.../'}
-                  placeholderTextColor={colors.textLight}
-                  value={phonetic}
-                  onChangeText={setPhonetic}
-                />
-              </View>
-
-              {/* Definition */}
-              <View style={styles.section}>
-                <Text style={styles.label}>Definition *</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Enter definition..."
-                  placeholderTextColor={colors.textLight}
-                  value={definition}
-                  onChangeText={setDefinition}
-                  multiline
-                  numberOfLines={3}
-                />
-              </View>
-
-              {/* Example */}
-              <View style={styles.section}>
-                <Text style={styles.label}>Example (Optional)</Text>
-                <TextInput
-                  style={[styles.input, styles.textArea]}
-                  placeholder="Enter example sentence..."
-                  placeholderTextColor={colors.textLight}
-                  value={example}
-                  onChangeText={setExample}
-                  multiline
-                  numberOfLines={2}
-                />
-              </View>
-
-              {/* Image */}
-              <View style={styles.section}>
-                <Text style={styles.label}>Example Image (Optional)</Text>
-                {exampleImageUrl ? (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Part of Speech */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Part of Speech (Optional)</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.posScroll}>
+                {PARTS_OF_SPEECH.map((pos) => (
                   <TouchableOpacity
-                    style={styles.imagePreview}
-                    onPress={handleViewImage}
+                    key={pos}
+                    style={[styles.posChip, partOfSpeech === pos && styles.posChipActive]}
+                    onPress={() => togglePartOfSpeech(pos)}
                   >
-                    <Image
-                      source={{ uri: exampleImageUrl }}
-                      style={styles.previewImage}
-                      resizeMode="cover"
-                    />
-                    <View style={styles.imageOverlay}>
-                      <Text style={styles.imageOverlayText}>Tap to view/edit</Text>
-                    </View>
+                    <Text style={[styles.posChipText, partOfSpeech === pos && styles.posChipTextActive]}>
+                      {pos}
+                    </Text>
                   </TouchableOpacity>
-                ) : (
-                  <View style={styles.imageButtons}>
-                    <TouchableOpacity
-                      style={styles.imageButton}
-                      onPress={handlePickImage}
-                    >
-                      <Text style={styles.imageButtonText}>📷 Upload</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.imageButton}
-                      onPress={handleTakePhoto}
-                    >
-                      <Text style={styles.imageButtonText}>📸 Take Photo</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.imageButton}
-                      onPress={handleSearchImage}
-                    >
-                      <Text style={styles.imageButtonText}>🔍 Search</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
+                ))}
+              </ScrollView>
+            </View>
 
-              {/* Save Button */}
-              <TouchableOpacity
-                style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
-                onPress={handleSave}
-                disabled={isSaving || !definition.trim()}
-              >
-                {isSaving ? (
-                  <ActivityIndicator color={colors.white} />
-                ) : (
-                  <Text style={styles.saveButtonText}>Save Meaning</Text>
-                )}
-              </TouchableOpacity>
-            </ScrollView>
+            {/* Phonetic */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Pronunciation (Optional)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={word.phonetic || '/.../'}
+                placeholderTextColor={colors.textLight}
+                value={phonetic}
+                onChangeText={setPhonetic}
+              />
+            </View>
+
+            {/* Definition */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Definition *</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder={MESSAGES.placeholders.enterDefinition}
+                placeholderTextColor={colors.textLight}
+                value={definition}
+                onChangeText={setDefinition}
+                multiline
+                numberOfLines={3}
+              />
+            </View>
+
+            {/* Example */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Example (Optional)</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder={MESSAGES.placeholders.enterExample}
+                placeholderTextColor={colors.textLight}
+                value={example}
+                onChangeText={setExample}
+                multiline
+                numberOfLines={2}
+              />
+            </View>
+
+            {/* Image */}
+            <View style={styles.section}>
+              <Text style={styles.label}>Example Image (Optional)</Text>
+              {exampleImageUrl ? (
+                <TouchableOpacity style={styles.imagePreview} onPress={handleViewImage}>
+                  <Image source={{ uri: exampleImageUrl }} style={styles.previewImage} resizeMode="cover" />
+                  <View style={styles.imageOverlay}>
+                    <Text style={styles.imageOverlayText}>Tap to view/edit</Text>
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.imageButtons}>
+                  <TouchableOpacity style={styles.imageButton} onPress={handlePickImage}>
+                    <Text style={styles.imageButtonText}>📷 Upload</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.imageButton} onPress={handleTakePhoto}>
+                    <Text style={styles.imageButtonText}>📸 Take Photo</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.imageButton} onPress={handleSearchImage}>
+                    <Text style={styles.imageButtonText}>🔍 Search</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+
+            {/* Save Button */}
+            <TouchableOpacity
+              style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+              onPress={handleSave}
+              disabled={isSaving || !definition.trim()}
+            >
+              {isSaving ? (
+                <ActivityIndicator color={colors.white} />
+              ) : (
+                <Text style={styles.saveButtonText}>Save Meaning</Text>
+              )}
+            </TouchableOpacity>
+          </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
 
@@ -338,7 +302,7 @@ export const AddMeaningModal: React.FC<AddMeaningModalProps> = ({
         allowEdit={true}
         initialQuery={word.word}
       />
-    </Modal>
+    </Modal >
   );
 };
 
@@ -374,6 +338,9 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: typography.sizes.lg,
     fontWeight: typography.weights.bold,
+  },
+  placeholder: {
+    width: 40,
   },
   scrollView: {
     flex: 1,
@@ -426,6 +393,7 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
   },
   posChipTextActive: {
+    color: colors.white,
     fontWeight: typography.weights.bold,
   },
   imageButtons: {
@@ -490,4 +458,3 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.bold,
   },
 });
-

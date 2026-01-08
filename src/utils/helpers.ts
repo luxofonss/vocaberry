@@ -137,13 +137,6 @@ export const isEmpty = (str: string | null | undefined): boolean => {
      return !str || str.trim().length === 0;
 };
 
-/**
- * Check if URL is valid image URL
- */
-export const isValidImageUrl = (url: string | null | undefined): boolean => {
-     return !isEmpty(url) && url!.trim() !== '';
-};
-
 // ============================================
 // ID GENERATION
 // ============================================

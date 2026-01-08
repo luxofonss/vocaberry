@@ -2,8 +2,8 @@
 import { colors } from './colors';
 import { typography } from './typography';
 import { spacing, borderRadius } from './spacing';
-import { shadows } from './shadows';
-import { globalStyles } from './styles';
+import { shadows, innerShadows } from './shadows';
+import { globalStyles, gradients } from './styles';
 
 export {
      colors,
@@ -11,7 +11,9 @@ export {
      spacing,
      borderRadius,
      shadows,
+     innerShadows,
      globalStyles,
+     gradients,
 };
 
 // Common Theme object for easy access if needed
@@ -21,5 +23,7 @@ export const theme = {
      spacing,
      borderRadius,
      shadows,
+     innerShadows,
      globalStyles,
+     gradients,
 };

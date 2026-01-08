@@ -1,4 +1,4 @@
-// WordCard Component - Modern Minimal Design
+// WordCard Component - Claymorphism 3D Clay Design
 
 import React, { useEffect, useState, useRef, useCallback, memo, useMemo } from 'react';
 import {
@@ -8,14 +8,15 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
-  Platform,
-  ActivityIndicator,
 } from 'react-native';
 import { colors } from '../theme/colors';
 import { Word } from '../types';
 import { EventBus } from '../services/EventBus';
-import { calculateCardWidth, isWordLearned, isValidImageUrl } from '../utils';
-import { spacing } from '../theme';
+import { calculateCardWidth, isWordLearned } from '../utils';
+import { getDisplayImageUrl, isValidImageUrl } from '../utils/imageUtils';
+import { spacing, borderRadius } from '../theme';
+import { shadows } from '../theme/shadows';
+import { SkeletonLoader } from './SkeletonLoader';
 
 // Grid configuration
 const GRID_CONFIG = {
@@ -42,6 +43,7 @@ const WordCardComponent: React.FC<WordCardProps> = ({
   variant = 'standard'
 }) => {
   const [word, setWord] = useState(originalWord);
+  const [isPressed, setIsPressed] = useState(false);
   const scaleValue = useRef(new Animated.Value(1)).current;
 
   const isCompact = variant === 'compact';
@@ -64,9 +66,14 @@ const WordCardComponent: React.FC<WordCardProps> = ({
   }, [word.id]);
 
   const isLearned = useMemo(() => isWordLearned(word.reviewCount), [word.reviewCount]);
-  const hasValidImage = useMemo(() => isValidImageUrl(word.imageUrl), [word.imageUrl]);
+
+  // Use getDisplayImageUrl for priority logic: customImageUrl > imageUrl
+  // Requirements: 7.1, 7.2
+  const displayImageUrl = useMemo(() => getDisplayImageUrl(word), [word]);
+  const hasValidImage = useMemo(() => isValidImageUrl(displayImageUrl), [displayImageUrl]);
 
   const handlePressIn = useCallback(() => {
+    setIsPressed(true);
     Animated.spring(scaleValue, {
       toValue: 0.94,
       useNativeDriver: true,
@@ -76,6 +83,7 @@ const WordCardComponent: React.FC<WordCardProps> = ({
   }, [scaleValue]);
 
   const handlePressOut = useCallback(() => {
+    setIsPressed(false);
     Animated.spring(scaleValue, {
       toValue: 1,
       useNativeDriver: true,
@@ -98,14 +106,15 @@ const WordCardComponent: React.FC<WordCardProps> = ({
         onPressOut={handlePressOut}
         style={styles.touchable}
       >
-        <View style={styles.imageContainer}>
+        <View style={[
+          styles.imageContainer,
+          isPressed && styles.imageContainerPressed
+        ]}>
           {!hasValidImage ? (
-            <View style={[styles.image, styles.imagePlaceholder]}>
-              <ActivityIndicator size="large" color={colors.primary} />
-            </View>
+            <SkeletonLoader width="100%" height="100%" borderRadius={borderRadius.clayCard} />
           ) : (
             <Image
-              source={{ uri: word.imageUrl }}
+              source={{ uri: displayImageUrl }}
               style={styles.image}
               resizeMode="cover"
             />
@@ -136,17 +145,17 @@ export const WordCard = memo(WordCardComponent, (prevProps, nextProps) => {
   return (
     prevProps.word.id === nextProps.word.id &&
     prevProps.word.imageUrl === nextProps.word.imageUrl &&
+    prevProps.word.customImageUrl === nextProps.word.customImageUrl &&
+    prevProps.word.isUsingCustomImage === nextProps.word.isUsingCustomImage &&
     prevProps.word.reviewCount === nextProps.word.reviewCount &&
     prevProps.word.word === nextProps.word.word &&
     prevProps.variant === nextProps.variant
   );
 });
 
-// Style constants
+// Style constants for claymorphism
 const STYLES = {
-  borderRadius: 28,
   learnedBadgeSize: 24,
-  learnedBadgeColor: '#4ade80',
   textColor: '#1f2937',
 } as const;
 
@@ -157,53 +166,52 @@ const styles = StyleSheet.create({
   touchable: {
     width: '100%',
   },
+  // Claymorphism image container - clayMedium shadow, increased border radius
   imageContainer: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: STYLES.borderRadius,
-    backgroundColor: colors.backgroundSoft,
+    borderRadius: borderRadius.xxxl,
+    backgroundColor: colors.cardSurface,
     overflow: 'hidden',
     position: 'relative',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.08,
-        shadowRadius: 10,
-      },
-      android: {
-        elevation: 3,
-      }
-    })
+    // Inner highlight for 3D depth effect
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.clayMedium,
+  },
+  // Pressed state - compressed clay effect
+  imageContainerPressed: {
+    ...shadows.clayPressed,
   },
   image: {
     width: '100%',
     height: '100%',
   },
-  imagePlaceholder: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.backgroundSoft,
-  },
+  // Floating 3D learned badge - clayBadge radius, claySoft shadow, inner highlight
   learnedBadge: {
     position: 'absolute',
     top: 10,
     right: 10,
     width: STYLES.learnedBadgeSize,
     height: STYLES.learnedBadgeSize,
-    borderRadius: STYLES.learnedBadgeSize / 2,
-    backgroundColor: STYLES.learnedBadgeColor,
+    borderRadius: borderRadius.clayBadge,
+    backgroundColor: colors.success,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
+    // Inner highlight for 3D pill effect
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.claySoft,
   },
   checkIcon: {
     color: colors.white,
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: 'bold',
   },
   textContainer: {
@@ -211,12 +219,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   wordLabel: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 17,
+    fontWeight: '700',
     color: STYLES.textColor,
     textAlign: 'center',
   },
   wordLabelCompact: {
-    fontSize: 13,
+    fontSize: 14,
   },
 });

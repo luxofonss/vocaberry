@@ -1,208 +1,272 @@
-import { Word, LocalWord, ServerWord, LookupResponse, Meaning } from '../types';
+/**
+ * Dictionary Service - Refactored for Server-Client Architecture
+ * 
+ * Local-first approach:
+ * 1. Check local storage first
+ * 2. Return immediately if completed (has imageUrl and all meaning images)
+ * 3. Start polling if processing (missing images)
+ * 4. Call API only if not in local storage
+ * 
+ * Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 4.1, 4.2, 4.3, 4.4, 4.5
+ */
+
+import { Word, Meaning, ServerWord, UserExample } from '../types';
 import { EventBus } from './EventBus';
 import { StorageService } from './StorageService';
+import { ApiClient } from './ApiClient';
+import { isValidImageUrl, isWordLoading } from '../utils/imageUtils';
 
-// Base URL configuration
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8080/v1';
+// ============================================
+// Configuration
+// ============================================
+
+const POLLING_CONFIG = {
+     INTERVAL_MS: 4000,      // Poll every 4 seconds (between 3-5s as per requirements)
+     TIMEOUT_MS: 60000,      // Stop polling after 60 seconds
+     MAX_RETRIES: 3,         // Retry up to 3 times on failure
+     RETRY_DELAY_MS: 2000,   // Wait 2 seconds before retry
+};
+
+// ============================================
+// Helper Functions
+// ============================================
+
+/**
+ * Generate Google TTS URL for audio
+ */
+const getGoogleAudioUrl = (text: string): string => {
+     return `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=en&client=tw-ob`;
+};
+
+/**
+ * Delay helper for polling
+ */
+const delay = (ms: number): Promise<void> => {
+     return new Promise(resolve => setTimeout(resolve, ms));
+};
+
+/**
+ * Check if a word is completely processed
+ */
+const isWordCompleted = (word: Word): boolean => {
+     return !isWordLoading(word);
+};
+
+// ============================================
+// Dictionary Service
+// ============================================
 
 export const DictionaryService = {
      /**
-      * Tra cứu từ điển theo kiến trúc Server-Client mới.
-      * 1. Check Local
-      * 2. Call Server (Global Dictionary)
-      * 3. Sync to Local (Private Notebook)
+      * Lookup word - checks local first, only calls API if needed
       */
-     lookup: async (wordText: string, userExamples: string[] = [], customMainImage?: string): Promise<{ word: Word, isNew: boolean, originalText: string } | null> => {
+     lookup: async (
+          wordText: string,
+          userExamples: string[] = [],
+          customMainImage?: string
+     ): Promise<{ word: Word; isNew: boolean; originalText: string } | null> => {
           const inputWord = wordText.trim().toLowerCase();
-          console.log(`[DictionaryService] 🔍 Lookup: "${inputWord}"`);
+          console.log(`[DictionaryService] 🔍 Looking up word: "${inputWord}"...`);
 
-          // 1. Kiểm tra Local DB (Offline-first / Cache)
+          // 1. Check local storage first (Requirement 3.1)
           try {
-               const allWords = await StorageService.getWords();
-               const existing = allWords.find(w => w.word.toLowerCase() === inputWord);
-               if (existing) {
-                    console.log(`[DictionaryService] ♻️ Found locally: "${inputWord}"`);
-                    return { word: existing, isNew: false, originalText: wordText };
+               const localWord = await StorageService.getWordById(inputWord);
+
+               // 2. If exists locally and completed, return immediately (Requirement 3.2)
+               if (localWord && isWordCompleted(localWord)) {
+                    console.log(`[DictionaryService] ♻️ Found completed word locally`);
+                    return { word: localWord, isNew: false, originalText: wordText };
+               }
+
+               // 3. If exists locally but still processing, start polling (Requirement 3.3)
+               if (localWord && !isWordCompleted(localWord)) {
+                    console.log(`[DictionaryService] 🔄 Word exists but incomplete, starting poll...`);
+                    DictionaryService.pollUntilReady(inputWord);
+                    return { word: localWord, isNew: false, originalText: wordText };
                }
           } catch (e) {
-               console.error('[DictionaryService] Local check failed', e);
+               console.log(`[DictionaryService] ⚠️ Error checking local storage:`, e);
           }
 
-          // 2. Call Server API
+          // 4. Not in local storage, call API (Requirement 3.3)
+          console.log(`[DictionaryService] 🌐 Word not found locally, calling API...`);
+
           try {
-               // Use a mock response if API fails (for demo purposes) or implement real fetch
-               const response = await fetch(`${API_BASE_URL}/dictionary/lookup`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ word: inputWord })
-               });
-
-               if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('[DictionaryService] Server error:', response.status, errorText);
-                    // Fallback or throw? Returning null as per original behavior on failure
+               const response = await ApiClient.lookupWord(inputWord);
+               if (!response.success || !response.data?.word) {
+                    console.log(`[DictionaryService] ⚠️ API returned no data for "${inputWord}"`);
                     return null;
                }
 
-               const json: LookupResponse = await response.json();
+               const serverWord = response.data.word;
+               const status = response.data.status;
 
-               if (!json.success || !json.data) {
-                    return null;
-               }
+               // Convert user examples
+               const userExampleObjects: UserExample[] = userExamples
+                    .filter(text => text.trim())
+                    .map((text, index) => ({
+                         id: `user_ex_${Date.now()}_${index}`,
+                         text: text.trim(),
+                         audioUrl: getGoogleAudioUrl(text.trim()),
+                    }));
 
-               const { word: serverWord, status } = json.data;
+               // Merge with customizations
+               const localData: Partial<Word> = {
+                    customImageUrl: customMainImage || undefined,
+                    isUsingCustomImage: !!customMainImage,
+                    userExamples: userExampleObjects,
+               };
 
-               // 3. Transform & Save to Local
-               const localWord = await DictionaryService.saveToLocal(serverWord, userExamples, customMainImage);
+               const mergedWord = DictionaryService.mergeWithLocalData(serverWord, localData);
 
-               // 4. Handle Processing Status (Background Polling)
-               if (status === 'processing') {
-                    console.log(`[DictionaryService] ⏳ Word is processing. Starting polling...`);
-                    DictionaryService.pollWordUntilReady(serverWord.id);
+               // Save to local
+               await StorageService.addWord(mergedWord);
+               console.log(`[DictionaryService] 💾 Saved word to local storage`);
+
+               // If still processing, start background polling
+               if (status === 'PROCESSING' || isWordLoading(mergedWord)) {
+                    console.log(`[DictionaryService] ⏳ Starting background poll...`);
+                    DictionaryService.pollUntilReady(inputWord);
                }
 
                return {
-                    word: localWord,
+                    word: mergedWord,
                     isNew: true,
-                    originalText: wordText
+                    originalText: wordText,
                };
-
-          } catch (error) {
-               console.error('[DictionaryService] ❌ Network/Server Error:', error);
+          } catch (error: any) {
+               console.error(`[DictionaryService] ❌ API lookup failed:`, error.message);
                return null;
           }
      },
 
      /**
-      * Converts ServerWord to LocalWord and saves it.
+      * Merge server word data with local user customizations
       */
-     saveToLocal: async (serverWord: ServerWord, userExamples: string[] = [], customMainImage?: string): Promise<LocalWord> => {
-          const localWord: LocalWord = {
-               ...serverWord,
-               // Client-side fields
-               customImageUrl: customMainImage || '',
-               isUsingCustomImage: !!customMainImage,
-               userExamples: userExamples.map((text, i) => ({
-                    id: `user_${Date.now()}_${i}`,
-                    text,
-                    audioUrl: DictionaryService.getGoogleAudioUrl(text),
-                    customImageUrl: '' // User can add later
-               })),
-               userTopics: [],
-               userNotes: '',
-               isFavorite: false,
-               nextReviewDate: new Date().toISOString().split('T')[0],
-               reviewCount: 0,
-               viewCount: 0,
-               localCreatedAt: new Date().toISOString(),
-               localUpdatedAt: new Date().toISOString()
-          };
+     mergeWithLocalData: (serverWord: ServerWord, localData?: Partial<Word>): Word => {
+          const meanings: Meaning[] = (serverWord.meanings || []).map(sm => ({
+               id: sm.id,
+               partOfSpeech: sm.partOfSpeech,
+               definition: sm.definition,
+               example: sm.example,
+               exampleAudioUrl: sm.exampleAudioUrl || getGoogleAudioUrl(sm.example || ''),
+               exampleImageUrl: sm.exampleImageUrl || '',
+               imageDescription: sm.imageDescription || '',
+          }));
 
-          await StorageService.addWord(localWord);
-          return localWord;
-     },
+          const wordText = serverWord.word.toLowerCase();
 
-     /**
-      * Polls the server until the word is 'completed' (images generated).
-      */
-     pollWordUntilReady: async (wordId: string) => {
-          const maxAttempts = 20; // 100 seconds max
-          const interval = 5000;
+          return {
+               id: wordText,
+               word: serverWord.word,
+               phonetic: serverWord.phonetic || `/${serverWord.word}/`,
+               audioUrl: serverWord.audioUrl || getGoogleAudioUrl(serverWord.word),
+               imageUrl: serverWord.imageUrl || '',
+               meanings: meanings,
+               createdAt: serverWord.createdAt || new Date().toISOString(),
 
-          // Run in background (don't await this function in UI)
-          (async () => {
-               for (let attempt = 0; attempt < maxAttempts; attempt++) {
-                    await new Promise(resolve => setTimeout(resolve, interval));
+               // Preserve user customizations
+               customImageUrl: localData?.customImageUrl || '',
+               isUsingCustomImage: localData?.isUsingCustomImage || false,
+               userExamples: localData?.userExamples || [],
+               userTopics: localData?.userTopics || [],
+               userNotes: localData?.userNotes || '',
 
-                    try {
-                         console.log(`[DictionaryService] 🔄 Polling attempt ${attempt + 1} for "${wordId}"`);
-                         const response = await fetch(`${API_BASE_URL}/dictionary/${wordId}`);
-                         if (!response.ok) continue;
+               // Review system
+               topics: localData?.topics || ['Uncategorized'],
+               nextReviewDate: localData?.nextReviewDate || new Date().toISOString().split('T')[0],
+               reviewCount: localData?.reviewCount ?? 0,
+               viewCount: localData?.viewCount ?? 0,
 
-                         const json: LookupResponse = await response.json();
-                         if (json.success && json.data.status === 'completed') {
-                              console.log(`[DictionaryService] ✅ Word "${wordId}" ready! Syncing updates.`);
-
-                              // Update local word with new data from server (mainly images)
-                              await DictionaryService.syncServerUpdates(json.data.word);
-                              break;
-                         }
-                    } catch (e) {
-                         console.log('[DictionaryService] Polling error (transient)', e);
-                    }
-               }
-          })();
-     },
-
-     /**
-      * Syncs server updates (like generated images) to local storage without overwriting user data.
-      */
-     syncServerUpdates: async (newServerWord: ServerWord) => {
-          const currentLocal = await StorageService.getWordById(newServerWord.id);
-          if (!currentLocal) return;
-
-          // Merge: keep user custom fields, update server fields (images, definitions)
-          const updatedWord: LocalWord = {
-               ...currentLocal,
-               ...newServerWord, // Overwrites server fields (imageUrl, meanings)
-
-               // Restore local fields that might be lost if strictly spreading
-               customImageUrl: currentLocal.customImageUrl,
-               isUsingCustomImage: currentLocal.isUsingCustomImage,
-               userExamples: currentLocal.userExamples,
-               userTopics: currentLocal.userTopics,
-               userNotes: currentLocal.userNotes,
-               isFavorite: currentLocal.isFavorite,
-               nextReviewDate: currentLocal.nextReviewDate,
-               reviewCount: currentLocal.reviewCount,
-               viewCount: currentLocal.viewCount,
+               localCreatedAt: localData?.localCreatedAt || new Date().toISOString(),
                localUpdatedAt: new Date().toISOString(),
           };
-
-          // Special handling for Meanings example images:
-          // If server meaning has image, update it.
-          // Note: LocalWord logic assumes meanings come from server.
-
-          await StorageService.addWord(updatedWord);
-          EventBus.emit('wordImageUpdated', { wordId: updatedWord.id, word: updatedWord });
      },
 
      /**
-      * Updates a word's custom image (User feature).
+      * Poll for completion until all images are ready
       */
-     updateCustomImage: async (wordId: string, base64Image: string) => {
-          const word = await StorageService.getWordById(wordId);
-          if (!word) return;
+     pollUntilReady: async (wordText: string): Promise<void> => {
+          const startTime = Date.now();
+          let retryCount = 0;
+          const maxRetries = POLLING_CONFIG.MAX_RETRIES;
+          const id = wordText.toLowerCase();
 
-          const updated: LocalWord = {
-               ...word,
-               customImageUrl: base64Image,
-               isUsingCustomImage: true,
-               localUpdatedAt: new Date().toISOString()
-          };
+          console.log(`[DictionaryService] 🔄 Starting poll for: "${id}"`);
 
-          await StorageService.addWord(updated);
-          EventBus.emit('wordImageUpdated', { wordId: wordId, word: updated });
+          while (true) {
+               if (Date.now() - startTime >= POLLING_CONFIG.TIMEOUT_MS) {
+                    console.log(`[DictionaryService] ⏰ Polling timeout for "${id}"`);
+                    return;
+               }
+
+               await delay(POLLING_CONFIG.INTERVAL_MS);
+
+               try {
+                    const response = await ApiClient.getWordStatus(id);
+                    if (!response.success || !response.data?.word) {
+                         throw new Error('Invalid server response');
+                    }
+
+                    const serverWord = response.data.word;
+                    const status = response.data.status;
+
+                    const currentLocal = await StorageService.getWordById(id);
+                    const updatedWord = DictionaryService.mergeWithLocalData(serverWord, currentLocal);
+
+                    await StorageService.addWord(updatedWord);
+
+                    console.log(`[DictionaryService] 📡 Poll update for "${id}" (status: ${status})`);
+                    EventBus.emit('wordImageUpdated', { wordId: id, word: updatedWord });
+
+                    if (status === 'COMPLETED' && !isWordLoading(updatedWord)) {
+                         console.log(`[DictionaryService] ✅ Word "${id}" processing complete`);
+                         return;
+                    }
+                    retryCount = 0;
+               } catch (error: any) {
+                    retryCount++;
+                    if (retryCount >= maxRetries) return;
+                    await delay(POLLING_CONFIG.RETRY_DELAY_MS);
+               }
+          }
      },
 
      /**
-      * Resets to server image.
+      * Resume polling for processing words
       */
-     resetToServerImage: async (wordId: string) => {
-          const word = await StorageService.getWordById(wordId);
-          if (!word) return;
-
-          const updated: LocalWord = {
-               ...word,
-               isUsingCustomImage: false,
-               localUpdatedAt: new Date().toISOString()
-          };
-
-          await StorageService.addWord(updated);
-          EventBus.emit('wordImageUpdated', { wordId: wordId, word: updated });
+     checkAndResumePolling: async (words: Word | Word[]): Promise<void> => {
+          const wordArray = Array.isArray(words) ? words : [words];
+          for (const word of wordArray) {
+               if (isWordLoading(word)) {
+                    DictionaryService.pollUntilReady(word.id);
+               }
+          }
      },
 
-     getGoogleAudioUrl: (text: string): string => {
-          return `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=en&client=tw-ob`;
-     }
+     /**
+      * Force refresh word data
+      */
+     refreshWord: async (wordText: string): Promise<Word | null> => {
+          const id = wordText.toLowerCase();
+          try {
+               const response = await ApiClient.getWordStatus(id);
+               if (!response.success || !response.data?.word) return null;
+
+               const currentLocal = await StorageService.getWordById(id);
+               const updatedWord = DictionaryService.mergeWithLocalData(response.data.word, currentLocal);
+
+               await StorageService.addWord(updatedWord);
+               EventBus.emit('wordImageUpdated', { wordId: id, word: updatedWord });
+
+               if (response.data.status === 'PROCESSING' || isWordLoading(updatedWord)) {
+                    DictionaryService.pollUntilReady(id);
+               }
+               return updatedWord;
+          } catch (e) {
+               return null;
+          }
+     },
+
+     getGoogleAudioUrl,
 };

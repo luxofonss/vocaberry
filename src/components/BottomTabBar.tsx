@@ -1,8 +1,9 @@
-// BottomTabBar - Optimized Navigation Pill
-import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Keyboard, Platform } from 'react-native';
+// BottomTabBar - Claymorphism Navigation Pill
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Keyboard, Platform, Pressable } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { theme, colors, shadows, spacing, borderRadius } from '../theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { colors, shadows, innerShadows, borderRadius } from '../theme';
 import { TabType } from '../types';
 
 interface BottomTabBarProps {
@@ -15,8 +16,9 @@ interface BottomTabBarProps {
 }
 
 /**
- * Floating Navigation Component
- * Features a pill-shaped main menu and a separate search trigger.
+ * Floating Navigation Component - Claymorphism Design
+ * Features a pill-shaped main menu with soft clay shadows and gradient backgrounds.
+ * Tab icons have embossed/debossed effects based on active state.
  * Automatically hides when keyboard is visible to prevent visual clutter.
  */
 export const BottomTabBar: React.FC<BottomTabBarProps> = ({
@@ -26,6 +28,7 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
   onSearchPress,
 }) => {
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+  const [isAddPressed, setIsAddPressed] = useState(false);
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -44,55 +47,108 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
     };
   }, []);
 
+  const handleAddPressIn = useCallback(() => {
+    setIsAddPressed(true);
+  }, []);
+
+  const handleAddPressOut = useCallback(() => {
+    setIsAddPressed(false);
+  }, []);
+
   if (isKeyboardVisible) return null;
 
   return (
     <View style={styles.containerWrapper}>
       <View style={styles.floatRow}>
-        {/* MAIN PILL */}
-        <BlurView intensity={80} tint="light" style={[styles.mainPill, shadows.medium]}>
-          <TouchableOpacity 
-            style={styles.tabItem} 
-            onPress={() => onTabChange('home')}
+        {/* MAIN PILL - Claymorphism with gradient background */}
+        <View style={styles.mainPillContainer}>
+          <LinearGradient
+            colors={[colors.gradientCardTop, colors.gradientCardBottom]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 0, y: 1 }}
+            style={styles.mainPillGradient}
           >
-            <Text style={[styles.tabIcon, activeTab === 'home' && styles.activeIcon]}>🏠</Text>
-            {activeTab === 'home' && <View style={styles.dot} />}
-          </TouchableOpacity>
+            <BlurView intensity={60} tint="light" style={styles.mainPillBlur}>
+              {/* Home Tab */}
+              <TouchableOpacity
+                style={styles.tabItem}
+                onPress={() => onTabChange('home')}
+              >
+                <View style={[
+                  styles.iconContainer,
+                  activeTab === 'home' ? styles.iconEmbossed : styles.iconDebossed
+                ]}>
+                  <Text style={[styles.tabIcon, activeTab === 'home' && styles.activeIcon]}>🏠</Text>
+                </View>
+                {activeTab === 'home' && <View style={styles.dot} />}
+              </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={styles.tabItem} 
-            onPress={() => onTabChange('topics')}
-          >
-            <Text style={[styles.tabIcon, activeTab === 'topics' && styles.activeIcon]}>📚</Text>
-            {activeTab === 'topics' && <View style={styles.dot} />}
-          </TouchableOpacity>
+              {/* Topics Tab */}
+              <TouchableOpacity
+                style={styles.tabItem}
+                onPress={() => onTabChange('topics')}
+              >
+                <View style={[
+                  styles.iconContainer,
+                  activeTab === 'topics' ? styles.iconEmbossed : styles.iconDebossed
+                ]}>
+                  <Text style={[styles.tabIcon, activeTab === 'topics' && styles.activeIcon]}>📚</Text>
+                </View>
+                {activeTab === 'topics' && <View style={styles.dot} />}
+              </TouchableOpacity>
 
-          {/* ADD BUTTON */}
-          <TouchableOpacity 
-            style={[styles.addBtn, shadows.strong]} 
-            onPress={onAddPress}
-            activeOpacity={0.8}
-          >
-            <View style={styles.plusContainer}>
-                <View style={styles.plusVertical} />
-                <View style={styles.plusHorizontal} />
-            </View>
-          </TouchableOpacity>
+              {/* ADD BUTTON - Gradient fill with clay shadow */}
+              <Pressable
+                onPress={onAddPress}
+                onPressIn={handleAddPressIn}
+                onPressOut={handleAddPressOut}
+                style={({ pressed }) => [
+                  styles.addBtnOuter,
+                  pressed && styles.addBtnPressed
+                ]}
+              >
+                <LinearGradient
+                  colors={[colors.gradientButtonTop, colors.gradientButtonBottom]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 0, y: 1 }}
+                  style={[
+                    styles.addBtn,
+                    isAddPressed && styles.addBtnPressedInner
+                  ]}
+                >
+                  <View style={styles.plusContainer}>
+                    <View style={styles.plusVertical} />
+                    <View style={styles.plusHorizontal} />
+                  </View>
+                </LinearGradient>
+              </Pressable>
 
-          <TouchableOpacity 
-            style={styles.tabItem} 
-            onPress={() => onTabChange('practice')}
-          >
-            <Text style={[styles.tabIcon, activeTab === 'practice' && styles.activeIcon]}>🎯</Text>
-            {activeTab === 'practice' && <View style={styles.dot} />}
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.tabItem} 
-          onPress={onSearchPress}
-          >
-            <Text style={styles.searchIcon}>🔍</Text>
-          </TouchableOpacity>
-        </BlurView>
+              {/* Practice Tab */}
+              <TouchableOpacity
+                style={styles.tabItem}
+                onPress={() => onTabChange('practice')}
+              >
+                <View style={[
+                  styles.iconContainer,
+                  activeTab === 'practice' ? styles.iconEmbossed : styles.iconDebossed
+                ]}>
+                  <Text style={[styles.tabIcon, activeTab === 'practice' && styles.activeIcon]}>🎯</Text>
+                </View>
+                {activeTab === 'practice' && <View style={styles.dot} />}
+              </TouchableOpacity>
+
+              {/* Search Tab */}
+              <TouchableOpacity
+                style={styles.tabItem}
+                onPress={onSearchPress}
+              >
+                <View style={styles.iconContainer}>
+                  <Text style={styles.tabIcon}>🔍</Text>
+                </View>
+              </TouchableOpacity>
+            </BlurView>
+          </LinearGradient>
+        </View>
       </View>
     </View>
   );
@@ -101,58 +157,109 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
 const styles = StyleSheet.create({
   containerWrapper: {
     position: 'absolute',
-    bottom: 8,
+    bottom: Platform.OS === 'ios' ? 32 : 20,
     left: 0,
     right: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 100, // Ensure it stays on top content
+    zIndex: 100,
   },
   floatRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
-  mainPill: {
-    flexDirection: 'row',
-    borderRadius: 35,
-    height: 60,
-    paddingHorizontal: 15,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
+  // Main pill container with clayStrong shadow and inner highlight
+  mainPillContainer: {
+    borderRadius: 36,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.85)', // Fallback / Base color
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.6)',
+    ...shadows.clayStrong,
+  },
+  // Gradient background for main pill
+  mainPillGradient: {
+    borderRadius: 36,
+    overflow: 'hidden',
+  },
+  // Blur overlay inside gradient - puffy appearance
+  mainPillBlur: {
+    flexDirection: 'row',
+    height: 64,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 251, 248, 0.9)',
   },
   tabItem: {
-    paddingHorizontal: 15,
+    paddingHorizontal: 12,
     alignItems: 'center',
     justifyContent: 'center',
     height: '100%',
   },
+  // Icon container - larger for better touch
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Embossed effect for active tab icons (raised appearance)
+  iconEmbossed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.8)',
+    ...shadows.claySoft,
+  },
+  // Debossed effect for inactive tab icons (pressed-in appearance)
+  iconDebossed: {
+    backgroundColor: 'rgba(139, 124, 246, 0.08)',
+  },
   tabIcon: {
     fontSize: 22,
-    opacity: 0.5,
+    opacity: 0.4,
   },
   activeIcon: {
     opacity: 1,
   },
+  // Dot indicator with glow
   dot: {
     position: 'absolute',
-    bottom: 8,
-    width: 4,
-    height: 4,
-    borderRadius: 2,
+    bottom: 6,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: colors.primary,
+    ...shadows.clayGlow,
   },
+  // Add button outer container - larger and more prominent
+  addBtnOuter: {
+    marginHorizontal: 10,
+    borderRadius: 28,
+    ...shadows.clayPrimary,
+  },
+  // Add button pressed state
+  addBtnPressed: {
+    transform: [{ scale: 0.92 }],
+    ...shadows.clayPressed,
+  },
+  // Add button with gradient fill - larger
   addBtn: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: colors.primary,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 10,
+    // Inner highlight for 3D effect
+    borderTopWidth: 1.5,
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+  },
+  // Add button pressed inner state
+  addBtnPressedInner: {
+    borderTopWidth: 0,
   },
   plusContainer: {
     width: 20,
@@ -161,30 +268,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   plusVertical: {
-    width: 3.5,
+    width: 3,
     height: 18,
     backgroundColor: 'white',
-    borderRadius: 2,
+    borderRadius: 1.5,
     position: 'absolute',
   },
   plusHorizontal: {
     width: 18,
-    height: 3.5,
+    height: 3,
     backgroundColor: 'white',
-    borderRadius: 2,
+    borderRadius: 1.5,
     position: 'absolute',
-  },
-  searchBtn: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: 'rgba(255, 255, 255, 0.98)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-  },
-  searchIcon: {
-    fontSize: 24,
   },
 });

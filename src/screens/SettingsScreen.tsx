@@ -5,14 +5,16 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { colors, typography, spacing, borderRadius, shadows } from '../theme';
+import { gradients } from '../theme/styles';
 import { RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
 import { LANGUAGES } from '../constants';
@@ -62,113 +64,166 @@ export const SettingsScreen: React.FC = () => {
   }, [navigation]);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={handleGoBack}
-        >
-          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
-        <View style={styles.backButton} />
-      </View>
-
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
-        {/* Section: Mother Language */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Mother Language</Text>
-          <Text style={styles.sectionDescription}>
-            Choose your native language. You can input words in this language and they will be automatically translated to English.
-          </Text>
-
-          {selectedLanguage && (
-            <TouchableOpacity
-              style={styles.clearButton}
-              onPress={handleClearLanguage}
-            >
-              <Text style={styles.clearButtonText}>Clear Selection</Text>
-            </TouchableOpacity>
-          )}
-
-          <View style={styles.languageList}>
-            {LANGUAGES.map((lang) => {
-              const isSelected = selectedLanguage === lang.code;
-              return (
-                <TouchableOpacity
-                  key={lang.code}
-                  style={[
-                    styles.languageItem,
-                    isSelected && styles.languageItemSelected,
-                  ]}
-                  onPress={() => handleLanguageSelect(lang.code)}
-                >
-                  <Text style={styles.languageFlag}>{lang.flag}</Text>
-                  <Text
-                    style={[
-                      styles.languageName,
-                      isSelected && styles.languageNameSelected,
-                    ]}
-                  >
-                    {lang.name}
-                  </Text>
-                  {isSelected && (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={24}
-                      color={colors.primary}
-                    />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+    <LinearGradient
+      colors={gradients.backgroundMain.colors as [string, string, ...string[]]}
+      start={gradients.backgroundMain.start}
+      end={gradients.backgroundMain.end}
+      style={styles.container}
+    >
+      <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.backButton,
+              pressed && styles.backButtonPressed
+            ]}
+            onPress={handleGoBack}
+          >
+            <Ionicons name="arrow-back" size={22} color={colors.textPrimary} />
+          </Pressable>
+          <Text style={styles.headerTitle}>Settings</Text>
+          <View style={styles.headerSpacer} />
         </View>
-      </ScrollView>
-    </SafeAreaView>
+
+        <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Section: Mother Language */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionIcon}>🌍</Text>
+              <Text style={styles.sectionTitle}>Mother Language</Text>
+            </View>
+            <Text style={styles.sectionDescription}>
+              Choose your native language for automatic translation to English.
+            </Text>
+
+            {selectedLanguage && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.clearButton,
+                  pressed && styles.clearButtonPressed
+                ]}
+                onPress={handleClearLanguage}
+              >
+                <Ionicons name="close-circle-outline" size={16} color={colors.textSecondary} />
+                <Text style={styles.clearButtonText}>Clear Selection</Text>
+              </Pressable>
+            )}
+
+            <View style={styles.languageList}>
+              {LANGUAGES.map((lang) => {
+                const isSelected = selectedLanguage === lang.code;
+                return (
+                  <Pressable
+                    key={lang.code}
+                    style={({ pressed }) => [
+                      styles.languageItem,
+                      isSelected && styles.languageItemSelected,
+                      pressed && styles.languageItemPressed,
+                    ]}
+                    onPress={() => handleLanguageSelect(lang.code)}
+                  >
+                    <View style={styles.flagContainer}>
+                      <Text style={styles.languageFlag}>{lang.flag}</Text>
+                    </View>
+                    <Text
+                      style={[
+                        styles.languageName,
+                        isSelected && styles.languageNameSelected,
+                      ]}
+                    >
+                      {lang.name}
+                    </Text>
+                    {isSelected && (
+                      <View style={styles.checkContainer}>
+                        <Ionicons name="checkmark" size={18} color={colors.white} />
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        </ScrollView>
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
+  // Safe area for content
+  safeArea: {
+    flex: 1,
+  },
+  // Claymorphism header - soft clay with subtle shadow
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.screenPadding,
     paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
+    backgroundColor: colors.cardSurface,
+    borderBottomWidth: 0,
+    ...shadows.claySoft,
   },
+  // Claymorphism back button - floating 3D clay circle
   backButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
+    borderRadius: 22,
+    backgroundColor: colors.cardSurface,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.claySoft,
+  },
+  // Back button pressed state - compressed clay effect
+  backButtonPressed: {
+    transform: [{ scale: 0.94 }],
+    ...shadows.clayPressed,
   },
   headerTitle: {
     fontSize: typography.sizes.xl,
     fontWeight: typography.weights.bold,
     color: colors.textPrimary,
+    letterSpacing: -0.3,
+  },
+  // Spacer to balance header layout
+  headerSpacer: {
+    width: 44,
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
     padding: spacing.screenPadding,
+    paddingBottom: 120,
   },
   section: {
     marginBottom: spacing.xxxl,
+  },
+  // Section header row with icon
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+  },
+  // Section icon emoji
+  sectionIcon: {
+    fontSize: 22,
+    marginRight: spacing.sm,
   },
   sectionTitle: {
     fontSize: typography.sizes.lg,
     fontWeight: typography.weights.bold,
     color: colors.textPrimary,
-    marginBottom: spacing.sm,
   },
   sectionDescription: {
     fontSize: typography.sizes.base,
@@ -176,13 +231,28 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: spacing.md,
   },
+  // Claymorphism clear button - soft clay pill with row layout
   clearButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     alignSelf: 'flex-start',
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.puffySm,
     paddingVertical: spacing.sm,
-    backgroundColor: colors.backgroundSoft,
-    borderRadius: borderRadius.md,
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.clayBadge,
     marginBottom: spacing.md,
+    gap: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.claySoft,
+  },
+  // Clear button pressed state - compressed clay effect
+  clearButtonPressed: {
+    transform: [{ scale: 0.97 }],
+    ...shadows.clayPressed,
   },
   clearButtonText: {
     fontSize: typography.sizes.sm,
@@ -192,24 +262,48 @@ const styles = StyleSheet.create({
   languageList: {
     gap: spacing.sm,
   },
+  // Claymorphism language item - compact floating 3D clay tile
   languageItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: spacing.md,
-    backgroundColor: colors.white,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.lg,
-    borderWidth: 1,
-    borderColor: colors.borderLight,
-    ...shadows.soft,
+    borderWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.claySoft,
   },
+  // Selected language item - primary colored shadow
   languageItemSelected: {
-    borderColor: colors.primary,
-    borderWidth: 2,
-    backgroundColor: colors.primaryLight + '20',
+    backgroundColor: colors.primarySoft,
+    borderTopColor: colors.primaryLighter,
+    ...shadows.clayPrimary,
+  },
+  // Language item pressed state - compressed clay effect
+  languageItemPressed: {
+    transform: [{ scale: 0.98 }],
+    ...shadows.clayPressed,
+  },
+  // Flag container - compact clay circle
+  flagContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.subtle,
   },
   languageFlag: {
-    fontSize: 24,
-    marginRight: spacing.md,
+    fontSize: 20,
   },
   languageName: {
     flex: 1,
@@ -221,5 +315,19 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontWeight: typography.weights.bold,
   },
+  // Check container - compact success circle
+  checkContainer: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.subtle,
+  },
 });
-

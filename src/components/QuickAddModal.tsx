@@ -7,6 +7,7 @@ import {
     Text,
     StyleSheet,
     TouchableOpacity,
+    Pressable,
     TextInput,
     Image,
     Platform,
@@ -16,12 +17,11 @@ import {
     UIManager,
     ActivityIndicator,
     Animated,
-    Dimensions,
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, shadows } from '../theme';
+import { colors, shadows, innerShadows, borderRadius, spacing } from '../theme';
 import { Word } from '../types';
 import { DatabaseService } from '../services/DatabaseService';
 import { DictionaryService } from '../services/DictionaryService';
@@ -138,6 +138,12 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
     // UI State
     const [isLookingUp, setIsLookingUp] = useState(false);
 
+    // Focus State for inputs
+    const [isHeroInputFocused, setIsHeroInputFocused] = useState(false);
+    const [focusedExampleIndex, setFocusedExampleIndex] = useState<number | null>(null);
+    const [isTopicSearchFocused, setIsTopicSearchFocused] = useState(false);
+    const [isTranslateInputFocused, setIsTranslateInputFocused] = useState(false);
+
     // Translation State
     const [motherLanguage, setMotherLanguage] = useState<string | null>(null);
     const [translateModalVisible, setTranslateModalVisible] = useState(false);
@@ -164,7 +170,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                     useNativeDriver: true,
                     tension: ANIMATION.spring.tension,
                     friction: ANIMATION.spring.friction,
-                })
+                }
+                )
             ]).start();
         }
     }, [visible, fadeAnim, slideAnim]);
@@ -320,15 +327,21 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
         setIsLookingUp(true);
 
         try {
-            console.log('[QuickAddModal] 🔍 Looking up word...');
+            console.log('[QuickAddModal] 🔍 Looking up word via DictionaryService...');
 
+            // Collect user examples (Requirements 6.4)
             const customExampleTexts = examples.filter(e => e.trim().length > 0);
 
-            setLoadingStatus("AI is analyzing your word...");
-            await new Promise(r => setTimeout(r, 600));
+            // Show loading status (Requirements 6.2)
+            setLoadingStatus("Looking up word...");
 
-            setLoadingStatus("Generating high-quality definitions...");
-            const result = await DictionaryService.lookup(word.trim(), customExampleTexts, imageUri || undefined);
+            // Call DictionaryService.lookup() (Requirements 6.1)
+            // Pass customMainImage to preserve user's custom image (Requirements 6.3)
+            const result = await DictionaryService.lookup(
+                word.trim(),
+                customExampleTexts,
+                imageUri || undefined
+            );
 
             if (!result) {
                 Alert.alert("Not Found", MESSAGES.errors.wordNotFound);
@@ -337,12 +350,22 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
 
             const fetchedWord = result.word;
 
-            setLoadingStatus("Saving to your private library...");
+            // Update loading status based on whether word is still processing
+            if (!fetchedWord.imageUrl || fetchedWord.imageUrl.trim() === '') {
+                setLoadingStatus("Word is processing, image will load shortly...");
+            } else {
+                setLoadingStatus("Saving to your private library...");
+            }
+
+            // Apply selected topics
             fetchedWord.topics = selectedTopics.length > 0 ? selectedTopics : [DEFAULTS.topic];
 
+            // Save word to database
             await DatabaseService.saveWord(fetchedWord);
             onSuccess(fetchedWord);
 
+            // Close modal and navigate to WordDetail (Requirements 6.5)
+            handleClose();
             setTimeout(() => {
                 navigation.navigate('WordDetail', { wordId: fetchedWord.id });
             }, 100);
@@ -352,7 +375,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
         } finally {
             setIsLookingUp(false);
         }
-    }, [word, examples, imageUri, selectedTopics, navigation, onSuccess]);
+    }, [word, examples, imageUri, selectedTopics, navigation, onSuccess, handleClose]);
 
     // --- RENDER POPUP ---
     const renderTopicPopup = useCallback(() => {
@@ -381,10 +404,15 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
 
                         <View style={styles.popupSearchRow}>
                             <TextInput
-                                style={styles.popupInput}
+                                style={[
+                                    styles.popupInput,
+                                    isTopicSearchFocused && styles.popupInputFocused
+                                ]}
                                 placeholder="Search or Create Tag..."
                                 value={topicSearch}
                                 onChangeText={setTopicSearch}
+                                onFocus={() => setIsTopicSearchFocused(true)}
+                                onBlur={() => setIsTopicSearchFocused(false)}
                             />
                             {topicSearch.length > 0 && !availableTopics.includes(topicSearch) && (
                                 <TouchableOpacity style={styles.popupAddBtn} onPress={createNewTopic}>
@@ -399,20 +427,20 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                             keyboardShouldPersistTaps="handled"
                             showsVerticalScrollIndicator={false}
                             keyboardDismissMode="interactive"
-                        >{filteredTopics.map(topic => {
-                            const isSelected = selectedTopics.includes(topic);
-                            return (
-                                <TouchableOpacity
-                                    key={topic}
-                                    style={[styles.tag, isSelected && styles.tagSelected]}
-                                    onPress={() => handleTopicToggle(topic)}
-                                >
-                                    <Text style={[styles.tagText, isSelected && styles.tagTextSelected]}>
-                                        {isSelected ? '# ' : ''}{topic}
-                                    </Text>
-                                </TouchableOpacity>
-                            );
-                        })}
+                        >
+                            {filteredTopics.map(topic => {
+                                const isSelected = selectedTopics.includes(topic);
+                                return (
+                                    <TouchableOpacity
+                                        key={topic}
+                                        style={[styles.tag, isSelected && styles.tagSelected]}
+                                        onPress={() => handleTopicToggle(topic)}
+                                    >
+                                        <Text style={[styles.tagText, isSelected && styles.tagTextSelected]}>
+                                            {isSelected ? '# ' : ''}{topic}
+                                        </Text>             </TouchableOpacity>
+                                );
+                            })}
                             {filteredTopics.length === 0 && topicSearch.length === 0 && (
                                 <Text style={styles.emptyText}>No tags yet. Create one!</Text>
                             )}
@@ -457,11 +485,15 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                 <View style={styles.heroSection}>
                                     <View style={styles.inputRow}>
                                         <TextInput
-                                            style={styles.heroInput}
+                                            style={[styles.heroInput,
+                                            isHeroInputFocused && styles.heroInputFocused
+                                            ]}
                                             placeholder="Type word..."
                                             placeholderTextColor={colors.textLight}
                                             value={word}
                                             onChangeText={setWord}
+                                            onFocus={() => setIsHeroInputFocused(true)}
+                                            onBlur={() => setIsHeroInputFocused(false)}
                                             autoFocus={true}
                                         />
                                         {/* Translate Button - Always show */}
@@ -549,10 +581,15 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                     {examples.map((ex, index) => (
                                         <View key={index} style={styles.exampleRow}>
                                             <TextInput
-                                                style={styles.exampleInput}
+                                                style={[
+                                                    styles.exampleInput,
+                                                    focusedExampleIndex === index && styles.exampleInputFocused
+                                                ]}
                                                 placeholder="Use it in a sentence..."
                                                 value={ex}
                                                 onChangeText={(text) => handleExampleChange(text, index)}
+                                                onFocus={() => setFocusedExampleIndex(index)}
+                                                onBlur={() => setFocusedExampleIndex(null)}
                                             />
                                             {index > 0 && (
                                                 <TouchableOpacity onPress={() => removeExampleSlot(index)} style={styles.deleteBtn}>
@@ -564,8 +601,11 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                 </View>
                             </ScrollView>
 
-                            <TouchableOpacity
-                                style={[styles.saveButton, isLookingUp && styles.saveButtonDisabled]}
+                            <Pressable
+                                style={({ pressed }) => [
+                                    pressed && !isLookingUp ? styles.saveButtonPressed : styles.saveButton,
+                                    isLookingUp && styles.saveButtonDisabled
+                                ]}
                                 onPress={handleSave}
                                 disabled={isLookingUp}
                             >
@@ -574,7 +614,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                 ) : (
                                     <Text style={styles.saveButtonText}>Add to Vocabulary</Text>
                                 )}
-                            </TouchableOpacity>
+                            </Pressable>
 
                             {/* NESTED POPUP */}
                             {renderTopicPopup()}
@@ -592,17 +632,19 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                 />
 
                 {/* FULL SCREEN LOADING OVERLAY */}
-                {isLookingUp && (
-                    <View style={styles.loadingOverlay}>
-                        <BlurView intensity={95} tint="light" style={StyleSheet.absoluteFill}>
-                            <View style={styles.loadingOverlayContent}>
-                                <ActivityIndicator size="large" color={colors.primary} />
-                                <Text style={styles.loadingOverlayTitle}>Magic is happening...</Text>
-                                <Text style={styles.loadingOverlaySub}>{loadingStatus}</Text>
-                            </View>
-                        </BlurView>
-                    </View>
-                )}
+                {
+                    isLookingUp && (
+                        <View style={styles.loadingOverlay}>
+                            <BlurView intensity={95} tint="light" style={StyleSheet.absoluteFill}>
+                                <View style={styles.loadingOverlayContent}>
+                                    <ActivityIndicator size="large" color={colors.primary} />
+                                    <Text style={styles.loadingOverlayTitle}>Magic is happening...</Text>
+                                    <Text style={styles.loadingOverlaySub}>{loadingStatus}</Text>
+                                </View>
+                            </BlurView>
+                        </View>
+                    )
+                }
 
                 {/* TRANSLATE MODAL */}
                 <Modal
@@ -615,28 +657,28 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                         setTranslateResult(null);
                     }}
                 >
-                    <TouchableOpacity
-                        style={styles.translateModalOverlay}
-                        activeOpacity={1}
-                        onPress={() => {
-                            setTranslateModalVisible(false);
-                            setTranslateInput('');
-                            setTranslateResult(null);
-                        }}
-                    >
-                        <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill}>
+                    <View style={styles.translateModalOverlay}>
+                        <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+                        <TouchableOpacity
+                            style={StyleSheet.absoluteFill}
+                            activeOpacity={1}
+                            onPress={() => {
+                                setTranslateModalVisible(false);
+                                setTranslateInput('');
+                                setTranslateResult(null);
+                            }}
+                        />
+                        <View style={styles.translateModalContainer}>
                             <TouchableOpacity
                                 activeOpacity={1}
                                 onPress={(e) => e.stopPropagation()}
-                                style={styles.translateModalContainer}
                             >
                                 <View style={styles.translateModalContent}>
                                     <View style={styles.translateModalHeader}>
                                         <View style={styles.translateModalHeaderLeft}>
                                             <Text style={styles.translateModalIcon}>🌐</Text>
                                             <Text style={styles.translateModalTitle}>Translate</Text>
-                                        </View>
-                                        <TouchableOpacity
+                                        </View>                              <TouchableOpacity
                                             onPress={() => {
                                                 setTranslateModalVisible(false);
                                                 setTranslateInput('');
@@ -657,13 +699,18 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                     >
                                         {/* Input Section */}
                                         <View style={styles.translateSection}>
-                                            <View style={styles.translateInputContainer}>
+                                            <View style={[
+                                                styles.translateInputContainer,
+                                                isTranslateInputFocused && styles.translateInputContainerFocused
+                                            ]}>
                                                 <TextInput
                                                     style={styles.translateModalInput}
                                                     placeholder="Enter word..."
                                                     placeholderTextColor={colors.textLight}
                                                     value={translateInput}
                                                     onChangeText={setTranslateInput}
+                                                    onFocus={() => setIsTranslateInputFocused(true)}
+                                                    onBlur={() => setIsTranslateInputFocused(false)}
                                                     autoFocus={true}
                                                     editable={!isTranslating}
                                                     multiline={false}
@@ -695,8 +742,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                         {translateResult && (
                                             <View style={styles.translateSection}>
                                                 <Text style={styles.translateSectionLabel}>English</Text>
-                                                <View style={styles.translateOutputContainer}>
-                                                    <Text style={styles.translateResultText}>{translateResult}</Text>
+                                                <View style={styles.translateOutputContainer}>                             <Text style={styles.translateResultText}>{translateResult}</Text>
                                                 </View>
                                             </View>
                                         )}
@@ -715,8 +761,8 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                     </ScrollView>
                                 </View>
                             </TouchableOpacity>
-                        </BlurView>
-                    </TouchableOpacity>
+                        </View>
+                    </View>
                 </Modal>
 
                 {/* LANGUAGE SELECT MODAL */}
@@ -726,16 +772,17 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                     transparent
                     onRequestClose={() => setLanguageSelectModalVisible(false)}
                 >
-                    <TouchableOpacity
-                        style={styles.languageSelectModalOverlay}
-                        activeOpacity={1}
-                        onPress={() => setLanguageSelectModalVisible(false)}
-                    >
-                        <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill}>
+                    <View style={styles.languageSelectModalOverlay}>
+                        <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+                        <TouchableOpacity
+                            style={StyleSheet.absoluteFill}
+                            activeOpacity={1}
+                            onPress={() => setLanguageSelectModalVisible(false)}
+                        />
+                        <View style={styles.languageSelectModalContainer}>
                             <TouchableOpacity
                                 activeOpacity={1}
                                 onPress={(e) => e.stopPropagation()}
-                                style={styles.languageSelectModalContainer}
                             >
                                 <View style={styles.languageSelectModalContent}>
                                     <View style={styles.languageSelectModalHeader}>
@@ -768,8 +815,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                                     style={styles.languageSelectItem}
                                                     onPress={() => handleLanguageSelect(lang.code)}
                                                     activeOpacity={0.7}
-                                                >
-                                                    <Text style={styles.languageSelectFlag}>{lang.flag}</Text>
+                                                >                                    <Text style={styles.languageSelectFlag}>{lang.flag}</Text>
                                                     <Text style={styles.languageSelectName}>{lang.name}</Text>
                                                     <Ionicons
                                                         name="chevron-forward"
@@ -782,23 +828,46 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                     </ScrollView>
                                 </View>
                             </TouchableOpacity>
-                        </BlurView>
-                    </TouchableOpacity>
-                </Modal>
-            </Animated.View>
-        </Modal>
+                        </View>
+                    </View >
+                </Modal >
+            </Animated.View >
+        </Modal >
     );
 };
 
 const styles = StyleSheet.create({
-    overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
+    overlay: { flex: 1, backgroundColor: 'rgba(31, 41, 55, 0.4)', justifyContent: 'flex-end' },
     keyboardView: { width: '100%', maxHeight: '90%' },
-    card: { backgroundColor: colors.background, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 24, paddingBottom: 30, height: '100%', shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.1, shadowRadius: 10 },
+    card: {
+        backgroundColor: colors.background,
+        borderTopLeftRadius: borderRadius.xxxl,
+        borderTopRightRadius: borderRadius.xxxl,
+        padding: spacing.xxl,
+        paddingBottom: 30,
+        height: '100%',
+        borderWidth: 0,  // No hard borders for claymorphism
+        borderTopWidth: 1,
+        borderTopColor: colors.shadowInnerLight,  // Inner highlight for 3D depth
+        ...shadows.clayStrong,
+    },
 
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-    title: { fontSize: 22, fontWeight: '800', color: colors.textPrimary },
-    closeBtn: { width: 32, height: 32, backgroundColor: colors.backgroundSoft, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-    closeText: { fontSize: 14, color: colors.textSecondary, fontWeight: 'bold' },
+    title: { fontSize: 22, fontWeight: '700', color: colors.textPrimary, letterSpacing: -0.3 },
+    closeBtn: {
+        width: 36,
+        height: 36,
+        backgroundColor: colors.cardSurface,
+        borderRadius: borderRadius.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...innerShadows.embossed,  // Embossed effect for close button
+        ...shadows.claySoft,
+    },
+    closeText: {
+        fontSize: 14, color: colors.textSecondary,
+        fontWeight: '600'
+    },
 
     scrollContent: { paddingBottom: 40 },
 
@@ -808,27 +877,37 @@ const styles = StyleSheet.create({
     inputRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: 10,
     },
     heroInput: {
         flex: 1,
-        fontSize: 32,
-        fontWeight: 'bold',
+        flexShrink: 1,
+        minWidth: 0,
+        fontSize: 26,
+        fontWeight: '600',
         color: colors.textPrimary,
         borderBottomWidth: 2,
-        borderBottomColor: colors.primaryLight,
-        paddingVertical: 8
+        borderBottomColor: colors.primaryLight,  // Soft bottom border only
+        borderTopWidth: 0,
+        borderLeftWidth: 0,
+        borderRightWidth: 0,
+        paddingVertical: 8,
+    },
+    // Hero input focused state - glow effect with enhanced border
+    heroInputFocused: {
+        borderBottomColor: colors.primary,
+        borderBottomWidth: 3,
     },
     translateButton: {
-        width: 48,
-        height: 48,
-        borderRadius: 12,
+        width: 44,
+        height: 44,
+        flexShrink: 0,
+        borderRadius: borderRadius.clayIcon,
         backgroundColor: colors.white,
         alignItems: 'center',
         justifyContent: 'center',
-        borderWidth: 1.5,
-        borderColor: colors.borderMedium,
-        ...shadows.soft,
+        borderWidth: 0,  // No border for claymorphism
+        ...shadows.claySoft,
     },
 
     // Camera & Image Styles
@@ -838,20 +917,22 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         marginTop: 16,
         paddingVertical: 14,
-        paddingHorizontal: 16,
-        backgroundColor: colors.cardWhite,
-        borderColor: colors.primary,
-        borderWidth: 1,
+        paddingHorizontal: 18,
+        backgroundColor: colors.primarySoft,
+        borderColor: colors.primaryLight,
+        borderWidth: 1.5,
         borderRadius: 16,
         borderStyle: 'dashed',
         width: '100%',
     },
-    cameraIcon: { fontSize: 24, marginRight: 10 },
-    cameraText: { fontSize: 16, color: colors.primary, fontWeight: '700' },
+    cameraIcon: { fontSize: 22, marginRight: 10 },
+    cameraText: { fontSize: 15, color: colors.primary, fontWeight: '600' },
 
     imagePreviewContainer: { marginTop: 16, width: '100%', height: 200, borderRadius: 16, overflow: 'hidden', position: 'relative', borderWidth: 1, borderColor: colors.borderMedium },
     previewImage: { width: '100%', height: '100%' },
-    removeImageBtn: { position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.5)', width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'white' },
+    removeImageBtn: {
+        position: 'absolute', top: 10, right: 10, backgroundColor: 'rgba(0,0,0,0.5)', width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'white'
+    },
     removeImageText: { color: 'white', fontWeight: 'bold', fontSize: 16 },
 
     helperText: { fontSize: 13, color: colors.textSecondary, marginTop: 16, fontStyle: 'italic', textAlign: 'center' },
@@ -863,41 +944,83 @@ const styles = StyleSheet.create({
 
     // Mini Tags Preview
     previewTagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-    miniTag: { backgroundColor: colors.primaryLight, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
-    miniTagText: { color: colors.primary, fontWeight: '700', fontSize: 13 },
-    addTopicSmallBtn: { backgroundColor: colors.backgroundSoft, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
+    miniTag: {
+        backgroundColor: colors.accent1Soft,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs + 2,
+        borderRadius: borderRadius.sm,
+        borderWidth: 0,  // No border for claymorphism
+        ...shadows.claySoft,
+    },
+    miniTagText: { color: colors.accent1, fontWeight: '600', fontSize: 13 },
+    addTopicSmallBtn: { backgroundColor: colors.backgroundSoft, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
     addTopicSmallText: { color: colors.primary, fontWeight: '600', fontSize: 13 },
 
     // Examples
     rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
     addLink: { color: colors.primary, fontWeight: '600', fontSize: 14 },
     exampleRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
-    exampleInput: { flex: 1, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderLight, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16 },
+    exampleInput: {
+        flex: 1,
+        backgroundColor: colors.white,
+        borderWidth: 1.5,
+        borderColor: colors.borderLight,
+        borderRadius: 14,
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+        fontSize: 15,
+        ...shadows.subtle,
+    },
+    // Example input focused state - glow effect with primary border
+    exampleInputFocused: {
+        borderColor: colors.primary,
+        borderWidth: 2,
+        ...shadows.clayGlow,
+    },
     deleteBtn: { padding: 8, marginLeft: 4 },
-    deleteText: { fontSize: 24, color: colors.textLight, marginTop: -4 },
+    deleteText: { fontSize: 22, color: colors.textLight, marginTop: -4 },
 
-    saveButton: { backgroundColor: colors.primary, padding: 18, borderRadius: 20, alignItems: 'center', marginTop: 10, marginBottom: Platform.OS === 'ios' ? 20 : 0, shadowColor: colors.primary, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 },
-    saveButtonDisabled: { opacity: 0.7 },
-    saveButtonText: { color: 'white', fontSize: 18, fontWeight: 'bold' },
+    saveButton: {
+        backgroundColor: colors.primary,
+        padding: spacing.puffyMd,
+        borderRadius: borderRadius.clayInput,
+        alignItems: 'center',
+        marginTop: 12,
+        marginBottom: Platform.OS === 'ios' ? 20 : 0,
+        borderWidth: 0,  // No border for claymorphism
+        ...shadows.clayPrimary,
+    },
+    saveButtonPressed: {
+        backgroundColor: colors.primaryDark,
+        padding: spacing.puffyMd,
+        borderRadius: borderRadius.clayInput,
+        alignItems: 'center',
+        marginTop: 12,
+        marginBottom: Platform.OS === 'ios' ? 20 : 0,
+        borderWidth: 0,
+        transform: [{ scale: 0.97 }],
+        ...shadows.clayPressed,
+    },
+    saveButtonDisabled: { opacity: 0.6 },
+    saveButtonText: { color: 'white', fontSize: 17, fontWeight: '600', letterSpacing: 0.3 },
 
     // --- POPUP STYLES ---
     popupOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(31, 41, 55, 0.4)',
         justifyContent: 'flex-end',
     },
     popupContainer: {
         backgroundColor: colors.white,
         maxHeight: '80%',
         minHeight: '50%',
-        padding: 20,
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 10,
-        elevation: 10,
+        padding: spacing.xxl,
+        borderTopLeftRadius: borderRadius.xxl,
+        borderTopRightRadius: borderRadius.xxl,
+        borderWidth: 0,  // No hard borders for claymorphism
+        borderTopWidth: 1,
+        borderTopColor: colors.shadowInnerLight,  // Inner highlight for 3D depth
+        ...shadows.clayStrong,
         position: 'absolute',
         bottom: 0,
         left: 0,
@@ -912,21 +1035,45 @@ const styles = StyleSheet.create({
     popupClose: { fontSize: 16, color: colors.primary, fontWeight: '600' },
 
     popupSearchRow: { flexDirection: 'row', marginBottom: 20, gap: 10 },
-    popupInput: { flex: 1, backgroundColor: colors.backgroundSoft, borderRadius: 12, padding: 12, fontSize: 16 },
-    popupAddBtn: { backgroundColor: colors.primary, justifyContent: 'center', paddingHorizontal: 16, borderRadius: 12 },
+    popupInput: {
+        flex: 1,
+        backgroundColor: colors.backgroundSoft,
+        borderRadius: borderRadius.sm,
+        padding: spacing.md,
+        fontSize: 16,
+        borderWidth: 1,
+        borderColor: 'transparent',
+    },
+    // Popup input focused state - glow effect with primary border
+    popupInputFocused: {
+        borderColor: colors.primary,
+        backgroundColor: colors.white,
+        ...shadows.clayGlow,
+    },
+    popupAddBtn: { backgroundColor: colors.primary, justifyContent: 'center', paddingHorizontal: spacing.lg, borderRadius: borderRadius.sm, ...shadows.clayPrimary },
     popupAddText: { color: 'white', fontWeight: 'bold' },
 
     popupTagsContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, paddingBottom: 40 },
-    tag: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 20, borderWidth: 1, borderColor: colors.borderMedium },
-    tagSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
-    tagText: { fontSize: 15, color: colors.textSecondary, fontWeight: '500' },
-    tagTextSelected: { color: 'white', fontWeight: 'bold' },
+    tag: {
+        paddingHorizontal: spacing.puffySm,
+        paddingVertical: spacing.sm,
+        borderRadius: borderRadius.lg,
+        borderWidth: 0,  // No border for claymorphism
+        backgroundColor: colors.white,
+        ...shadows.claySoft,
+    },
+    tagSelected: {
+        backgroundColor: colors.secondary,
+        ...shadows.clayPrimary,
+    },
+    tagText: { fontSize: 14, color: colors.textSecondary, fontWeight: '500' },
+    tagTextSelected: { color: 'white', fontWeight: '600' },
     emptyText: { width: '100%', textAlign: 'center', color: colors.textLight, marginTop: 40, fontStyle: 'italic' },
 
     // Loading Overlay
     loadingOverlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(255,255,255,0.4)',
+        backgroundColor: 'rgba(255, 251, 248, 0.85)',
         zIndex: 1000,
     },
     loadingOverlayContent: {
@@ -937,41 +1084,39 @@ const styles = StyleSheet.create({
     },
     loadingOverlayTitle: {
         fontSize: 22,
-        fontWeight: '800',
+        fontWeight: '700',
         color: colors.textPrimary,
         marginTop: 20,
-        marginBottom: 10,
+        marginBottom: 8,
     },
     loadingOverlaySub: {
-        fontSize: 15,
+        fontSize: 14,
         color: colors.textSecondary,
         textAlign: 'center',
-        lineHeight: 22,
+        lineHeight: 20,
     },
 
     // Translate Modal - Apple Style
     translateModalOverlay: {
         flex: 1,
-        justifyContent: 'center',
+        justifyContent: 'flex-start',
         alignItems: 'center',
-        paddingHorizontal: 24,
-        paddingVertical: 40,
-        marginTop: 60
+        paddingHorizontal: 20,
+        paddingTop: Platform.OS === 'ios' ? 120 : 80,
     },
     translateModalContainer: {
         width: '100%',
-        maxWidth: 420,
-        maxHeight: '90%',
-        alignItems: 'center',
-        justifyContent: 'center',
+        maxWidth: 380,
     },
     translateModalContent: {
         width: '100%',
         backgroundColor: colors.white,
-        borderRadius: 28,
+        borderRadius: 24,
         padding: 0,
         overflow: 'hidden',
-        ...shadows.strong,
+        borderWidth: 1,
+        borderColor: colors.borderSoft,
+        ...shadows.clayStrong,
     },
     translateModalHeader: {
         flexDirection: 'row',
@@ -1030,6 +1175,13 @@ const styles = StyleSheet.create({
         borderColor: colors.borderLight,
         overflow: 'hidden',
     },
+    // Translate input container focused state - glow effect with primary border
+    translateInputContainerFocused: {
+        borderColor: colors.primary,
+        borderWidth: 2,
+        backgroundColor: colors.white,
+        ...shadows.clayGlow,
+    },
     translateModalInput: {
         padding: 18,
         fontSize: 18,
@@ -1058,11 +1210,11 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         gap: 8,
         backgroundColor: colors.primary,
-        paddingVertical: 16,
-        paddingHorizontal: 24,
+        paddingVertical: 14,
+        paddingHorizontal: 22,
         borderRadius: 16,
         marginTop: 4,
-        ...shadows.medium,
+        ...shadows.clayPrimary,
     },
     translateActionButtonDisabled: {
         opacity: 0.5,
@@ -1078,12 +1230,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,
-        backgroundColor: colors.primary,
-        paddingVertical: 16,
-        paddingHorizontal: 24,
+        backgroundColor: colors.secondary,
+        paddingVertical: 14,
+        paddingHorizontal: 22,
         borderRadius: 16,
         marginTop: 8,
-        ...shadows.medium,
+        ...shadows.claySecondary,
     },
     acceptButtonText: {
         color: 'white',
@@ -1097,24 +1249,23 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 24,
-        paddingVertical: 40,
-        marginTop: 90,
+        paddingHorizontal: 20,
     },
     languageSelectModalContainer: {
         width: '100%',
-        maxWidth: 420,
-        maxHeight: '85%',
-        alignItems: 'center',
-        justifyContent: 'center',
+        maxWidth: 380,
+        maxHeight: SCREEN_HEIGHT - 160,
     },
     languageSelectModalContent: {
         width: '100%',
+        maxHeight: '100%',
         backgroundColor: colors.white,
-        borderRadius: 28,
+        borderRadius: 24,
         padding: 0,
         overflow: 'hidden',
-        ...shadows.strong,
+        borderWidth: 1,
+        borderColor: colors.borderSoft,
+        ...shadows.clayStrong,
     },
     languageSelectModalHeader: {
         flexDirection: 'row',
@@ -1149,7 +1300,8 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     languageSelectModalBodyScroll: {
-        flexGrow: 0,
+        flex: 1,
+        maxHeight: SCREEN_HEIGHT - 320,
     },
     languageSelectModalBody: {
         padding: 24,
@@ -1166,12 +1318,12 @@ const styles = StyleSheet.create({
     languageSelectItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 16,
+        padding: 14,
         backgroundColor: colors.white,
-        borderRadius: 16,
-        borderWidth: 1,
+        borderRadius: 14,
+        borderWidth: 1.5,
         borderColor: colors.borderLight,
-        ...shadows.soft,
+        ...shadows.subtle,
     },
     languageSelectFlag: {
         fontSize: 24,

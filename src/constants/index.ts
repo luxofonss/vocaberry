@@ -124,7 +124,7 @@ export const PRACTICE_TEXTS = {
      listening: 'Listening...',
      thinking: 'Thinking...',
      tapToAnswer: 'Tap to Answer',
-     showAnswer: 'Show Answer',
+     showAnswer: 'I Forgot',
      verify: 'Verify',
      splendid: 'Splendid!',
      notQuite: 'Not quite',

@@ -1,4 +1,4 @@
-// Speak Button Component - Minimalistic Purple Style
+// Speak Button Component - Claymorphism 3D Clay Design
 
 import React, { useState, useRef, useCallback, useMemo } from 'react';
 import {
@@ -7,7 +7,7 @@ import {
   Text,
   Animated,
 } from 'react-native';
-import { colors } from '../theme/colors';
+import { colors, shadows, borderRadius } from '../theme';
 import { SpeechService } from '../services/SpeechService';
 import { ANIMATION } from '../constants';
 
@@ -16,6 +16,7 @@ type ButtonSize = 'small' | 'medium' | 'large';
 interface SpeakButtonProps {
   text: string;
   size?: ButtonSize;
+  isLoading?: boolean;
 }
 
 interface SizeDimensions {
@@ -25,23 +26,28 @@ interface SizeDimensions {
 }
 
 const SIZE_CONFIG: Record<ButtonSize, SizeDimensions> = {
-  small: { width: 36, height: 36, fontSize: 14 },
-  medium: { width: 44, height: 44, fontSize: 20 },
-  large: { width: 56, height: 56, fontSize: 26 },
+  small: { width: 40, height: 40, fontSize: 14 },
+  medium: { width: 48, height: 48, fontSize: 20 },
+  large: { width: 60, height: 60, fontSize: 26 },
 } as const;
 
 const SPEAKING_DURATION_MS = 1500;
+const DISABLED_OPACITY = 0.4;
 
 export const SpeakButton: React.FC<SpeakButtonProps> = ({
   text,
   size = 'medium',
+  isLoading = false,
 }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const scaleValue = useRef(new Animated.Value(1)).current;
 
   const dimensions = useMemo(() => SIZE_CONFIG[size], [size]);
+  const isDisabled = isLoading || !text;
 
   const handlePress = useCallback(async () => {
+    if (isDisabled) return;
+
     setIsSpeaking(true);
 
     Animated.sequence([
@@ -61,20 +67,22 @@ export const SpeakButton: React.FC<SpeakButtonProps> = ({
     setTimeout(() => {
       setIsSpeaking(false);
     }, SPEAKING_DURATION_MS);
-  }, [text, scaleValue]);
+  }, [text, scaleValue, isDisabled]);
 
   const buttonStyle = useMemo(() => ({
     width: dimensions.width,
     height: dimensions.height,
-    backgroundColor: isSpeaking ? colors.primary : colors.primaryLight,
-  }), [dimensions, isSpeaking]);
+    backgroundColor: isSpeaking ? colors.primary : colors.cardSurface,
+    opacity: isDisabled ? DISABLED_OPACITY : 1,
+  }), [dimensions, isSpeaking, isDisabled]);
 
   return (
     <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
       <TouchableOpacity
-        style={[styles.button, buttonStyle]}
+        style={[styles.button, buttonStyle, isSpeaking ? styles.buttonActive : styles.buttonInactive]}
         onPress={handlePress}
-        activeOpacity={0.8}
+        activeOpacity={isDisabled ? 1 : 0.8}
+        disabled={isDisabled}
       >
         <Text style={[styles.icon, { fontSize: dimensions.fontSize }]}>
           {isSpeaking ? '🔊' : '🔈'}
@@ -85,10 +93,25 @@ export const SpeakButton: React.FC<SpeakButtonProps> = ({
 };
 
 const styles = StyleSheet.create({
+  // Claymorphism button - floating 3D clay circle with inner highlight
   button: {
-    borderRadius: 50,
+    borderRadius: borderRadius.clayBadge,
     alignItems: 'center',
     justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+  },
+  // Inactive state - soft clay shadow
+  buttonInactive: {
+    ...shadows.claySoft,
+  },
+  // Active state - primary colored shadow
+  buttonActive: {
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    ...shadows.clayPrimary,
   },
   icon: {
     textAlign: 'center',

@@ -1,4 +1,4 @@
-// HomeScreen - Optimized Core View
+// HomeScreen - Optimized Core View with Claymorphism Design
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
@@ -8,14 +8,18 @@ import {
   RefreshControl,
   FlatList,
   Animated,
+  Pressable,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { colors, typography, spacing, borderRadius, shadows } from '../theme';
+import { gradients } from '../theme/styles';
 import { Word, RootStackParamList, TabType } from '../types';
 import { StorageService } from '../services/StorageService';
+import { DictionaryService } from '../services/DictionaryService';
 import {
   WordCard,
   QuickAddModal,
@@ -87,6 +91,9 @@ export const HomeScreen: React.FC = () => {
     try {
       const allWords = await StorageService.getWords();
       setWords(allWords);
+
+      // Check and resume polling for any words still processing
+      DictionaryService.checkAndResumePolling(allWords);
 
       const reviewList = await StorageService.getWordsForReview();
       setWordsForReview(reviewList.length);
@@ -214,12 +221,15 @@ export const HomeScreen: React.FC = () => {
               <Text style={styles.subGreeting}>All caught up! 🎉</Text>
             )}
           </View>
-          <TouchableOpacity
-            style={styles.avatar}
+          <Pressable
+            style={({ pressed }) => [
+              styles.avatar,
+              pressed && styles.avatarPressed
+            ]}
             onPress={() => navigation.navigate('Settings')}
           >
             <Text style={styles.avatarText}>{avatarInitial}</Text>
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </View>
     );
@@ -263,9 +273,15 @@ export const HomeScreen: React.FC = () => {
         </View>
 
         {!isExpanded && hasMore && (
-          <TouchableOpacity style={styles.seeMoreBtn} onPress={() => toggleTopicExpand(item.title)}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.seeMoreBtn,
+              pressed && styles.seeMoreBtnPressed
+            ]}
+            onPress={() => toggleTopicExpand(item.title)}
+          >
             <Text style={styles.seeMoreText}>Show {item.data.length - UI_LIMITS.topicExpandLimit} more items...</Text>
-          </TouchableOpacity>
+          </Pressable>
         )}
       </View>
     );
@@ -276,15 +292,19 @@ export const HomeScreen: React.FC = () => {
       <Text style={styles.filterLabel}>Sort by:</Text>
       <View style={styles.filterOptions}>
         {(['newest', 'alphabet', 'views'] as const).map(option => (
-          <TouchableOpacity
+          <Pressable
             key={option}
-            style={[styles.filterChip, sortBy === option && styles.filterChipActive]}
+            style={({ pressed }) => [
+              styles.filterChip,
+              sortBy === option && styles.filterChipActive,
+              pressed && styles.filterChipPressed
+            ]}
             onPress={() => setSortBy(option)}
           >
             <Text style={[styles.filterChipText, sortBy === option && styles.filterChipTextActive]}>
               {option.charAt(0).toUpperCase() + option.slice(1)}
             </Text>
-          </TouchableOpacity>
+          </Pressable>
         ))}
       </View>
     </View>
@@ -344,7 +364,12 @@ export const HomeScreen: React.FC = () => {
 
 
   return (
-    <View style={styles.container}>
+    <LinearGradient
+      colors={gradients.backgroundMain.colors as [string, string, ...string[]]}
+      start={gradients.backgroundMain.start}
+      end={gradients.backgroundMain.end}
+      style={styles.container}
+    >
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         {showNotification && leastViewedCount > 0 && notificationData && (
           <Animated.View
@@ -406,21 +431,38 @@ export const HomeScreen: React.FC = () => {
           onSelectWord={(word) => navigation.navigate('WordDetail', { wordId: word.id })}
         />
       </SafeAreaView>
-    </View>
+    </LinearGradient>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background },
+  container: { flex: 1 },
   safeArea: { flex: 1 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   loadingText: { color: colors.textSecondary, fontSize: typography.sizes.base },
 
   header: { paddingHorizontal: spacing.screenPadding, paddingTop: spacing.lg, paddingBottom: spacing.sm },
   headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
-  greeting: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.extraBold, color: colors.textPrimary },
+  greeting: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.extraBold, color: colors.textPrimary, letterSpacing: -0.5 },
   subGreeting: { fontSize: typography.sizes.base, color: colors.textSecondary, marginTop: 4 },
-  avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.backgroundSoft, alignItems: 'center', justifyContent: 'center' },
+  // Avatar with claySoft shadow and subtle gradient styling
+  avatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.cardSurface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.claySoft,
+  },
+  // Avatar pressed state - compressed clay effect
+  avatarPressed: {
+    transform: [{ scale: 0.94 }],
+    ...shadows.clayPressed,
+  },
   avatarText: { color: colors.primary, fontWeight: typography.weights.bold, fontSize: typography.sizes.lg },
 
   listContent: { paddingBottom: 120 },
@@ -439,32 +481,67 @@ const styles = StyleSheet.create({
 
   topicGridContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.itemGap, paddingHorizontal: spacing.screenPadding },
 
-  seeMoreBtn: { marginTop: spacing.lg, marginHorizontal: spacing.screenPadding, paddingVertical: spacing.md, alignItems: 'center', backgroundColor: colors.white, borderRadius: borderRadius.md, borderWidth: 1, borderColor: colors.borderLight, ...shadows.subtle },
+  seeMoreBtn: {
+    marginTop: spacing.lg,
+    marginHorizontal: spacing.screenPadding,
+    paddingVertical: spacing.md,
+    alignItems: 'center',
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.clayCard,
+    borderWidth: 0,
+    ...shadows.claySoft
+  },
+  // See more button pressed state - compressed clay effect
+  seeMoreBtnPressed: {
+    transform: [{ scale: 0.97 }],
+    ...shadows.clayPressed,
+  },
   seeMoreText: { color: colors.textSecondary, fontSize: typography.sizes.sm, fontWeight: typography.weights.semibold },
 
   filterToolbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.screenPadding, marginBottom: spacing.xxl, marginTop: spacing.sm },
   filterLabel: { color: colors.textSecondary, marginRight: spacing.md, fontSize: typography.sizes.sm },
   filterOptions: { flexDirection: 'row', gap: spacing.sm },
-  filterChip: { paddingHorizontal: spacing.md, paddingVertical: 6, borderRadius: borderRadius.round, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderLight },
-  filterChipActive: { backgroundColor: colors.primarySoft, borderColor: colors.primary },
+  // Filter chip with claySoft shadow, no border
+  filterChip: {
+    paddingHorizontal: spacing.puffySm,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.clayBadge,
+    backgroundColor: colors.cardSurface,
+    borderWidth: 0,
+    ...shadows.claySoft,
+  },
+  // Active filter chip with clayPrimary shadow
+  filterChipActive: {
+    backgroundColor: colors.primary,
+    ...shadows.clayPrimary,
+  },
+  // Filter chip pressed state - compressed clay effect
+  filterChipPressed: {
+    transform: [{ scale: 0.97 }],
+    ...shadows.clayPressed,
+  },
   filterChipText: { fontSize: typography.sizes.sm, color: colors.textSecondary, fontWeight: typography.weights.medium },
-  filterChipTextActive: { color: colors.primary, fontWeight: typography.weights.bold },
+  filterChipTextActive: { color: colors.white, fontWeight: typography.weights.bold },
 
-  // Notification Styles
+  // Notification Styles with claymorphism
   notificationContainer: {
     paddingHorizontal: spacing.screenPadding,
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
     zIndex: 1000,
   },
+  // Notification content with clayStrong shadow and gradient
   notificationContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: colors.primary,
-    borderRadius: borderRadius.lg,
-    padding: spacing.md,
-    ...shadows.strong,
+    borderRadius: borderRadius.clayCard,
+    padding: spacing.puffyMd,
+    borderWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.clayStrong,
   },
   notificationLeft: {
     flexDirection: 'row',
@@ -472,7 +549,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   notificationEmoji: {
-    fontSize: 24,
+    fontSize: 22,
     marginRight: spacing.md,
   },
   notificationTextContainer: {
@@ -493,14 +570,14 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.sm,
   },
   notificationCloseText: {
-    fontSize: typography.sizes.base,
     color: colors.white,
+    fontSize: typography.sizes.sm,
     fontWeight: typography.weights.bold,
   },
 });

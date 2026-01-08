@@ -1,6 +1,6 @@
 // Word Preview Modal - Supports Multiple Meanings List
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,20 +8,18 @@ import {
   StyleSheet,
   Modal,
   TouchableOpacity,
-  Dimensions,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { colors } from '../theme/colors';
+import { colors, borderRadius, shadows } from '../theme';
 import { Word } from '../types';
 import { SpeakButton } from './SpeakButton';
 import { ImageViewerModal } from './ImageViewerModal';
+import { SkeletonLoader } from './SkeletonLoader';
 import { EventBus } from '../services/EventBus';
 import { StorageService } from '../services/StorageService';
+import { getDisplayImageUrl, isValidImageUrl, isWordLoading } from '../utils/imageUtils';
 import { DEFAULTS, WORD_PREVIEW_TEXTS, POLLING_CONFIG, UI_LIMITS } from '../constants';
-
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface WordPreviewModalProps {
   visible: boolean;
@@ -87,15 +85,22 @@ export const WordPreviewModal: React.FC<WordPreviewModalProps> = ({
 
   // Polling fallback: Nếu word chưa có ảnh, check lại mỗi 2 giây
   useEffect(() => {
-    if (!currentWordData?.id || !visible || currentWordData.imageUrl) return;
+    if (!currentWordData?.id || !visible) return;
+
+    // Use getDisplayImageUrl to check if we have a valid image (custom or server)
+    const displayUrl = getDisplayImageUrl(currentWordData);
+    if (isValidImageUrl(displayUrl)) return;
 
     console.log('[WordPreviewModal] 🔄 Bắt đầu polling để check ảnh...');
     const interval = setInterval(async () => {
       const reloaded = await StorageService.getWordById(currentWordData.id);
-      if (reloaded && reloaded.imageUrl) {
-        console.log('[WordPreviewModal] ✅ Polling: Tìm thấy ảnh mới!');
-        setCurrentWordData(reloaded);
-        clearInterval(interval);
+      if (reloaded) {
+        const reloadedDisplayUrl = getDisplayImageUrl(reloaded);
+        if (isValidImageUrl(reloadedDisplayUrl)) {
+          console.log('[WordPreviewModal] ✅ Polling: Tìm thấy ảnh mới!');
+          setCurrentWordData(reloaded);
+          clearInterval(interval);
+        }
       }
     }, POLLING_CONFIG.intervalMs);
 
@@ -109,7 +114,22 @@ export const WordPreviewModal: React.FC<WordPreviewModalProps> = ({
       clearInterval(interval);
       clearTimeout(timeout);
     };
-  }, [currentWordData?.id, currentWordData?.imageUrl, visible]);
+  }, [currentWordData?.id, currentWordData?.imageUrl, currentWordData?.customImageUrl, currentWordData?.isUsingCustomImage, visible]);
+
+  // Compute display image URL using priority logic: customImageUrl > imageUrl
+  // Requirements: 8.1
+  const displayImageUrl = useMemo(() => {
+    if (!currentWordData) return '';
+    return getDisplayImageUrl(currentWordData);
+  }, [currentWordData]);
+
+  const hasValidImage = useMemo(() => isValidImageUrl(displayImageUrl), [displayImageUrl]);
+
+  // Check if word is loading (for disabling audio button)
+  const isImageLoading = useMemo(() => {
+    if (!currentWordData) return false;
+    return isWordLoading(currentWordData);
+  }, [currentWordData]);
 
   if (!visible) return null;
   if (!currentWordData && !isLoading) return null;
@@ -144,23 +164,22 @@ export const WordPreviewModal: React.FC<WordPreviewModalProps> = ({
             </View>
           ) : currentWordData ? (
             <>
-              {/* Header Image */}
+              {/* Header Image - Uses priority logic: customImageUrl > imageUrl */}
+              {/* Requirements: 8.1, 8.2 */}
               <View style={styles.imageWrapper}>
-                {currentWordData.imageUrl && currentWordData.imageUrl.trim() !== '' ? (
+                {hasValidImage ? (
                   <TouchableOpacity
                     activeOpacity={0.9}
                     onPress={() => setImageViewerVisible(true)}
                   >
                     <Image
-                      source={{ uri: currentWordData.imageUrl }}
+                      source={{ uri: displayImageUrl }}
                       style={styles.image}
                       resizeMode="cover"
                     />
                   </TouchableOpacity>
                 ) : (
-                  <View style={[styles.image, { alignItems: 'center', justifyContent: 'center', backgroundColor: '#F0F2F5' }]}>
-                    <ActivityIndicator size="large" color="#5D5FEF" />
-                  </View>
+                  <SkeletonLoader width="100%" height="100%" borderRadius={0} />
                 )}
                 <TouchableOpacity style={styles.closeButton} onPress={onClose}>
                   <Text style={styles.closeText}>✕</Text>
@@ -176,7 +195,7 @@ export const WordPreviewModal: React.FC<WordPreviewModalProps> = ({
                       <Text style={styles.phoneticText}>{currentWordData.phonetic || DEFAULTS.phonetic}</Text>
                     </View>
                   </View>
-                  <SpeakButton text={currentWordData.word} size="medium" />
+                  <SpeakButton text={currentWordData.word} size="medium" isLoading={isImageLoading} />
                 </View>
 
                 <View style={styles.divider} />
@@ -231,7 +250,7 @@ export const WordPreviewModal: React.FC<WordPreviewModalProps> = ({
       {currentWordData && (
         <ImageViewerModal
           visible={imageViewerVisible}
-          imageUrl={currentWordData.imageUrl}
+          imageUrl={displayImageUrl}
           onClose={() => setImageViewerVisible(false)}
           allowEdit={false}
           initialQuery={currentWordData.word}
@@ -244,27 +263,33 @@ export const WordPreviewModal: React.FC<WordPreviewModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
+  // Claymorphism modal content - floating 3D clay tile
   modalContent: {
     width: '100%',
     maxWidth: 340,
-    maxHeight: '80%', // Avoid too tall
-    backgroundColor: colors.white,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
+    maxHeight: '80%',
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.clayCard,
     overflow: 'hidden',
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    shadowColor: colors.shadowOuter,
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 1,
+    shadowRadius: 32,
+    elevation: 12,
   },
   imageWrapper: {
     width: '100%',
-    height: 120, // Slightly shorter header for preview
+    height: 120,
     backgroundColor: colors.backgroundSoft,
     position: 'relative',
   },
@@ -272,25 +297,32 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+  // Claymorphism close button - soft clay circle
   closeButton: {
     position: 'absolute',
     top: 10,
     right: 10,
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: colors.cardSurface,
     alignItems: 'center',
     justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.claySoft,
   },
   closeText: {
-    color: 'white',
+    color: colors.textSecondary,
     fontWeight: 'bold',
     marginTop: -2,
   },
   body: {
     padding: 20,
-    paddingBottom: 24, // extra pad for button
+    paddingBottom: 24,
   },
   headerRow: {
     flexDirection: 'row',
@@ -319,7 +351,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   scrollArea: {
-    maxHeight: 200, // Limit scrolling height inside popup
+    maxHeight: 200,
     marginBottom: 16,
   },
   meaningRow: {
@@ -327,13 +359,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
   },
+  // Claymorphism POS badge - floating 3D pill
   posBadge: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: borderRadius.sm,
     marginRight: 8,
     marginTop: 2,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
   },
   posText: {
     fontSize: 11,
@@ -357,13 +395,20 @@ const styles = StyleSheet.create({
   footerSpacing: {
     height: 0,
   },
+  // Claymorphism save button - primary clay pill
   saveButton: {
     backgroundColor: colors.primary,
-    borderRadius: 16,
-    paddingVertical: 14,
+    borderRadius: borderRadius.clayInput,
+    paddingVertical: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.clayPrimary,
   },
   buttonIcon: {
     color: 'white',
@@ -375,18 +420,22 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
+  // Claymorphism view button - soft clay
   viewButton: {
-    backgroundColor: colors.backgroundSoft,
+    backgroundColor: colors.cardSurface,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.claySoft,
   },
   viewButtonText: {
     color: colors.textPrimary,
   },
-  // Loading Styles
+  // Loading Styles - Claymorphism
   loadingWrapper: {
     padding: 40,
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Claymorphism loader circle - soft clay
   loaderCircle: {
     width: 80,
     height: 80,
@@ -395,6 +444,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerDark,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.shadowInnerLight,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
   },
   loadingTitle: {
     fontSize: 20,
@@ -409,11 +464,18 @@ const styles = StyleSheet.create({
     marginBottom: 30,
     lineHeight: 20,
   },
+  // Claymorphism cancel button - soft clay
   cancelButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: colors.backgroundSoft,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: borderRadius.clayInput,
+    backgroundColor: colors.cardSurface,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.claySoft,
   },
   cancelText: {
     color: colors.textSecondary,

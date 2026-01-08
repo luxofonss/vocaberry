@@ -1,5 +1,5 @@
 // Word Detail Screen - Optimized for Maintainability
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -11,18 +11,17 @@ import {
   Alert,
   Platform,
   FlatList,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { theme, colors, typography, spacing, borderRadius, shadows } from '../theme';
+import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import { Word, RootStackParamList, Meaning } from '../types';
 import { StorageService } from '../services/StorageService';
 import { DatabaseService } from '../services/DatabaseService';
 import { DictionaryService } from '../services/DictionaryService';
-import { SpeakButton, ClickableText, WordPreviewModal, ImageSearchModal, ImageViewerModal, AddMeaningModal } from '../components';
+import { SpeakButton, ClickableText, WordPreviewModal, ImageSearchModal, ImageViewerModal, AddMeaningModal, SkeletonLoader } from '../components';
 import * as ImagePicker from 'expo-image-picker';
 import { EventBus } from '../services/EventBus';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,9 +29,9 @@ import {
   DEFAULTS,
   MESSAGES,
   UI_LIMITS,
-  POLLING_CONFIG,
   IMAGE_VIEWER_TEXTS
 } from '../constants';
+import { getDisplayImageUrl, isValidImageUrl, isWordLoading } from '../utils/imageUtils';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -95,53 +94,52 @@ export const WordDetailScreen: React.FC = () => {
     loadWord();
   }, [wordId]);
 
+  // Refresh word from server when entering screen to get latest data
   useEffect(() => {
-    // Listen for image update realtime - reload từ DB để đảm bảo đồng bộ
-    const cb = async ({ wordId: wId }: { wordId: string }) => {
+    const refreshFromServer = async () => {
+      // Only refresh if word is still processing (no imageUrl)
+      const localWord = await StorageService.getWordById(wordId);
+      if (localWord && !localWord.imageUrl) {
+        console.log('[WordDetail] 🔄 Word is processing, refreshing from server...');
+        await DictionaryService.refreshWord(wordId);
+      }
+    };
+    refreshFromServer();
+  }, [wordId]);
+
+  useEffect(() => {
+    // Listen for word update event - reload từ DB để đảm bảo đồng bộ
+    const cb = async ({ wordId: wId, word: updatedWord }: { wordId: string; word?: Word }) => {
       console.log(`[WordDetail] 📡 Nhận event wordImageUpdated - wId: "${wId}", current wordId: "${wordId}"`);
       // So sánh case-insensitive để đảm bảo khớp
       if (wId && wordId && wId.toLowerCase() === wordId.toLowerCase()) {
-        console.log('[WordDetail] 📸 WordId khớp! Reloading word từ DB...');
-        const reloaded = await StorageService.getWordById(wordId);
-        if (reloaded) {
-          setWord(reloaded);
-          console.log('[WordDetail] ✅ Đã update ảnh thành công');
+        console.log('[WordDetail] 📸 WordId khớp! Updating word...');
+        // Use word from event if available, otherwise reload from DB
+        if (updatedWord) {
+          setWord(updatedWord);
+          console.log('[WordDetail] ✅ Đã update từ event');
         } else {
-          console.warn('[WordDetail] ⚠️ Không tìm thấy word sau khi reload');
+          const reloaded = await StorageService.getWordById(wordId);
+          if (reloaded) {
+            setWord(reloaded);
+            console.log('[WordDetail] ✅ Đã update từ DB');
+          }
         }
-      } else {
-        console.log('[WordDetail] ⏭️ WordId không khớp, bỏ qua');
       }
     };
     EventBus.on('wordImageUpdated', cb);
     return () => EventBus.off('wordImageUpdated', cb);
   }, [wordId]);
 
-  // Polling fallback: Nếu word chưa có ảnh, check lại mỗi 2 giây
+  // Remove old polling fallback - DictionaryService handles this now
+  /*
   useEffect(() => {
-    if (!word || word.imageUrl) return; // Chỉ poll khi chưa có ảnh
-
-    console.log('[WordDetail] 🔄 Bắt đầu polling để check ảnh...');
-    const interval = setInterval(async () => {
-      const reloaded = await StorageService.getWordById(wordId);
-      if (reloaded && reloaded.imageUrl) {
-        console.log('[WordDetail] ✅ Polling: Tìm thấy ảnh mới!');
-        setWord(reloaded);
-        clearInterval(interval);
-      }
-    }, POLLING_CONFIG.intervalMs);
-
-    // Timeout sau 30 giây
-    const timeout = setTimeout(() => {
-      console.log('[WordDetail] ⏱️ Polling timeout sau 30s');
-      clearInterval(interval);
-    }, POLLING_CONFIG.timeoutMs);
-
+    if (!word || word.imageUrl) return;
     return () => {
-      clearInterval(interval);
-      clearTimeout(timeout);
+      // Cleanup removed - DictionaryService handles polling now
     };
-  }, [word, wordId]);
+  }, []);
+  */
 
   const loadWord = useCallback(async () => {
     try {
@@ -268,12 +266,17 @@ export const WordDetailScreen: React.FC = () => {
 
     let updatedWord: Word;
     if (searchTarget.type === 'main') {
-      updatedWord = { ...word, imageUrl };
+      updatedWord = {
+        ...word,
+        customImageUrl: imageUrl,
+        isUsingCustomImage: true,
+        localUpdatedAt: new Date().toISOString()
+      };
     } else {
       const updatedMeanings = word.meanings.map((m: Meaning) =>
         m.id === searchTarget.meaningId ? { ...m, exampleImageUrl: imageUrl } : m
       );
-      updatedWord = { ...word, meanings: updatedMeanings };
+      updatedWord = { ...word, meanings: updatedMeanings, localUpdatedAt: new Date().toISOString() };
     }
 
     await DatabaseService.saveWord(updatedWord);
@@ -307,12 +310,21 @@ export const WordDetailScreen: React.FC = () => {
         let updatedWord: Word;
 
         if (type === 'main') {
-          updatedWord = { ...word, imageUrl: base64Image };
+          updatedWord = {
+            ...word,
+            customImageUrl: base64Image,
+            isUsingCustomImage: true,
+            localUpdatedAt: new Date().toISOString()
+          };
         } else {
           const updatedMeanings = word.meanings.map((m: Meaning) =>
             m.id === meaningId ? { ...m, exampleImageUrl: base64Image } : m
           );
-          updatedWord = { ...word, meanings: updatedMeanings };
+          updatedWord = {
+            ...word,
+            meanings: updatedMeanings,
+            localUpdatedAt: new Date().toISOString()
+          };
         }
 
         await DatabaseService.saveWord(updatedWord);
@@ -338,12 +350,21 @@ export const WordDetailScreen: React.FC = () => {
 
     let updatedWord: Word;
     if (viewingImageType === 'main') {
-      updatedWord = { ...word, imageUrl: newImageUrl };
+      updatedWord = {
+        ...word,
+        customImageUrl: newImageUrl,
+        isUsingCustomImage: true,
+        localUpdatedAt: new Date().toISOString()
+      };
     } else {
       const updatedMeanings = word.meanings.map((m: Meaning) =>
         m.id === viewingMeaningId ? { ...m, exampleImageUrl: newImageUrl } : m
       );
-      updatedWord = { ...word, meanings: updatedMeanings };
+      updatedWord = {
+        ...word,
+        meanings: updatedMeanings,
+        localUpdatedAt: new Date().toISOString()
+      };
     }
 
     await DatabaseService.saveWord(updatedWord);
@@ -383,7 +404,7 @@ export const WordDetailScreen: React.FC = () => {
           </View>
           <View style={styles.phoneticContainer}>
             <Text style={styles.phoneticText}>{item.phonetic || word?.phonetic || DEFAULTS.phonetic}</Text>
-            <SpeakButton text={word?.word || ''} size="small" />
+            <SpeakButton text={word?.word || ''} size="small" isLoading={isImageLoading} />
           </View>
         </View>
 
@@ -399,9 +420,7 @@ export const WordDetailScreen: React.FC = () => {
           <View style={styles.exampleCard}>
             <View style={styles.exampleImageWrapper}>
               {!item.exampleImageUrl || item.exampleImageUrl.trim() === '' ? (
-                <View style={[styles.exampleImage, { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backgroundSoft }]}>
-                  <Ionicons name="image-outline" size={40} color={colors.textLight} />
-                </View>
+                <SkeletonLoader width="100%" height="100%" borderRadius={0} />
               ) : (
                 <>
                   <TouchableOpacity
@@ -432,6 +451,37 @@ export const WordDetailScreen: React.FC = () => {
             </View>
           </View>
         )}
+
+        {/* Requirements 9.3: Display userExamples separately from server meanings */}
+        {word?.userExamples && word.userExamples.length > 0 && (
+          <View style={styles.userExamplesSection}>
+            <Text style={styles.userExamplesSectionTitle}>My Examples</Text>
+            {word.userExamples.map((userExample) => (
+              <View key={userExample.id} style={styles.userExampleCard}>
+                {userExample.customImageUrl && isValidImageUrl(userExample.customImageUrl) && (
+                  <View style={styles.userExampleImageWrapper}>
+                    <Image
+                      source={{ uri: userExample.customImageUrl }}
+                      style={styles.userExampleImage}
+                      resizeMode="cover"
+                    />
+                  </View>
+                )}
+                <View style={styles.userExampleContent}>
+                  <View style={styles.exampleTextRow}>
+                    <ClickableText
+                      text={`"${userExample.text}"`}
+                      onWordPress={handleWordPress}
+                      style={styles.userExampleText}
+                    />
+                    <SpeakButton text={userExample.text} size="small" />
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
         <View style={{ height: spacing.huge }} />
       </ScrollView>
     </View>
@@ -445,6 +495,17 @@ export const WordDetailScreen: React.FC = () => {
     imageUrl: null,
     id: 'loading'
   } as unknown as Word;
+
+  // Get display image URL using priority logic (customImageUrl > imageUrl)
+  // Requirements: 9.1 - Display images using priority logic (custom > server)
+  const displayImageUrl = word ? getDisplayImageUrl(word) : '';
+
+  // Check if word is loading (for skeleton and disabling audio button)
+  // Requirements: 9.7, 9.8, 9.9
+  const isImageLoading = useMemo(() => {
+    if (!word) return false;
+    return isWordLoading(word);
+  }, [word]);
 
   // Create a reversed copy for display so newest/user-added meanings usually show first
   const displayedMeanings = [...displayWord.meanings].reverse();
@@ -463,21 +524,17 @@ export const WordDetailScreen: React.FC = () => {
         <View style={styles.fixedHeader}>
           <View style={styles.headerImageWrapper}>
             {loading ? (
-              <View style={[styles.headerImage, { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backgroundSoft }]}>
-                <ActivityIndicator size="small" color={colors.primary} />
-              </View>
+              <SkeletonLoader width="100%" height="100%" borderRadius={0} />
             ) : (
-              !displayWord.imageUrl || displayWord.imageUrl.trim() === '' ? (
-                <View style={[styles.headerImage, { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backgroundSoft }]}>
-                  <Ionicons name="image-outline" size={48} color={colors.textLight} />
-                </View>
+              !displayImageUrl || displayImageUrl.trim() === '' ? (
+                <SkeletonLoader width="100%" height="100%" borderRadius={0} />
               ) : (
                 <TouchableOpacity
                   activeOpacity={0.9}
-                  onPress={() => handleViewImage(displayWord.imageUrl!, 'main')}
+                  onPress={() => handleViewImage(displayImageUrl, 'main')}
                   style={{ width: '100%', height: '100%' }}
                 >
-                  <Image source={{ uri: displayWord.imageUrl! }} style={styles.headerImage} resizeMode="cover" />
+                  <Image source={{ uri: displayImageUrl }} style={styles.headerImage} resizeMode="cover" />
                 </TouchableOpacity>
               )
             )}
@@ -516,8 +573,8 @@ export const WordDetailScreen: React.FC = () => {
 
       <View style={{ flex: 1 }}>
         {loading ? (
-          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-            <ActivityIndicator size="large" color={colors.primary} />
+          <View style={styles.loadingContainer}>
+            <SkeletonLoader width={200} height={24} borderRadius={8} />
           </View>
         ) : (
           <FlatList
@@ -598,97 +655,267 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
   headerSafe: {
     backgroundColor: colors.background, zIndex: 10,
-    ...shadows.subtle,
+    ...shadows.clayMedium,
   },
   navHeader: { paddingHorizontal: spacing.xl, paddingVertical: spacing.sm },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  loadingText: { color: colors.textSecondary, fontSize: typography.sizes.base },
-  backButton: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: borderRadius.xl, backgroundColor: colors.backgroundSoft },
+  // Claymorphism back button - soft clay with inner highlight
+  backButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: colors.cardSurface,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.claySoft,
+  },
   backIcon: { fontSize: typography.sizes.xl, color: colors.textPrimary, fontWeight: typography.weights.semibold },
 
   fixedHeader: { paddingHorizontal: spacing.xxl, paddingBottom: spacing.sm },
+  // Claymorphism header image wrapper - floating 3D clay tile
   headerImageWrapper: {
-    width: '100%', height: 130, borderRadius: borderRadius.xl, overflow: 'hidden', marginBottom: spacing.sm, backgroundColor: colors.backgroundSoft
+    width: '100%',
+    height: 130,
+    borderRadius: borderRadius.clayCard,
+    overflow: 'hidden',
+    marginBottom: spacing.sm,
+    backgroundColor: colors.backgroundSoft,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.clayMedium,
   },
   headerImage: { width: '100%', height: '100%' },
   wordInfoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   wordTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 0 },
   wordTitle: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.extraBold, color: colors.textPrimary, letterSpacing: -0.4 },
+  // Claymorphism meta tag - floating 3D pill badge
   metaTag: {
-    backgroundColor: colors.primarySoft, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, marginTop: 4
+    backgroundColor: colors.primarySoft,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: borderRadius.clayBadge,
+    marginTop: 4,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(139, 124, 246, 0.2)',
+    ...shadows.subtle,
   },
   metaTagText: { color: colors.primary, fontWeight: typography.weights.extraBold, fontSize: typography.sizes.xs, textTransform: 'uppercase', letterSpacing: 0.5 },
   paginationColumn: { justifyContent: 'flex-end', marginBottom: 6 },
   paginationContainer: { flexDirection: 'row', gap: 6 },
-  dot: { width: 4, height: 4, borderRadius: 2, backgroundColor: colors.borderMedium },
-  activeDot: { backgroundColor: colors.primary, width: 10, height: 4, borderRadius: 2 },
-  divider: { height: 1, backgroundColor: colors.borderLight, opacity: 0.5 },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.borderMedium },
+  activeDot: { backgroundColor: colors.primary, width: 18, height: 6, borderRadius: 3 },
+  divider: { height: 1, backgroundColor: colors.borderLight, opacity: 0.3 },
 
   slideContainer: { width: SCREEN_WIDTH, flex: 1 },
   slideContent: { paddingHorizontal: spacing.xxl, paddingTop: spacing.xs, paddingBottom: spacing.xl },
   slideHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs },
-  typeTag: { backgroundColor: colors.backgroundSoft, paddingHorizontal: spacing.sm, paddingVertical: 3, borderRadius: 5 },
+  // Claymorphism type tag - soft clay badge
+  typeTag: {
+    backgroundColor: colors.cardSurface,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+    borderRadius: borderRadius.clayBadge,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.subtle,
+  },
   typeText: { fontSize: typography.sizes.xs, fontWeight: typography.weights.extraBold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
   phoneticContainer: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   phoneticText: { fontSize: typography.sizes.base, fontWeight: typography.weights.medium, color: colors.textSecondary, fontStyle: 'italic', opacity: 0.7 },
   slideDivider: { height: 1, backgroundColor: colors.borderLight, marginBottom: spacing.sm, opacity: 0.3 },
 
   definitionText: { fontSize: typography.sizes.lg, color: colors.textPrimary, lineHeight: 28, fontWeight: typography.weights.semibold, marginBottom: spacing.md },
-  exampleCard: { backgroundColor: colors.white, borderRadius: borderRadius.xl, padding: 3, borderWidth: 1, borderColor: colors.borderLight, overflow: 'hidden', marginTop: spacing.xs, ...shadows.subtle },
-  exampleImageWrapper: { width: '100%', height: 150, borderRadius: borderRadius.lg, overflow: 'hidden', backgroundColor: colors.backgroundSoft },
+  // Claymorphism example card - floating 3D clay tile
+  exampleCard: {
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.clayCard,
+    padding: 4,
+    borderWidth: 0,
+    overflow: 'hidden',
+    marginTop: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.clayMedium,
+  },
+  exampleImageWrapper: {
+    width: '100%',
+    height: 150,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.backgroundSoft,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerDark,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.shadowInnerLight,
+  },
   exampleImage: { width: '100%', height: '100%' },
   exampleContent: { padding: spacing.lg, paddingTop: spacing.md },
   exampleTextRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
   exampleText: { fontSize: typography.sizes.base, fontStyle: 'italic', color: colors.textSecondary, lineHeight: 24, flex: 1 },
 
+  // Claymorphism action bar - floating 3D clay container
   actionBarSafe: {
-    backgroundColor: colors.white,
+    backgroundColor: colors.cardSurface,
     borderTopWidth: 1,
-    borderTopColor: colors.borderLight,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.clayMedium,
   },
   actionBar: {
     flexDirection: 'row',
     paddingHorizontal: spacing.xl,
     paddingTop: spacing.rowGap,
     paddingBottom: Platform.OS === 'ios' ? 10 : spacing.lg,
-    backgroundColor: colors.white,
+    backgroundColor: colors.cardSurface,
     gap: spacing.sm,
   },
-  squareDeleteButton: { width: 48, height: 48, borderRadius: 15, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' },
-  addMeaningButton: { width: 48, height: 48, borderRadius: 15, backgroundColor: colors.primarySoft, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.primaryLight },
-  secondaryButton: { flex: 0.8, height: 48, backgroundColor: colors.backgroundSoft, borderRadius: 15, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.borderMedium },
+  // Claymorphism delete button - soft clay with debossed effect
+  squareDeleteButton: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.clayInput,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 200, 200, 0.6)',
+    ...shadows.claySoft,
+  },
+  // Claymorphism add meaning button - soft clay with primary tint
+  addMeaningButton: {
+    width: 48,
+    height: 48,
+    borderRadius: borderRadius.clayInput,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: colors.primaryLighter,
+    ...shadows.claySoft,
+  },
+  // Claymorphism secondary button - soft clay with inner shadow
+  secondaryButton: {
+    flex: 0.8,
+    height: 48,
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.clayInput,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.claySoft,
+  },
   secondaryButtonText: { fontSize: typography.sizes.sm, fontWeight: typography.weights.bold, color: colors.textSecondary, letterSpacing: 0.2 },
-  primaryButton: { flex: 1, height: 48, backgroundColor: colors.primary, borderRadius: 15, alignItems: 'center', justifyContent: 'center', ...shadows.strong },
+  // Claymorphism primary button - gradient fill with colored shadow
+  primaryButton: {
+    flex: 1,
+    height: 48,
+    backgroundColor: colors.primary,
+    borderRadius: borderRadius.clayInput,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.clayPrimary,
+  },
   primaryButtonText: { fontSize: typography.sizes.base, fontWeight: typography.weights.bold, color: colors.white, letterSpacing: 0.3 },
 
-  // Edit Image Buttons
+  // Claymorphism edit image buttons - floating 3D clay circles
   editImageBtn: {
     position: 'absolute',
     top: 10,
     right: 10,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.6)',
+    shadowColor: 'rgba(0,0,0,0.2)',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
+    elevation: 4,
   },
   editImageBtnMini: {
     position: 'absolute',
     top: 8,
     right: 8,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.6)',
+    shadowColor: 'rgba(0,0,0,0.2)',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   editIconBtn: {
-    fontSize: 14,
-  }
+    fontSize: 16,
+  },
+
+  // Claymorphism user examples section
+  userExamplesSection: {
+    marginTop: spacing.lg,
+  },
+  userExamplesSectionTitle: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: spacing.sm,
+  },
+  // Claymorphism user example card - soft clay with primary tint
+  userExampleCard: {
+    backgroundColor: colors.primarySoft,
+    borderRadius: borderRadius.clayCard,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    borderWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: colors.primaryLighter,
+    ...shadows.claySoft,
+  },
+  userExampleImageWrapper: {
+    width: '100%',
+    height: 100,
+    borderRadius: borderRadius.lg,
+    overflow: 'hidden',
+    marginBottom: spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerDark,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.shadowInnerLight,
+  },
+  userExampleImage: {
+    width: '100%',
+    height: '100%',
+  },
+  userExampleContent: {
+    paddingHorizontal: spacing.xs,
+  },
+  userExampleText: {
+    fontSize: typography.sizes.sm,
+    fontStyle: 'italic',
+    color: colors.textPrimary,
+    lineHeight: 20,
+    flex: 1,
+  },
 });

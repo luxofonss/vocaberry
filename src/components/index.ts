@@ -1,5 +1,4 @@
-// Components Export Update
-
+// Components Export Index
 export * from './BottomTabBar';
 export * from './WordCard';
 export * from './SpeakButton';
@@ -11,4 +10,4 @@ export * from './ImageSearchModal';
 export * from './ImageViewerModal';
 export * from './AddMeaningModal';
 export * from './LazyImage';
-// No need to export PracticeScreen here, it's a screen
+export * from './SkeletonLoader';
