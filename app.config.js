@@ -38,6 +38,7 @@ module.exports = {
       favicon: "./assets/favicon.png"
     },
     plugins: [
+      "expo-audio",
       [
         "expo-build-properties",
         {

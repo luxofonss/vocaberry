@@ -49,30 +49,30 @@ export const AppNavigator: React.FC = () => {
           contentStyle: { backgroundColor: 'transparent' },
         }}
       >
-        <Stack.Screen 
-          name="Welcome" 
+        <Stack.Screen
+          name="Welcome"
           component={WelcomeScreen}
           options={{
             animation: 'fade',
           }}
         />
         <Stack.Screen name="Home" component={HomeScreen} />
-        <Stack.Screen 
-          name="WordDetail" 
+        <Stack.Screen
+          name="WordDetail"
           component={WordDetailScreen}
           options={{
             animation: 'slide_from_bottom',
           }}
         />
-        <Stack.Screen 
-          name="Review" 
+        <Stack.Screen
+          name="Review"
           component={ReviewScreen}
           options={{
             animation: 'fade_from_bottom',
           }}
         />
-        <Stack.Screen 
-          name="Settings" 
+        <Stack.Screen
+          name="Settings"
           component={SettingsScreen}
           options={{
             animation: 'slide_from_right',

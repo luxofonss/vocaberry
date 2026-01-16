@@ -23,18 +23,23 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { Audio } from 'expo-av'; // Import expo-av for proper audio recording
+import * as FileSystem from 'expo-file-system';
+
 import { theme, colors, typography, spacing, borderRadius, shadows } from '../theme';
 import { gradients } from '../theme/styles';
 import { Word, RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
 import { SpeakButton, ImageViewerModal } from '../components';
 import { EventBus } from '../services/EventBus';
+import { AiService } from '../services/AiService';
 import {
   ANIMATION,
   PRACTICE_CONFIG,
   PRACTICE_TEXTS,
   TIME_FORMAT,
-  DEFAULTS
+  DEFAULTS,
+  MESSAGES
 } from '../constants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -83,6 +88,13 @@ export const PracticeScreen: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const audioRecorder = useRef<Audio.Recording | null>(null); // Use ref for the recording instance
+  const [pronunciationResult, setPronunciationResult] = useState<{
+    accuracy: number;
+    realTranscript: string;
+    matchedTranscript: string;
+    ipaTranscript: string;
+  } | null>(null);
 
   // -- Image Viewer --
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
@@ -163,8 +175,15 @@ export const PracticeScreen: React.FC = () => {
     setShowHint(false);
     setIsRecording(false);
     setIsProcessing(false);
+    setPronunciationResult(null);
     setMeaningIndex(0); // Reset carousel to first meaning
     stopPulse();
+
+    // Clean up recording if exists
+    if (audioRecorder.current) {
+      audioRecorder.current.stopAndUnloadAsync().catch(() => { }); // Clean up silently
+      audioRecorder.current = null;
+    }
   }, [stopPulse]);
 
   const checkAnswer = useCallback((customAnswer?: string) => {
@@ -193,24 +212,119 @@ export const PracticeScreen: React.FC = () => {
     StorageService.markAsReviewed(currentWord.id, correct);
   }, [userAnswer, quizList, currentIndex]);
 
-  const handleMicPress = useCallback(() => {
+  const handleMicPress = useCallback(async () => {
     if (isRecording) {
+      // Stop recording
       setIsRecording(false);
       stopPulse();
       setIsProcessing(true);
 
-      // Simulated STT Result
-      setTimeout(() => {
+      try {
+        if (!audioRecorder.current) {
+          throw new Error('No active recording');
+        }
+
+        // Stop and unload the recording
+        await audioRecorder.current.stopAndUnloadAsync();
+
+        const uri = audioRecorder.current.getURI();
+
+        console.log('Recording URI:', uri); // Debug log
+
+        if (!uri) {
+          throw new Error('No recording URI - recording may have failed');
+        }
+
+        // Check if the file actually exists
+        const fileInfo = await FileSystem.getInfoAsync(uri);
+        if (!('exists' in fileInfo) || !fileInfo.exists) {
+          throw new Error('Recording file does not exist');
+        }
+
+        console.log('File info:', fileInfo); // Debug log
+
+        // Convert audio to base64
+        const base64Audio = await FileSystem.readAsStringAsync(uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        // Call pronunciation API
+        const currentWord = quizList[currentIndex].word;
+        const result = await AiService.checkPronunciationAccuracy(
+          currentWord,
+          `data:audio/ogg;base64,${base64Audio}`
+        );
+
+        // Store pronunciation result
+        setPronunciationResult({
+          accuracy: result.data.pronunciation_accuracy,
+          realTranscript: result.data.real_transcript,
+          matchedTranscript: result.data.matched_transcripts,
+          ipaTranscript: result.data.ipa_transcript,
+        });
+
+        // Check if pronunciation is good enough (>= 70% accuracy)
+        const isCorrect = result.data.pronunciation_accuracy >= 70;
+        setUserAnswer(result.data.real_transcript);
+        checkAnswer(result.data.real_transcript);
+        setIsCorrect(isCorrect);
+
+      } catch (error: any) {
+        console.error('Recording error:', error);
+        Alert.alert('Recording Error', error.message || 'Failed to process recording');
+      } finally {
         setIsProcessing(false);
-        const correctWord = quizList[currentIndex].word;
-        const result = Math.random() > 0.2 ? correctWord : "something else";
-        setUserAnswer(result);
-        checkAnswer(result);
-      }, 1500);
+        audioRecorder.current = null; // Clean up the ref
+      }
     } else {
-      setUserAnswer('');
-      setIsRecording(true);
-      startPulse();
+      // Start recording
+      try {
+        console.log('Starting recording...'); // Debug log
+
+        // Request permissions if not already granted
+        const { status } = await Audio.requestPermissionsAsync();
+        if (status !== 'granted') {
+          throw new Error('Microphone permission not granted');
+        }
+
+        // Set audio mode for recording
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: true,
+          playsInSilentModeIOS: true,
+        });
+
+        // Create a new recording instance
+        audioRecorder.current = new Audio.Recording();
+
+        // Prepare with high quality preset
+        await audioRecorder.current.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+
+        // Start recording
+        await audioRecorder.current.startAsync();
+
+        console.log('Recording started successfully'); // Debug log
+
+        setUserAnswer('');
+        setPronunciationResult(null);
+        setIsRecording(true);
+        startPulse();
+      } catch (error: any) {
+        console.error('Failed to start recording:', error);
+
+        // Check if it's a permission error
+        if (error.message?.includes('permission') || error.message?.includes('Permission')) {
+          Alert.alert(
+            MESSAGES.errors.permissionDenied,
+            'We need microphone access to analyze your pronunciation.'
+          );
+        } else {
+          Alert.alert('Start Recording Error', error.message || 'Failed to start recording');
+        }
+        setIsRecording(false);
+        if (audioRecorder.current) {
+          audioRecorder.current = null;
+        }
+      }
     }
   }, [isRecording, stopPulse, startPulse, quizList, currentIndex, checkAnswer]);
 
@@ -532,21 +646,24 @@ export const PracticeScreen: React.FC = () => {
 
           {!isAnswered ? (
             <View style={styles.inputArea}>
-              {/* Mode switch temporarily disabled - only TYPE mode available */}
-              {/* <View style={styles.modeSwitch}>
-                            { (['TYPE', 'SPEAK'] as const).map(mode => (
-                                <TouchableOpacity 
-                                    key={mode}
-                                    style={[styles.switchBtn, inputMode === mode && styles.switchBtnActive]}
-                                      onPress={() => setInputMode(mode)}
-                                      disabled={isProcessing || isRecording}
-                                  >
-                                      <Text style={[styles.switchText, inputMode === mode && styles.switchTextActive]}>
-                                        {mode === 'TYPE' ? PRACTICE_TEXTS.type : PRACTICE_TEXTS.speak}
-                                      </Text>
-                                  </TouchableOpacity>
-                            ))}
-                        </View> */}
+              <View style={styles.speechContainer}>
+                <TouchableOpacity
+                  style={[
+                    styles.micButtonLarge,
+                    isRecording && styles.micButtonRecording,
+                    isProcessing && styles.micButtonProcessing,
+                  ]}
+                  onPress={handleMicPress}
+                  disabled={isProcessing}
+                >
+                  <Text style={styles.micIconLarge}>
+                    {isRecording ? '⏹' : (isProcessing ? '⏳' : '🎤')}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.speechStatus}>
+                  {isRecording ? PRACTICE_TEXTS.listening : (isProcessing ? PRACTICE_TEXTS.thinking : 'Tap to Speak')}
+                </Text>
+              </View>
 
               {/* Always show TYPE input - SPEAK mode temporarily disabled */}
               <TextInput
@@ -585,6 +702,40 @@ export const PracticeScreen: React.FC = () => {
                   <SpeakButton text={currentWord.word} size="medium" />
                 </View>
               </View>
+
+              {/* Pronunciation Feedback */}
+              {pronunciationResult && (
+                <View style={[styles.pronunciationFeedback, shadows.subtle]}>
+                  <View style={styles.accuracyHeader}>
+                    <Text style={styles.accuracyLabel}>Pronunciation Accuracy</Text>
+                    <View style={[
+                      styles.accuracyBadge,
+                      pronunciationResult.accuracy >= 80 ? styles.accuracyGood :
+                        pronunciationResult.accuracy >= 60 ? styles.accuracyOk :
+                          styles.accuracyPoor
+                    ]}>
+                      <Text style={styles.accuracyScore}>{pronunciationResult.accuracy}%</Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.transcriptRow}>
+                    <Text style={styles.transcriptLabel}>You said:</Text>
+                    <Text style={styles.transcriptText}>{pronunciationResult.realTranscript}</Text>
+                  </View>
+
+                  <View style={styles.transcriptRow}>
+                    <Text style={styles.transcriptLabel}>Expected:</Text>
+                    <Text style={styles.transcriptText}>{currentWord.word}</Text>
+                  </View>
+
+                  {pronunciationResult.ipaTranscript && (
+                    <View style={styles.transcriptRow}>
+                      <Text style={styles.transcriptLabel}>IPA:</Text>
+                      <Text style={styles.ipaText}>{pronunciationResult.ipaTranscript}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
 
               <TouchableOpacity style={[styles.nextButton, shadows.strong]} onPress={handleNext}>
                 <Text style={styles.nextButtonText}>
@@ -914,6 +1065,70 @@ const styles = StyleSheet.create({
   correctWord: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.heavy, color: colors.textPrimary, marginBottom: spacing.sm, letterSpacing: -0.5 },
   phoneticRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
   phoneticText: { fontSize: typography.sizes.lg, color: colors.textSecondary, fontStyle: 'italic' },
+
+  // Pronunciation Feedback
+  pronunciationFeedback: {
+    width: '100%',
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.clayCard,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.clayMedium,
+  },
+  accuracyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  accuracyLabel: {
+    fontSize: typography.sizes.base,
+    fontWeight: typography.weights.semibold,
+    color: colors.textPrimary,
+  },
+  accuracyBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.clayBadge,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  accuracyGood: {
+    backgroundColor: '#D1FAE5',
+  },
+  accuracyOk: {
+    backgroundColor: '#FEF3C7',
+  },
+  accuracyPoor: {
+    backgroundColor: '#FEE2E2',
+  },
+  accuracyScore: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.bold,
+    color: colors.textPrimary,
+  },
+  transcriptRow: {
+    marginBottom: spacing.sm,
+  },
+  transcriptLabel: {
+    fontSize: typography.sizes.sm,
+    color: colors.textLight,
+    marginBottom: spacing.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  transcriptText: {
+    fontSize: typography.sizes.base,
+    color: colors.textPrimary,
+    fontWeight: typography.weights.medium,
+  },
+  ipaText: {
+    fontSize: typography.sizes.base,
+    color: colors.textSecondary,
+    fontStyle: 'italic',
+  },
 
   // Claymorphism next button - primary clay
   nextButton: {

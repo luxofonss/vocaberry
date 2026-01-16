@@ -1,7 +1,8 @@
 import { Word } from '../types';
 import { Platform } from 'react-native';
 
-const CLAUDE_API_KEY = process.env.EXPO_PUBLIC_CLAUDE_API_KEY || '';
+const CLAUDE_API_KEY = process.env.EXPO_PUBLIC_CLAUDE_API_KEY || '123';
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://onestudy.id.vn/v1'
 
 export const AiService = {
      /**
@@ -78,6 +79,57 @@ export const AiService = {
                return JSON.parse(jsonString);
           } catch (error: any) {
                console.error('[AiService] ❌ Lỗi:', error.message);
+               throw error;
+          }
+     },
+
+     /**
+      * Kiểm tra độ chính xác phát âm
+      * @param text - Văn bản cần phát âm
+      * @param base64Audio - Audio dạng base64 (data:audio/ogg;base64,...)
+      * @returns Kết quả độ chính xác phát âm
+      */
+     checkPronunciationAccuracy: async (text: string, base64Audio: string): Promise<{
+          meta: {
+               code: number;
+               message: string;
+               requestId: string;
+          };
+          data: {
+               start_time: string;
+               end_time: string;
+               ipa_transcript: string;
+               is_letter_correct_all_words: string;
+               matched_transcripts: string;
+               matched_transcripts_ipa: string;
+               pair_accuracy_category: string;
+               pronunciation_accuracy: number;
+               real_transcript: string;
+               real_transcripts: string;
+               real_transcripts_ipa: string;
+          };
+     }> => {
+          try {
+               const response = await fetch(`${BASE_URL}/pronunciations/accuracy`, {
+                    method: 'POST',
+                    headers: {
+                         'Accept': '*/*',
+                         'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                         text,
+                         base64Audio,
+                    }),
+               });
+
+               if (!response.ok) {
+                    throw new Error(`API returned status ${response.status}`);
+               }
+
+               const result = await response.json();
+               return result;
+          } catch (error: any) {
+               console.error('[AiService] ❌ Pronunciation check error:', error.message);
                throw error;
           }
      }
