@@ -510,16 +510,16 @@ export const WordDetailScreen: React.FC = () => {
       <View style={styles.headerSafe}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={styles.navHeader}>
-          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Text style={styles.backIcon}>←</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={{ flex: 1 }}>
-              <View style={styles.wordTitleRow}>
-                <Text style={styles.wordTitle}>{displayWord.word}</Text>
-                
-              </View>
+            <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+              <Text style={styles.backIcon}>←</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={{ flex: 1 }}>
+            <View style={styles.wordTitleRow}>
+              <Text style={styles.wordTitle}>{displayWord.word}</Text>
+
             </View>
+          </View>
         </View>
 
         <View style={styles.fixedHeader}>
@@ -551,43 +551,40 @@ export const WordDetailScreen: React.FC = () => {
         <View style={styles.divider} />
       </View>
 
-      <View style={{ flex: 1 }}>
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <SkeletonLoader width={200} height={24} borderRadius={8} />
-          </View>
-        ) : (
-          <View style={{ flex: 1, position: 'relative' }}>
-            <FlatList
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <SkeletonLoader width={200} height={24} borderRadius={8} />
+        </View>
+      ) : (
+        <View style={{ flex: 1, position: 'relative', flexDirection: 'column' }}>
+          <FlatList
             data={displayedMeanings}
             keyExtractor={(item) => item.id}
             renderItem={renderMeaningSlide}
             horizontal pagingEnabled showsHorizontalScrollIndicator={false}
-            snapToInterval={SCREEN_WIDTH}  
-          snapToAlignment="start"
-          decelerationRate="fast"  
-          onScroll={(ev) => {
-            const newIndex = Math.round(ev.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-            setCurrentIndex(newIndex);
-          }}
-          scrollEventThrottle={16}  
-          initialNumToRender={1}
-          windowSize={3}
-          style={{ flex: 1 }}
+            snapToInterval={SCREEN_WIDTH}
+            snapToAlignment="start"
+            decelerationRate="fast"
+            onScroll={(ev) => {
+              const newIndex = Math.round(ev.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+              setCurrentIndex(newIndex);
+            }}
+            scrollEventThrottle={16}
+            initialNumToRender={1}
+            windowSize={3}
+            style={{ flex: 1 }}
           />
-           {displayedMeanings.length > 1 && ( 
-    <View style={[styles.paginationColumn, { position: 'absolute', bottom: 0, left: 0, right: 0 }]}>
-      <View style={styles.paginationContainer}>
-        {displayedMeanings.map((_, i) => (
-          <View key={i} style={[styles.dot, currentIndex === i && styles.activeDot]} />
-        ))}
-      </View>
-    </View>
-  )}
-          </View>
-        )}
-        
-      </View>
+          {displayedMeanings.length > 1 && (
+            <View style={[styles.paginationColumn]}>
+              <View style={styles.paginationContainer}>
+                {displayedMeanings.map((_, i) => (
+                  <View key={i} style={[styles.dot, currentIndex === i && styles.activeDot]} />
+                ))}
+              </View>
+            </View>
+          )}
+        </View>
+      )}
 
       <View style={styles.actionBarSafe}>
         <View style={styles.actionBar}>
