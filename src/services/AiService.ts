@@ -2,7 +2,7 @@ import { Word } from '../types';
 import { Platform } from 'react-native';
 
 const CLAUDE_API_KEY = process.env.EXPO_PUBLIC_CLAUDE_API_KEY || '123';
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://onestudy.id.vn/v1'
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://onestudy.id.vn/api/v1'
 
 export const AiService = {
      /**
@@ -110,16 +110,18 @@ export const AiService = {
           };
      }> => {
           try {
-               const response = await fetch(`${BASE_URL}/pronunciations/accuracy`, {
+               const body = JSON.stringify({
+                    title: text,
+                    base64Audio: base64Audio,
+               });
+               console.log(body)
+               const response = await fetch(`${BASE_URL}/pub/pronunciations/accuracy`, {
                     method: 'POST',
                     headers: {
                          'Accept': '*/*',
                          'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({
-                         text,
-                         base64Audio,
-                    }),
+                    body: body,
                });
 
                if (!response.ok) {
@@ -127,6 +129,7 @@ export const AiService = {
                }
 
                const result = await response.json();
+               console.log(result)
                return result;
           } catch (error: any) {
                console.error('[AiService] ❌ Pronunciation check error:', error.message);

@@ -248,11 +248,16 @@ export const PracticeScreen: React.FC = () => {
           encoding: FileSystem.EncodingType.Base64,
         });
 
+        // Unify to M4A format for both platforms
+        const mimeType = 'audio/m4a';
+
+        console.log(`Sending audio: ${uri} with mime: ${mimeType}`);
+
         // Call pronunciation API
         const currentWord = quizList[currentIndex].word;
         const result = await AiService.checkPronunciationAccuracy(
           currentWord,
-          `data:audio/ogg;base64,${base64Audio}`
+          `data:${mimeType};base64,${base64Audio}`
         );
 
         // Store pronunciation result
@@ -291,13 +296,44 @@ export const PracticeScreen: React.FC = () => {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
           playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+          playThroughEarpieceAndroid: false,
         });
 
         // Create a new recording instance
         audioRecorder.current = new Audio.Recording();
 
-        // Prepare with high quality preset
-        await audioRecorder.current.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+        // ⚠️ UNIFIED CONFIGURATION: M4A/AAC for both platforms
+        // This ensures consistency and compatibility with iOS (which prefers M4A).
+        // The Backend must support audio/m4a.
+        const recordingOptions: any = {
+          android: {
+            extension: '.m4a',
+            outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+            audioEncoder: Audio.AndroidAudioEncoder.AAC,
+            sampleRate: 44100,
+            numberOfChannels: 1,
+            bitRate: 128000,
+          },
+          ios: {
+            extension: '.m4a',
+            audioQuality: Audio.IOSAudioQuality.HIGH,
+            sampleRate: 44100,
+            numberOfChannels: 1,
+            bitRate: 128000,
+            linearPCMBitDepth: 16,
+            linearPCMIsBigEndian: false,
+            linearPCMIsFloat: false,
+          },
+          web: {
+            mimeType: 'audio/m4a',
+            bitsPerSecond: 128000,
+          },
+        };
+
+        // Prepare with custom options
+        await audioRecorder.current.prepareToRecordAsync(recordingOptions);
 
         // Start recording
         await audioRecorder.current.startAsync();
