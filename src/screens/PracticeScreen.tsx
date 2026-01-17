@@ -859,7 +859,6 @@ export const PracticeScreen: React.FC = () => {
                 <View style={[styles.pronunciationFeedback, shadows.subtle]}>
                   {/* Score Badge */}
                   <View style={styles.scoreRow}>
-                    <Text style={styles.scoreLabel}>Điểm phát âm:</Text>
                     <View style={[
                       styles.scoreBadge,
                       pronunciationResult.accuracy >= 80 ? styles.scoreExcellent :
@@ -872,7 +871,6 @@ export const PracticeScreen: React.FC = () => {
 
                   {/* Character-level Accuracy */}
                   <View style={styles.charAccuracyContainer}>
-                    <Text style={styles.charAccuracyLabel}>Kết quả:</Text>
                     <View style={styles.coloredWordContainer}>
                       {currentWord.word.split('').map((char, index) => {
                         const status = pronunciationResult.isLetterCorrect?.[index];
@@ -1806,7 +1804,7 @@ const styles = StyleSheet.create({
 
   // Score Row & Badges
   scoreRow: {
-    flexDirection: 'row',
+    display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: spacing.sm,
