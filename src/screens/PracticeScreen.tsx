@@ -23,7 +23,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { Audio } from 'expo-av'; // Import expo-av for proper audio recording
+import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
 
 import { theme, colors, typography, spacing, borderRadius, shadows } from '../theme';
@@ -46,10 +46,6 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-/**
- * Quiz & Review Module
- * Supports both typing and speech recognition modes.
- */
 export const PracticeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
 
@@ -68,7 +64,7 @@ export const PracticeScreen: React.FC = () => {
   const [isQuizVisible, setIsQuizVisible] = useState(false);
   const [quizList, setQuizList] = useState<Word[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [meaningIndex, setMeaningIndex] = useState(0); // Track current meaning in carousel
+  const [meaningIndex, setMeaningIndex] = useState(0);
   const [userAnswer, setUserAnswer] = useState('');
   const [inputMode, setInputMode] = useState<'TYPE' | 'SPEAK'>('TYPE');
   const [isAnswered, setIsAnswered] = useState(false);
@@ -88,12 +84,14 @@ export const PracticeScreen: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const audioRecorder = useRef<Audio.Recording | null>(null); // Use ref for the recording instance
+  const audioRecorder = useRef<Audio.Recording | null>(null);
   const [pronunciationResult, setPronunciationResult] = useState<{
     accuracy: number;
     realTranscript: string;
     matchedTranscript: string;
     ipaTranscript: string;
+    isLetterCorrect: string;
+    userIpa: string;
   } | null>(null);
 
   // -- Image Viewer --
@@ -119,7 +117,6 @@ export const PracticeScreen: React.FC = () => {
         setScore(0);
         resetQuestion();
         setIsQuizVisible(true);
-        // Lưu timestamp khi bắt đầu practice từ notification
         await StorageService.saveLastPracticeTime();
       }
     };
@@ -149,7 +146,6 @@ export const PracticeScreen: React.FC = () => {
   const startPractice = useCallback(async () => {
     setLoading(true);
     try {
-      // Lấy các từ ít xem nhất để practice
       const words = await StorageService.getLeastViewedWords(questionCount);
       if (words.length === 0) {
         Alert.alert(PRACTICE_TEXTS.noWordsYet, PRACTICE_TEXTS.addWordsFirst);
@@ -158,10 +154,9 @@ export const PracticeScreen: React.FC = () => {
       setQuizList(words);
       setCurrentIndex(0);
       setScore(0);
-      setQuizResults([]); // Reset results
+      setQuizResults([]);
       resetQuestion();
       setIsQuizVisible(true);
-      // Lưu timestamp khi bắt đầu practice
       await StorageService.saveLastPracticeTime();
     } finally {
       setLoading(false);
@@ -176,12 +171,11 @@ export const PracticeScreen: React.FC = () => {
     setIsRecording(false);
     setIsProcessing(false);
     setPronunciationResult(null);
-    setMeaningIndex(0); // Reset carousel to first meaning
+    setMeaningIndex(0);
     stopPulse();
 
-    // Clean up recording if exists
     if (audioRecorder.current) {
-      audioRecorder.current.stopAndUnloadAsync().catch(() => { }); // Clean up silently
+      audioRecorder.current.stopAndUnloadAsync().catch(() => { });
       audioRecorder.current = null;
     }
   }, [stopPulse]);
@@ -193,7 +187,7 @@ export const PracticeScreen: React.FC = () => {
     const normalizedTarget = currentWord.word.trim().toLowerCase();
 
     const correct = normalizedInput === normalizedTarget;
-    const skipped = customAnswer === '?'; // User clicked "Show Answer"
+    const skipped = customAnswer === '?';
 
     setIsCorrect(correct);
     if (correct) setScore(s => s + 1);
@@ -201,20 +195,17 @@ export const PracticeScreen: React.FC = () => {
     setIsAnswered(true);
     setShowHint(true);
 
-    // Track result for review
     setQuizResults(prev => [...prev, {
       word: currentWord,
       status: skipped ? 'skipped' : (correct ? 'correct' : 'incorrect'),
       userAnswer: skipped ? undefined : answerToUse,
     }]);
 
-    // Track review outcome in storage
     StorageService.markAsReviewed(currentWord.id, correct);
   }, [userAnswer, quizList, currentIndex]);
 
   const handleMicPress = useCallback(async () => {
     if (isRecording) {
-      // Stop recording
       setIsRecording(false);
       stopPulse();
       setIsProcessing(true);
@@ -224,51 +215,38 @@ export const PracticeScreen: React.FC = () => {
           throw new Error('No active recording');
         }
 
-        // Stop and unload the recording
         await audioRecorder.current.stopAndUnloadAsync();
-
         const uri = audioRecorder.current.getURI();
-
-        console.log('Recording URI:', uri); // Debug log
 
         if (!uri) {
           throw new Error('No recording URI - recording may have failed');
         }
 
-        // Check if the file actually exists
         const fileInfo = await FileSystem.getInfoAsync(uri);
         if (!('exists' in fileInfo) || !fileInfo.exists) {
           throw new Error('Recording file does not exist');
         }
 
-        console.log('File info:', fileInfo); // Debug log
-
-        // Convert audio to base64
         const base64Audio = await FileSystem.readAsStringAsync(uri, {
           encoding: FileSystem.EncodingType.Base64,
         });
 
-        // Unify to M4A format for both platforms
         const mimeType = 'audio/m4a';
-
-        console.log(`Sending audio: ${uri} with mime: ${mimeType}`);
-
-        // Call pronunciation API
         const currentWord = quizList[currentIndex].word;
         const result = await AiService.checkPronunciationAccuracy(
           currentWord,
           `data:${mimeType};base64,${base64Audio}`
         );
 
-        // Store pronunciation result
         setPronunciationResult({
           accuracy: result.data.pronunciation_accuracy,
           realTranscript: result.data.real_transcript,
           matchedTranscript: result.data.matched_transcripts,
           ipaTranscript: result.data.ipa_transcript,
+          isLetterCorrect: result.data.is_letter_correct_all_words,
+          userIpa: result.data.real_transcripts_ipa,
         });
 
-        // Check if pronunciation is good enough (>= 70% accuracy)
         const isCorrect = result.data.pronunciation_accuracy >= 70;
         setUserAnswer(result.data.real_transcript);
         checkAnswer(result.data.real_transcript);
@@ -279,20 +257,15 @@ export const PracticeScreen: React.FC = () => {
         Alert.alert('Recording Error', error.message || 'Failed to process recording');
       } finally {
         setIsProcessing(false);
-        audioRecorder.current = null; // Clean up the ref
+        audioRecorder.current = null;
       }
     } else {
-      // Start recording
       try {
-        console.log('Starting recording...'); // Debug log
-
-        // Request permissions if not already granted
         const { status } = await Audio.requestPermissionsAsync();
         if (status !== 'granted') {
           throw new Error('Microphone permission not granted');
         }
 
-        // Set audio mode for recording
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
           playsInSilentModeIOS: true,
@@ -301,12 +274,8 @@ export const PracticeScreen: React.FC = () => {
           playThroughEarpieceAndroid: false,
         });
 
-        // Create a new recording instance
         audioRecorder.current = new Audio.Recording();
 
-        // ⚠️ UNIFIED CONFIGURATION: M4A/AAC for both platforms
-        // This ensures consistency and compatibility with iOS (which prefers M4A).
-        // The Backend must support audio/m4a.
         const recordingOptions: any = {
           android: {
             extension: '.m4a',
@@ -332,13 +301,8 @@ export const PracticeScreen: React.FC = () => {
           },
         };
 
-        // Prepare with custom options
         await audioRecorder.current.prepareToRecordAsync(recordingOptions);
-
-        // Start recording
         await audioRecorder.current.startAsync();
-
-        console.log('Recording started successfully'); // Debug log
 
         setUserAnswer('');
         setPronunciationResult(null);
@@ -347,7 +311,6 @@ export const PracticeScreen: React.FC = () => {
       } catch (error: any) {
         console.error('Failed to start recording:', error);
 
-        // Check if it's a permission error
         if (error.message?.includes('permission') || error.message?.includes('Permission')) {
           Alert.alert(
             MESSAGES.errors.permissionDenied,
@@ -370,14 +333,11 @@ export const PracticeScreen: React.FC = () => {
       resetQuestion();
     } else {
       setCurrentIndex(c => c + 1);
-      // Update practice stats when session completes
       StorageService.updatePracticeStats(quizList.length).then(() => {
         StorageService.getPracticeStats().then(setPracticeStats);
       });
     }
   }, [currentIndex, quizList.length, resetQuestion]);
-
-  // -- Sub-renderers --
 
   const formatTimeAgo = useCallback((timestamp: number | null): string => {
     if (!timestamp) return TIME_FORMAT.never;
@@ -421,8 +381,6 @@ export const PracticeScreen: React.FC = () => {
         </Text>
       </TouchableOpacity>
 
-
-      {/* Gamification Stats */}
       {practiceStats && (
         <View style={styles.statsContainer}>
           {practiceStats.lastPracticeTime && (
@@ -451,7 +409,6 @@ export const PracticeScreen: React.FC = () => {
               <Text style={styles.statLabel}>{PRACTICE_TEXTS.words}</Text>
             </View>
           </View>
-
         </View>
       )}
     </View>
@@ -468,7 +425,6 @@ export const PracticeScreen: React.FC = () => {
       </View>
 
       <ScrollView contentContainerStyle={styles.reviewContent} showsVerticalScrollIndicator={false}>
-        {/* Compact Summary Card */}
         <View style={styles.reviewSummary}>
           <View style={styles.reviewStatsRow}>
             <View style={[styles.reviewStatItem, styles.reviewStatCorrect]}>
@@ -486,7 +442,6 @@ export const PracticeScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Word List with full details */}
         <View style={styles.reviewList}>
           {quizResults.map((result, index) => (
             <TouchableOpacity
@@ -504,17 +459,14 @@ export const PracticeScreen: React.FC = () => {
               activeOpacity={0.7}
             >
               <View style={styles.reviewItemContent}>
-                {/* Correct Answer */}
                 <View style={styles.reviewItemRow}>
                   <Text style={styles.reviewItemLabel}>Correct:</Text>
                   <Text style={styles.reviewItemWord}>{result.word.word}</Text>
                 </View>
 
-                {/* User's Answer */}
                 {result.status !== 'skipped' && (
                   <View style={styles.reviewItemRow}>
                     <Text style={styles.reviewItemLabel}>You:</Text>
-
                     <Text style={[
                       styles.reviewItemUserAnswer,
                       result.status === 'correct' ? styles.answerCorrect : styles.answerIncorrect
@@ -529,7 +481,6 @@ export const PracticeScreen: React.FC = () => {
                 )}
               </View>
 
-              {/* Status Icon */}
               <View style={[
                 styles.reviewItemIconContainer,
                 result.status === 'correct' && styles.iconContainerCorrect,
@@ -544,7 +495,6 @@ export const PracticeScreen: React.FC = () => {
           ))}
         </View>
 
-        {/* Done Button */}
         <TouchableOpacity
           style={styles.reviewDoneButton}
           onPress={() => {
@@ -581,7 +531,6 @@ export const PracticeScreen: React.FC = () => {
 
     const currentWord = quizList[currentIndex];
 
-    // Render individual meaning content for horizontal scroll
     const renderMeaningContent = (meaning: any, index: number) => (
       <View key={meaning.id} style={styles.meaningSlide}>
         <View style={styles.clueImageWrapper}>
@@ -628,11 +577,8 @@ export const PracticeScreen: React.FC = () => {
       </View>
     );
 
-    // Get meanings in reverse order (newest first)
     const displayedMeanings = [...currentWord.meanings].reverse();
-
-    // Calculate card inner width (card has marginHorizontal: spacing.xl and padding: spacing.xl)
-    const cardInnerWidth = SCREEN_WIDTH - (spacing.xl * 4);
+    const cardInnerWidth = SCREEN_WIDTH - (spacing.lg * 4);
 
     return (
       <View style={{ flex: 1 }}>
@@ -647,9 +593,7 @@ export const PracticeScreen: React.FC = () => {
         </View>
 
         <ScrollView contentContainerStyle={styles.quizContent} showsVerticalScrollIndicator={false}>
-          {/* Fixed card with swipeable meaning content */}
           <View style={[styles.clueCard, shadows.medium]}>
-            {/* Horizontal ScrollView for swiping meanings */}
             <ScrollView
               horizontal
               pagingEnabled
@@ -664,7 +608,6 @@ export const PracticeScreen: React.FC = () => {
               {displayedMeanings.map((meaning, index) => renderMeaningContent(meaning, index))}
             </ScrollView>
 
-            {/* Pagination dots - larger and tappable */}
             {displayedMeanings.length > 1 && (
               <View style={styles.paginationContainer}>
                 {displayedMeanings.map((_, i) => (
@@ -701,7 +644,6 @@ export const PracticeScreen: React.FC = () => {
                 </Text>
               </View>
 
-              {/* Always show TYPE input - SPEAK mode temporarily disabled */}
               <TextInput
                 style={styles.textInput}
                 placeholder={PRACTICE_TEXTS.whatIsThisWord}
@@ -739,11 +681,10 @@ export const PracticeScreen: React.FC = () => {
                 </View>
               </View>
 
-              {/* Pronunciation Feedback */}
               {pronunciationResult && (
                 <View style={[styles.pronunciationFeedback, shadows.subtle]}>
                   <View style={styles.accuracyHeader}>
-                    <Text style={styles.accuracyLabel}>Pronunciation Accuracy</Text>
+                    <Text style={styles.accuracyLabel}>Pronunciation Score</Text>
                     <View style={[
                       styles.accuracyBadge,
                       pronunciationResult.accuracy >= 80 ? styles.accuracyGood :
@@ -754,22 +695,39 @@ export const PracticeScreen: React.FC = () => {
                     </View>
                   </View>
 
-                  <View style={styles.transcriptRow}>
-                    <Text style={styles.transcriptLabel}>You said:</Text>
-                    <Text style={styles.transcriptText}>{pronunciationResult.realTranscript}</Text>
-                  </View>
-
-                  <View style={styles.transcriptRow}>
-                    <Text style={styles.transcriptLabel}>Expected:</Text>
-                    <Text style={styles.transcriptText}>{currentWord.word}</Text>
-                  </View>
-
-                  {pronunciationResult.ipaTranscript && (
-                    <View style={styles.transcriptRow}>
-                      <Text style={styles.transcriptLabel}>IPA:</Text>
-                      <Text style={styles.ipaText}>{pronunciationResult.ipaTranscript}</Text>
+                  <View style={styles.wordReviewContainer}>
+                    <Text style={styles.reviewLabelLarge}>Result:</Text>
+                    <View style={styles.coloredWordContainer}>
+                      {currentWord.word.split('').map((char, index) => {
+                        const status = pronunciationResult.isLetterCorrect?.[index];
+                        const color = status === '1' ? colors.success : (status === '0' ? colors.error : colors.text);
+                        return (
+                          <Text key={index} style={[styles.coloredChar, { color }]}>
+                            {char}
+                          </Text>
+                        );
+                      })}
                     </View>
-                  )}
+                  </View>
+
+                  <View style={styles.ipaComparisonContainer}>
+                    <View style={styles.ipaBox}>
+                      <Text style={styles.ipaLabel}>Correct IPA</Text>
+                      <Text style={styles.ipaValue}>{pronunciationResult.userIpa || 'N/A'}</Text>
+                    </View>
+
+                    <View style={styles.ipaDivider} />
+
+                    <View style={styles.ipaBox}>
+                      <Text style={styles.ipaLabel}>Your IPA</Text>
+                      <Text style={[
+                        styles.ipaValue,
+                        pronunciationResult.accuracy >= 80 ? { color: colors.success } : { color: colors.error }
+                      ]}>
+                        {pronunciationResult.ipaTranscript || '...'}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
               )}
 
@@ -835,28 +793,53 @@ export const PracticeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   innerContainer: { flex: 1 },
-  centerContent: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xl },
+  centerContent: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md
+  },
 
-  title: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.extraBold, color: colors.textPrimary, marginBottom: spacing.xs, textAlign: 'center' },
-  subtitle: { fontSize: typography.sizes.md, color: colors.textSecondary, marginBottom: spacing.xxl, textAlign: 'center' },
+  title: {
+    fontSize: typography.sizes.xl,
+    fontWeight: typography.weights.extraBold,
+    color: colors.textPrimary,
+    marginBottom: spacing.xxs,
+    textAlign: 'center'
+  },
+  subtitle: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary,
+    marginBottom: spacing.lg,
+    textAlign: 'center'
+  },
 
-  // Claymorphism card - floating 3D clay tile with soft shadows
   card: {
     width: '100%',
     backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.clayCard,
-    padding: spacing.xl,
-    marginBottom: spacing.xxl,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
     borderWidth: 0,
     borderTopWidth: 1,
     borderTopColor: colors.shadowInnerLight,
     ...shadows.clayMedium,
   },
-  label: { fontSize: typography.sizes.md, fontWeight: typography.weights.semibold, color: colors.textPrimary, marginBottom: spacing.lg },
-  countRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
+  label: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.semibold,
+    color: colors.textPrimary,
+    marginBottom: spacing.sm
+  },
+  countRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.xs
+  },
   countBtn: {
     flex: 1,
-    paddingVertical: 14,
+    paddingVertical: 10,
     borderRadius: borderRadius.clayInput,
     borderWidth: 0,
     alignItems: 'center',
@@ -867,14 +850,20 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     ...shadows.clayPrimary,
   },
-  countText: { fontSize: typography.sizes.md, fontWeight: typography.weights.semibold, color: colors.textSecondary },
-  countTextActive: { color: colors.white, fontWeight: typography.weights.bold },
+  countText: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.semibold,
+    color: colors.textSecondary
+  },
+  countTextActive: {
+    color: colors.white,
+    fontWeight: typography.weights.bold
+  },
 
-  // Claymorphism primary button - pill shape with clay shadow
   primaryButton: {
     width: '100%',
     backgroundColor: colors.primary,
-    paddingVertical: spacing.puffyMd,
+    paddingVertical: spacing.md,
     borderRadius: borderRadius.clayButton,
     alignItems: 'center',
     borderTopWidth: 1,
@@ -884,10 +873,20 @@ const styles = StyleSheet.create({
     borderRightWidth: 0,
     ...shadows.clayPrimary,
   },
-  primaryButtonText: { color: colors.white, fontSize: typography.sizes.lg, fontWeight: typography.weights.bold, letterSpacing: 0.3 },
+  primaryButtonText: {
+    color: colors.white,
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.bold,
+    letterSpacing: 0.3
+  },
 
-  // Claymorphism modal header
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: spacing.xl, paddingVertical: spacing.xs },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.xs
+  },
   closeBtn: {
     width: 42,
     height: 42,
@@ -902,18 +901,32 @@ const styles = StyleSheet.create({
     borderRightWidth: 0,
     ...shadows.claySoft,
   },
-  closeText: { fontSize: typography.sizes.lg, fontWeight: typography.weights.bold, color: colors.textSecondary },
-  progressText: { fontSize: typography.sizes.md, fontWeight: typography.weights.semibold, color: colors.textLight, textTransform: 'uppercase', letterSpacing: 1 },
+  closeText: {
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.bold,
+    color: colors.textSecondary
+  },
+  progressText: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.semibold,
+    color: colors.textLight,
+    textTransform: 'uppercase',
+    letterSpacing: 1
+  },
 
-  quizContent: { paddingTop: spacing.sm, flexGrow: 1, paddingBottom: spacing.massive },
-  // Claymorphism clue card - floating 3D clay tile
+  quizContent: {
+    paddingTop: spacing.sm,
+    flexGrow: 1,
+    paddingBottom: spacing.massive
+  },
+
   clueCard: {
     backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.xxxl,
-    padding: spacing.xl,
+    padding: spacing.md,
     marginBottom: spacing.sm,
     alignItems: 'center',
-    marginHorizontal: spacing.xl,
+    marginHorizontal: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: colors.shadowInnerLight,
     borderBottomWidth: 0,
@@ -922,11 +935,11 @@ const styles = StyleSheet.create({
     ...shadows.clayMedium,
   },
   clueImageWrapper: {
-    width: SCREEN_WIDTH * 0.45,
-    height: SCREEN_WIDTH * 0.45,
+    width: SCREEN_WIDTH * 0.35,
+    height: SCREEN_WIDTH * 0.35,
     borderRadius: borderRadius.clayCard,
     backgroundColor: colors.backgroundSoft,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
     overflow: 'hidden',
     borderTopWidth: 1,
     borderTopColor: colors.shadowInnerDark,
@@ -937,7 +950,6 @@ const styles = StyleSheet.create({
   },
   clueImage: { width: '100%', height: '100%' },
 
-  // Claymorphism hint button - soft clay pill
   hintButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -954,15 +966,39 @@ const styles = StyleSheet.create({
     ...shadows.claySoft,
   },
   hintIcon: { marginRight: 8, fontSize: typography.sizes.lg },
-  hintText: { fontWeight: typography.weights.bold, color: colors.primary, fontSize: typography.sizes.base },
+  hintText: {
+    fontWeight: typography.weights.bold,
+    color: colors.primary,
+    fontSize: typography.sizes.base
+  },
 
   hintContent: { alignItems: 'center', width: '100%' },
-  clueLabel: { fontSize: typography.sizes.sm, fontWeight: typography.weights.extraBold, color: colors.primary, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-  clueText: { fontSize: typography.sizes.lg, color: colors.textPrimary, textAlign: 'center', lineHeight: 26, marginBottom: spacing.md, fontWeight: typography.weights.semibold },
-  clueExample: { fontSize: typography.sizes.md, fontStyle: 'italic', color: colors.textSecondary, textAlign: 'center', lineHeight: 24 },
+  clueLabel: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.extraBold,
+    color: colors.primary,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
+  },
+  clueText: {
+    fontSize: typography.sizes.md,
+    color: colors.textPrimary,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: spacing.xs,
+    fontWeight: typography.weights.semibold
+  },
+  clueExample: {
+    fontSize: typography.sizes.sm,
+    fontStyle: 'italic',
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 18
+  },
 
-  inputArea: { width: '100%', paddingHorizontal: spacing.xl },
-  // Claymorphism mode switch - soft clay container
+  inputArea: { width: '100%', paddingHorizontal: spacing.lg },
+
   modeSwitch: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -978,24 +1014,31 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0,
     borderRightWidth: 0,
   },
-  switchBtn: { paddingHorizontal: spacing.xl, paddingVertical: 12, borderRadius: borderRadius.md },
+  switchBtn: {
+    paddingHorizontal: spacing.xl,
+    paddingVertical: 12,
+    borderRadius: borderRadius.md
+  },
   switchBtnActive: {
     backgroundColor: colors.white,
     ...shadows.claySoft,
   },
-  switchText: { fontWeight: typography.weights.bold, color: colors.textSecondary, fontSize: typography.sizes.base },
+  switchText: {
+    fontWeight: typography.weights.bold,
+    color: colors.textSecondary,
+    fontSize: typography.sizes.base
+  },
   switchTextActive: { color: colors.primary },
 
-  // Claymorphism text input - soft clay with inner shadow
   textInput: {
     backgroundColor: colors.cardSurface,
     borderWidth: 0,
     borderRadius: borderRadius.clayInput,
-    padding: spacing.lg,
-    fontSize: typography.sizes.xxl,
+    padding: spacing.md,
+    fontSize: typography.sizes.lg,
     textAlign: 'center',
     color: colors.textPrimary,
-    marginBottom: spacing.xxl,
+    marginBottom: spacing.lg,
     borderTopWidth: 1,
     borderTopColor: colors.shadowInnerDark,
     borderBottomWidth: 1,
@@ -1005,16 +1048,19 @@ const styles = StyleSheet.create({
     ...shadows.claySoft,
   },
 
-  speechContainer: { alignItems: 'center', marginBottom: spacing.xxxl },
-  // Claymorphism mic button - floating 3D clay circle
+  speechContainer: {
+    alignItems: 'center',
+    marginBottom: spacing.lg
+  },
+
   micButtonLarge: {
     backgroundColor: colors.cardSurface,
-    width: 110,
-    height: 110,
-    borderRadius: 55,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
     borderWidth: 0,
     borderTopWidth: 2,
     borderTopColor: colors.shadowInnerLight,
@@ -1028,16 +1074,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#F8FAFF',
     borderTopColor: 'rgba(200, 210, 255, 0.6)',
   },
-  micIconLarge: { fontSize: 40 },
-  speechStatus: { fontWeight: typography.weights.semibold, color: colors.textSecondary, fontSize: typography.sizes.base },
+  micIconLarge: { fontSize: 32 },
+  speechStatus: {
+    fontWeight: typography.weights.semibold,
+    color: colors.textSecondary,
+    fontSize: typography.sizes.sm
+  },
 
   actionRow: { flexDirection: 'row', gap: spacing.md },
-  // Claymorphism give up button - soft clay
+
   giveUpButton: {
     flex: 1,
     backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.clayInput,
-    paddingVertical: 18,
+    paddingVertical: 14,
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: colors.shadowInnerLight,
@@ -1046,13 +1096,17 @@ const styles = StyleSheet.create({
     borderRightWidth: 0,
     ...shadows.claySoft,
   },
-  giveUpText: { color: colors.textSecondary, fontSize: typography.sizes.md, fontWeight: typography.weights.bold },
-  // Claymorphism check button - primary clay
+  giveUpText: {
+    color: colors.textSecondary,
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold
+  },
+
   checkButton: {
     flex: 1,
     backgroundColor: colors.primary,
     borderRadius: borderRadius.clayInput,
-    paddingVertical: 18,
+    paddingVertical: 14,
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.3)',
@@ -1061,10 +1115,19 @@ const styles = StyleSheet.create({
     borderRightWidth: 0,
     ...shadows.clayPrimary,
   },
-  checkButtonText: { color: colors.white, fontSize: typography.sizes.md, fontWeight: typography.weights.bold },
+  checkButtonText: {
+    color: colors.white,
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold
+  },
 
-  resultArea: { alignItems: 'center', width: '100%', paddingVertical: spacing.sm, paddingHorizontal: spacing.xl },
-  // Claymorphism result badge - floating 3D pill
+  resultArea: {
+    alignItems: 'center',
+    width: '100%',
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg
+  },
+
   resultBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1082,14 +1145,17 @@ const styles = StyleSheet.create({
   badgeCorrect: { backgroundColor: '#D1FAE5' },
   badgeWrong: { backgroundColor: '#FEE2E2' },
   resultEmoji: { fontSize: typography.sizes.xl, marginRight: 8 },
-  resultTitle: { fontSize: typography.sizes.lg, fontWeight: typography.weights.extraBold, color: colors.textPrimary },
+  resultTitle: {
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.extraBold,
+    color: colors.textPrimary
+  },
 
-  // Claymorphism correct answer box - floating 3D clay tile
   correctAnswerBox: {
     alignItems: 'center',
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
     width: '100%',
-    padding: spacing.xl,
+    padding: spacing.md,
     backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.clayCard,
     borderWidth: 0,
@@ -1097,18 +1163,37 @@ const styles = StyleSheet.create({
     borderTopColor: colors.shadowInnerLight,
     ...shadows.clayMedium,
   },
-  labelSmall: { fontSize: typography.sizes.base, color: colors.textLight, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1 },
-  correctWord: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.heavy, color: colors.textPrimary, marginBottom: spacing.sm, letterSpacing: -0.5 },
-  phoneticRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
-  phoneticText: { fontSize: typography.sizes.lg, color: colors.textSecondary, fontStyle: 'italic' },
+  labelSmall: {
+    fontSize: typography.sizes.xs,
+    color: colors.textLight,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 1
+  },
+  correctWord: {
+    fontSize: typography.sizes.xl,
+    fontWeight: typography.weights.heavy,
+    color: colors.textPrimary,
+    marginBottom: spacing.xs,
+    letterSpacing: -0.5
+  },
+  phoneticRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm
+  },
+  phoneticText: {
+    fontSize: typography.sizes.md,
+    color: colors.textSecondary,
+    fontStyle: 'italic'
+  },
 
-  // Pronunciation Feedback
   pronunciationFeedback: {
     width: '100%',
     backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.clayCard,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
+    padding: spacing.sm,
+    marginBottom: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.shadowInnerLight,
     ...shadows.clayMedium,
@@ -1117,10 +1202,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
   },
   accuracyLabel: {
-    fontSize: typography.sizes.base,
+    fontSize: typography.sizes.sm,
     fontWeight: typography.weights.semibold,
     color: colors.textPrimary,
   },
@@ -1141,7 +1226,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEE2E2',
   },
   accuracyScore: {
-    fontSize: typography.sizes.md,
+    fontSize: typography.sizes.sm,
     fontWeight: typography.weights.bold,
     color: colors.textPrimary,
   },
@@ -1166,7 +1251,6 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 
-  // Claymorphism next button - primary clay
   nextButton: {
     width: '100%',
     backgroundColor: colors.primary,
@@ -1180,29 +1264,38 @@ const styles = StyleSheet.create({
     borderRightWidth: 0,
     ...shadows.clayPrimary,
   },
-  nextButtonText: { color: colors.white, fontSize: typography.sizes.md, fontWeight: typography.weights.bold, letterSpacing: 0.3 },
+  nextButtonText: {
+    color: colors.white,
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.bold,
+    letterSpacing: 0.3
+  },
 
-  summaryContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: spacing.xxl },
-  summaryEmoji: { fontSize: 72, marginBottom: spacing.lg },
+  summaryContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg
+  },
+  summaryEmoji: { fontSize: 56, marginBottom: spacing.md },
 
-  // Gamification Stats Styles - Claymorphism
   statsContainer: {
     width: '100%',
-    marginBottom: spacing.md,
-    marginTop: spacing.md
+    marginBottom: spacing.xs,
+    marginTop: spacing.sm
   },
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: spacing.xs,
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
   },
-  // Claymorphism stat card - floating 3D clay tile
+
   statCard: {
     flex: 1,
     backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.clayCard,
-    padding: spacing.md,
+    padding: spacing.sm,
     alignItems: 'center',
     borderWidth: 0,
     borderTopWidth: 1,
@@ -1214,7 +1307,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   statValue: {
-    fontSize: typography.sizes.xxl,
+    fontSize: typography.sizes.xl,
     fontWeight: typography.weights.extraBold,
     color: colors.primary,
     marginBottom: 2,
@@ -1224,13 +1317,13 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontWeight: typography.weights.medium,
   },
-  // Claymorphism last practice info - soft clay container
+
   lastPracticeInfo: {
     backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.clayCard,
-    padding: spacing.md,
+    padding: spacing.sm,
     alignItems: 'center',
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
     borderTopWidth: 1,
     borderTopColor: colors.shadowInnerLight,
     borderBottomWidth: 0,
@@ -1239,10 +1332,10 @@ const styles = StyleSheet.create({
     ...shadows.claySoft,
   },
   lastPracticeText: {
-    fontSize: typography.sizes.base,
+    fontSize: typography.sizes.sm,
     color: colors.textSecondary,
     fontWeight: typography.weights.medium,
-    marginBottom: spacing.xs,
+    marginBottom: spacing.xxs,
   },
   bestStreakText: {
     fontSize: typography.sizes.sm,
@@ -1250,7 +1343,6 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.semibold,
   },
 
-  // Meaning carousel styles
   meaningScrollView: {
     width: '100%',
   },
@@ -1258,30 +1350,29 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
   },
   meaningSlide: {
-    width: SCREEN_WIDTH - (spacing.xl * 4),
+    width: SCREEN_WIDTH - (spacing.lg * 4),
     alignItems: 'center',
   },
   paginationContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    marginTop: spacing.lg,
-    paddingVertical: spacing.sm,
+    gap: 6,
+    marginTop: spacing.sm,
+    paddingVertical: spacing.xs,
   },
   paginationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: colors.borderMedium,
   },
   paginationDotActive: {
     backgroundColor: colors.primary,
-    width: 20,
-    borderRadius: 4,
+    width: 16,
+    borderRadius: 3,
   },
 
-  // Review Screen Styles - Claymorphism
   secondaryButtonOutline: {
     width: '100%',
     backgroundColor: colors.cardSurface,
@@ -1305,7 +1396,7 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
     flexGrow: 1,
   },
-  // Claymorphism review summary - compact floating card
+
   reviewSummary: {
     backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.clayCard,
@@ -1320,7 +1411,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
-  // Claymorphism review stat item - compact pill
+
   reviewStatItem: {
     flex: 1,
     alignItems: 'center',
@@ -1345,14 +1436,13 @@ const styles = StyleSheet.create({
   reviewStatLabel: {
     fontSize: typography.sizes.xs,
     color: colors.textSecondary,
-    fontWeight: typography.
-      weights.semibold,
+    fontWeight: typography.weights.semibold,
     marginTop: 2,
   },
   reviewList: {
     gap: spacing.sm,
   },
-  // Claymorphism review item - compact card
+
   reviewItem: {
     backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.lg,
@@ -1439,5 +1529,66 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.3)',
     ...shadows.clayPrimary,
+  },
+  wordReviewContainer: {
+    marginVertical: spacing.sm,
+    alignItems: 'center',
+    width: '100%',
+  },
+  reviewLabelLarge: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: spacing.xxs,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  coloredWordContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: spacing.sm,
+  },
+  coloredChar: {
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    marginHorizontal: 1,
+    ...shadows.textSoft,
+  },
+  ipaComparisonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: spacing.sm,
+    backgroundColor: colors.backgroundViolet,
+    borderRadius: borderRadius.lg,
+    padding: spacing.sm,
+    width: '100%',
+  },
+  ipaBox: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ipaLabel: {
+    fontSize: 12,
+    color: colors.textLight,
+    marginBottom: spacing.xxs,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  ipaValue: {
+    fontSize: 14,
+    color: colors.textPrimary,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: '500',
+  },
+  ipaDivider: {
+    width: 1,
+    height: '80%',
+    backgroundColor: colors.borderMedium,
+    marginHorizontal: spacing.sm,
   },
 });
