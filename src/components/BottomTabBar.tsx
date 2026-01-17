@@ -217,23 +217,15 @@ const styles = StyleSheet.create({
   },
   // Icon container - claymorphism
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
   // Embossed active state (Raised Clay)
   iconEmbossed: {
     backgroundColor: '#F0F5FF', // Very light blue/white mix
-    borderTopWidth: 1,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderBottomWidth: 1,
-    borderTopColor: '#FFFFFF',
-    borderLeftColor: '#FFFFFF',
-    borderRightColor: '#D1D9E6',
-    borderBottomColor: '#D1D9E6',
     ...Platform.select({
       ios: {
         shadowColor: '#A3B1C6',
@@ -262,9 +254,9 @@ const styles = StyleSheet.create({
   },
   // Add button outer - Floating Clay
   addBtnOuter: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 64,
+    height: 64,
+    borderRadius: 64,
     backgroundColor: colors.background, // Match bar bg parent for cutout effect illusion
     padding: 6, // Border thickness imitation
     alignItems: 'center',
@@ -276,16 +268,12 @@ const styles = StyleSheet.create({
   },
   // Add button inner - Gradient-like fill
   addBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 64,
+    height: 64,
+    borderRadius: 64,
     backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.5)',
-    borderBottomWidth: 2,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
   addBtnPressedInner: {
     backgroundColor: colors.primaryDark,
