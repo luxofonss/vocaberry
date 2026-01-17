@@ -23,8 +23,8 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { Audio } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
+import { Audio, AVPlaybackStatus } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import { theme, colors, typography, spacing, borderRadius, shadows } from '../theme';
 import { gradients } from '../theme/styles';
@@ -84,6 +84,7 @@ export const PracticeScreen: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  const popupAnim = useRef(new Animated.Value(-150)).current; // Start off-screen (top)
   const audioRecorder = useRef<Audio.Recording | null>(null);
   const [pronunciationResult, setPronunciationResult] = useState<{
     accuracy: number;
@@ -93,6 +94,14 @@ export const PracticeScreen: React.FC = () => {
     isLetterCorrect: string;
     userIpa: string;
   } | null>(null);
+
+  // -- Sound Effects --
+  const successSound = useRef<Audio.Sound | null>(null);
+  const errorSound = useRef<Audio.Sound | null>(null);
+
+  // -- ScrollView Ref for auto-scroll --
+  const quizScrollRef = useRef<ScrollView>(null);
+
 
   // -- Image Viewer --
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
@@ -106,6 +115,38 @@ export const PracticeScreen: React.FC = () => {
     };
     loadStats();
   }, []);
+
+  // -- Load Sound Effects --
+  useEffect(() => {
+    const loadSounds = async () => {
+      try {
+        // Load success sound (high pitch beep)
+        const { sound: success } = await Audio.Sound.createAsync(
+          { uri: 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3' },
+          { shouldPlay: false, volume: 0.5 }
+        );
+        successSound.current = success;
+
+        // Load error sound (low buzz)
+        const { sound: error } = await Audio.Sound.createAsync(
+          { uri: 'https://assets.mixkit.co/active_storage/sfx/2001/2001-preview.mp3' },
+          { shouldPlay: false, volume: 0.5 }
+        );
+        errorSound.current = error;
+      } catch (error) {
+        console.log('Failed to load sound effects:', error);
+      }
+    };
+
+    loadSounds();
+
+    return () => {
+      // Cleanup sounds on unmount
+      successSound.current?.unloadAsync();
+      errorSound.current?.unloadAsync();
+    };
+  }, []);
+
 
   // -- Listen for event to start practice with specific words --
   useEffect(() => {
@@ -143,6 +184,10 @@ export const PracticeScreen: React.FC = () => {
   }, [pulseAnim]);
 
   // -- Logic Handlers --
+  const handleBackToHome = useCallback(() => {
+    EventBus.emit('switchToHomeTab');
+  }, []);
+
   const startPractice = useCallback(async () => {
     setLoading(true);
     try {
@@ -173,12 +218,79 @@ export const PracticeScreen: React.FC = () => {
     setPronunciationResult(null);
     setMeaningIndex(0);
     stopPulse();
+    // Hide popup immediately on reset
+    popupAnim.setValue(-150);
 
     if (audioRecorder.current) {
       audioRecorder.current.stopAndUnloadAsync().catch(() => { });
       audioRecorder.current = null;
     }
-  }, [stopPulse]);
+  }, [stopPulse, popupAnim]);
+
+  // -- Play Sound Effect --
+  const playSound = useCallback(async (isCorrect: boolean) => {
+    try {
+      const sound = isCorrect ? successSound.current : errorSound.current;
+      if (sound) {
+        await sound.replayAsync();
+      }
+    } catch (error) {
+      console.log('Failed to play sound:', error);
+    }
+  }, []);
+
+  // -- Get Feedback Data Based on Score --
+  const getFeedbackData = useCallback((score: number, isPronunciation: boolean = false) => {
+    if (isPronunciation) {
+      if (score >= 80) {
+        return {
+          emoji: '🎉',
+          title: 'Excellent!',
+          message: 'Your pronunciation is amazing!',
+          color: colors.success,
+          bgColor: '#D1FAE5',
+        };
+      } else if (score >= 50) {
+        return {
+          emoji: '👍',
+          title: 'Good job!',
+          message: 'Pretty good, keep practicing!',
+          color: '#F59E0B',
+          bgColor: '#FEF3C7',
+        };
+      } else {
+        return {
+          emoji: '💪',
+          title: 'Keep trying!',
+          message: 'Give it another shot!',
+          color: colors.error,
+          bgColor: '#FEE2E2',
+        };
+      }
+    } else {
+      // For text input
+      return score > 0 ? {
+        emoji: '✅',
+        title: 'Correct!',
+        message: 'You got it right!',
+        color: colors.success,
+        bgColor: '#D1FAE5',
+      } : {
+        emoji: '❌',
+        title: 'Incorrect',
+        message: 'Don\'t worry, check the answer and try again!',
+        color: colors.error,
+        bgColor: '#FEE2E2',
+      };
+    }
+  }, []);
+
+  // -- Scroll to Bottom (for showing results) --
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => {
+      quizScrollRef.current?.scrollToEnd({ animated: true });
+    }, 100);
+  }, []);
 
   const checkAnswer = useCallback((customAnswer?: string) => {
     const answerToUse = customAnswer !== undefined ? customAnswer : userAnswer;
@@ -195,6 +307,29 @@ export const PracticeScreen: React.FC = () => {
     setIsAnswered(true);
     setShowHint(true);
 
+    // Play sound effect
+    playSound(correct && !skipped);
+
+    // Scroll to bottom to show results
+    scrollToBottom();
+
+    // Animate popup feedback (slide down from top, hold 5s, then slide up)
+    popupAnim.setValue(-150); // Reset start position
+    Animated.sequence([
+      Animated.spring(popupAnim, {
+        toValue: 20, // Final visible offset
+        friction: 6,
+        tension: 50,
+        useNativeDriver: true,
+      }),
+      Animated.delay(5000), // Wait 5 seconds
+      Animated.timing(popupAnim, {
+        toValue: -150, // Hide again
+        duration: 300,
+        useNativeDriver: true,
+      })
+    ]).start();
+
     setQuizResults(prev => [...prev, {
       word: currentWord,
       status: skipped ? 'skipped' : (correct ? 'correct' : 'incorrect'),
@@ -202,7 +337,8 @@ export const PracticeScreen: React.FC = () => {
     }]);
 
     StorageService.markAsReviewed(currentWord.id, correct);
-  }, [userAnswer, quizList, currentIndex]);
+  }, [userAnswer, quizList, currentIndex, playSound, scrollToBottom, popupAnim]);
+
 
   const handleMicPress = useCallback(async () => {
     if (isRecording) {
@@ -251,6 +387,9 @@ export const PracticeScreen: React.FC = () => {
         setUserAnswer(result.data.real_transcript);
         checkAnswer(result.data.real_transcript);
         setIsCorrect(isCorrect);
+
+        // Play sound based on pronunciation accuracy
+        playSound(isCorrect);
 
       } catch (error: any) {
         console.error('Recording error:', error);
@@ -325,7 +464,7 @@ export const PracticeScreen: React.FC = () => {
         }
       }
     }
-  }, [isRecording, stopPulse, startPulse, quizList, currentIndex, checkAnswer]);
+  }, [isRecording, stopPulse, startPulse, quizList, currentIndex, checkAnswer, playSound]);
 
   const handleNext = useCallback(() => {
     if (currentIndex < quizList.length - 1) {
@@ -353,21 +492,18 @@ export const PracticeScreen: React.FC = () => {
     return TIME_FORMAT.daysAgo.replace('{count}', String(days));
   }, []);
 
-  const handleBackToHome = useCallback(() => {
-    EventBus.emit('switchToHomeTab');
-  }, []);
-
   const renderSetup = () => (
-    <View style={{ flex: 1 }}>
+    <View style={styles.centerContent}>
+      {/* Header with Back Button */}
       <View style={styles.setupHeader}>
-        <TouchableOpacity onPress={handleBackToHome} style={styles.backButton}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBackToHome}>
           <Text style={styles.backIcon}>←</Text>
         </TouchableOpacity>
         <Text style={styles.setupHeaderTitle}>{PRACTICE_TEXTS.title}</Text>
-        <View style={{ width: 40 }} />
+        <View style={{ width: 44 }} />
       </View>
-      <View style={styles.centerContent}>
-        <Text style={styles.subtitle}>{PRACTICE_TEXTS.subtitle}</Text>
+
+      <Text style={styles.subtitle}>{PRACTICE_TEXTS.subtitle}</Text>
 
       <View style={styles.card}>
         <Text style={styles.label}>{PRACTICE_TEXTS.howManyWords}</Text>
@@ -422,7 +558,6 @@ export const PracticeScreen: React.FC = () => {
           </View>
         </View>
       )}
-      </View>
     </View>
   );
 
@@ -592,8 +727,26 @@ export const PracticeScreen: React.FC = () => {
     const displayedMeanings = [...currentWord.meanings].reverse();
     const cardInnerWidth = SCREEN_WIDTH - (spacing.lg * 4);
 
+    const feedback = isAnswered
+      ? (pronunciationResult
+        ? getFeedbackData(pronunciationResult.accuracy, true)
+        : getFeedbackData(isCorrect ? 1 : 0, false))
+      : null;
+
     return (
       <View style={{ flex: 1 }}>
+        {feedback && (
+          <Animated.View style={[styles.topPopup, { transform: [{ translateY: popupAnim }], backgroundColor: feedback.bgColor }]}>
+            <View style={styles.topPopupContent}>
+              <Text style={styles.topPopupEmoji}>{feedback.emoji}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.topPopupTitle, { color: feedback.color }]}>{feedback.title}</Text>
+                <Text style={styles.topPopupMessage}>{feedback.message}</Text>
+              </View>
+            </View>
+          </Animated.View>
+        )}
+
         <View style={styles.modalHeader}>
           <TouchableOpacity onPress={() => setIsQuizVisible(false)} style={styles.closeBtn}>
             <Text style={styles.closeText}>✕</Text>
@@ -604,7 +757,13 @@ export const PracticeScreen: React.FC = () => {
           <View style={{ width: 40 }} />
         </View>
 
-        <ScrollView contentContainerStyle={styles.quizContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          ref={quizScrollRef}
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.quizContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={[styles.clueCard, shadows.medium]}>
             <ScrollView
               horizontal
@@ -683,36 +842,41 @@ export const PracticeScreen: React.FC = () => {
             </View>
           ) : (
             <View style={styles.resultArea}>
+
+
+              {/* Correct Answer Display */}
               <View style={[styles.correctAnswerBox, shadows.subtle]}>
                 <Text style={styles.labelSmall}>{PRACTICE_TEXTS.correctWordIs}</Text>
-                <Text style={styles.correctWord}>{currentWord.word}</Text>
-
-                <View style={styles.phoneticRow}>
-                  <Text style={styles.phoneticText}>{currentWord.phonetic || DEFAULTS.phonetic}</Text>
+                <View style={styles.answerRow}>
+                  <Text style={styles.correctWord}>{currentWord.word}</Text>
                   <SpeakButton audioUrl={currentWord.audioUrl} text={currentWord.word} size="medium" />
                 </View>
+                <Text style={styles.phoneticText}>{currentWord.phonetic || DEFAULTS.phonetic}</Text>
               </View>
 
+              {/* Pronunciation Feedback - Compact Version */}
               {pronunciationResult && (
                 <View style={[styles.pronunciationFeedback, shadows.subtle]}>
-                  <View style={styles.accuracyHeader}>
-                    <Text style={styles.accuracyLabel}>Pronunciation Score</Text>
+                  {/* Score Badge */}
+                  <View style={styles.scoreRow}>
+                    <Text style={styles.scoreLabel}>Điểm phát âm:</Text>
                     <View style={[
-                      styles.accuracyBadge,
-                      pronunciationResult.accuracy >= 80 ? styles.accuracyGood :
-                        pronunciationResult.accuracy >= 60 ? styles.accuracyOk :
-                          styles.accuracyPoor
+                      styles.scoreBadge,
+                      pronunciationResult.accuracy >= 80 ? styles.scoreExcellent :
+                        pronunciationResult.accuracy >= 50 ? styles.scoreGood :
+                          styles.scorePoor
                     ]}>
-                      <Text style={styles.accuracyScore}>{pronunciationResult.accuracy}%</Text>
+                      <Text style={styles.scoreValue}>{pronunciationResult.accuracy}%</Text>
                     </View>
                   </View>
 
-                  <View style={styles.wordReviewContainer}>
-                    <Text style={styles.reviewLabelLarge}>Result:</Text>
+                  {/* Character-level Accuracy */}
+                  <View style={styles.charAccuracyContainer}>
+                    <Text style={styles.charAccuracyLabel}>Kết quả:</Text>
                     <View style={styles.coloredWordContainer}>
                       {currentWord.word.split('').map((char, index) => {
                         const status = pronunciationResult.isLetterCorrect?.[index];
-                        const color = status === '1' ? colors.success : (status === '0' ? colors.error : colors.textPrimary);
+                        const color = status === '1' ? colors.success : (status === '0' ? colors.error : colors.textLight);
                         return (
                           <Text key={index} style={[styles.coloredChar, { color }]}>
                             {char}
@@ -722,19 +886,18 @@ export const PracticeScreen: React.FC = () => {
                     </View>
                   </View>
 
-                  <View style={styles.ipaComparisonContainer}>
-                    <View style={styles.ipaBox}>
-                      <Text style={styles.ipaLabel}>Correct IPA</Text>
-                      <Text style={styles.ipaValue}>{pronunciationResult.userIpa || 'N/A'}</Text>
+                  {/* IPA Comparison - Horizontal */}
+                  <View style={styles.ipaRow}>
+                    <View style={styles.ipaItem}>
+                      <Text style={styles.ipaItemLabel}>IPA chuẩn</Text>
+                      <Text style={styles.ipaItemValue}>{pronunciationResult.userIpa || 'N/A'}</Text>
                     </View>
-
-                    <View style={styles.ipaDivider} />
-
-                    <View style={styles.ipaBox}>
-                      <Text style={styles.ipaLabel}>Your IPA</Text>
+                    <View style={styles.ipaDividerVertical} />
+                    <View style={styles.ipaItem}>
+                      <Text style={styles.ipaItemLabel}>IPA của bạn</Text>
                       <Text style={[
-                        styles.ipaValue,
-                        pronunciationResult.accuracy >= 80 ? { color: colors.success } : { color: colors.error }
+                        styles.ipaItemValue,
+                        { color: pronunciationResult.accuracy >= 80 ? colors.success : colors.error }
                       ]}>
                         {pronunciationResult.ipaTranscript || '...'}
                       </Text>
@@ -743,6 +906,7 @@ export const PracticeScreen: React.FC = () => {
                 </View>
               )}
 
+              {/* Next Button */}
               <TouchableOpacity style={[styles.nextButton, shadows.strong]} onPress={handleNext}>
                 <Text style={styles.nextButtonText}>
                   {currentIndex === quizList.length - 1 ? PRACTICE_TEXTS.finishTest : PRACTICE_TEXTS.continue}
@@ -812,41 +976,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md
   },
-  // Setup screen header with back button
-  setupHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.xl,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.cardSurface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-    borderBottomWidth: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    ...shadows.claySoft,
-  },
-  backIcon: {
-    fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.bold,
-    color: colors.textSecondary,
-  },
-  setupHeaderTitle: {
-    flex: 1,
-    fontSize: typography.sizes.lg,
-    fontWeight: typography.weights.extraBold,
-    color: colors.textPrimary,
-    textAlign: 'center',
-  },
+
   title: {
     fontSize: typography.sizes.xl,
     fontWeight: typography.weights.extraBold,
@@ -967,6 +1097,8 @@ const styles = StyleSheet.create({
   },
 
   clueCard: {
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.xs,
     padding: spacing.md,
     marginBottom: spacing.sm,
     alignItems: 'center',
@@ -976,11 +1108,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
     borderLeftWidth: 0,
     borderRightWidth: 0,
+    ...shadows.clayMedium,
   },
   clueImageWrapper: {
     width: SCREEN_WIDTH * 0.35,
     height: SCREEN_WIDTH * 0.35,
-    borderRadius: borderRadius.sm,
+    borderRadius: borderRadius.clayCard,
+    backgroundColor: colors.backgroundSoft,
     marginBottom: spacing.sm,
     overflow: 'hidden',
     borderTopWidth: 1,
@@ -996,8 +1130,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.cardSurface,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
     borderRadius: borderRadius.clayBadge,
     borderTopWidth: 1,
     borderTopColor: colors.shadowInnerLight,
@@ -1007,7 +1141,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     ...shadows.claySoft,
   },
-  hintIcon: { marginRight: 8, fontSize: typography.sizes.lg },
+  hintIcon: { marginRight: 2, fontSize: typography.sizes.lg },
   hintText: {
     fontWeight: typography.weights.bold,
     color: colors.primary,
@@ -1597,6 +1731,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1.5,
     marginHorizontal: 1,
+    textShadowColor: 'rgba(0, 0, 0, 0.1)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
   ipaComparisonContainer: {
     flexDirection: 'row',
@@ -1631,5 +1768,193 @@ const styles = StyleSheet.create({
     height: '80%',
     backgroundColor: colors.borderMedium,
     marginHorizontal: spacing.sm,
+  },
+  feedbackCard: {
+    width: '100%',
+    borderRadius: borderRadius.clayCard,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.6)',
+    ...shadows.clayMedium,
+  },
+  feedbackEmoji: {
+    fontSize: 48,
+    marginBottom: spacing.xs,
+  },
+  feedbackTitle: {
+    fontSize: typography.sizes.xl,
+    fontWeight: typography.weights.extraBold,
+    marginBottom: spacing.xxs,
+    letterSpacing: 0.5,
+  },
+  feedbackMessage: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    fontWeight: typography.weights.medium,
+  },
+
+  // Compact Answer Row
+  answerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.xxs,
+  },
+
+  // Score Row & Badges
+  scoreRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.sm,
+    width: '100%',
+  },
+  scoreLabel: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.semibold,
+    color: colors.textPrimary,
+  },
+  scoreBadge: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: borderRadius.clayBadge,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.5)',
+    ...shadows.claySoft,
+  },
+  scoreExcellent: {
+    backgroundColor: '#D1FAE5',
+  },
+  scoreGood: {
+    backgroundColor: '#FEF3C7',
+  },
+  scorePoor: {
+    backgroundColor: '#FEE2E2',
+  },
+  scoreValue: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.bold,
+    color: colors.textPrimary,
+  },
+
+  // Character Accuracy Container
+  charAccuracyContainer: {
+    width: '100%',
+    marginBottom: spacing.sm,
+  },
+  charAccuracyLabel: {
+    fontSize: typography.sizes.xs,
+    color: colors.textSecondary,
+    marginBottom: spacing.xxs,
+    fontWeight: typography.weights.semibold,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // IPA Row (Horizontal Layout)
+  ipaRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: colors.backgroundViolet,
+    borderRadius: borderRadius.lg,
+    padding: spacing.sm,
+    width: '100%',
+  },
+  ipaItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  ipaItemLabel: {
+    fontSize: 11,
+    color: colors.textLight,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+    letterSpacing: 0.5,
+  },
+  ipaItemValue: {
+    fontSize: 13,
+    color: colors.textPrimary,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontWeight: '600',
+  },
+  ipaDividerVertical: {
+    width: 1,
+    height: '70%',
+    backgroundColor: colors.borderMedium,
+    marginHorizontal: spacing.xs,
+  },
+
+  // -- Setup Header --
+  setupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.xl,
+    marginBottom: spacing.xxl,
+  },
+  setupHeaderTitle: {
+    fontSize: typography.sizes.xl,
+    fontWeight: typography.weights.bold,
+    color: colors.primary,
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: borderRadius.button,
+    backgroundColor: colors.cardSurface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 0,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.claySoft,
+  },
+  backIcon: {
+    fontSize: 24,
+    color: colors.textPrimary,
+    fontWeight: 'bold',
+  },
+
+  // -- Top Popup Notification --
+  topPopup: {
+    position: 'absolute',
+    top: 20, // Moved higher as requested (was 50)
+    left: spacing.md,
+    right: spacing.md,
+    borderRadius: borderRadius.clayCard,
+    padding: spacing.md,
+    zIndex: 9999,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
+    ...shadows.clayStrong,
+  },
+  topPopupContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  topPopupEmoji: {
+    fontSize: 32,
+    marginRight: spacing.md,
+  },
+  topPopupTitle: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.bold,
+    marginBottom: 2,
+    color: colors.textPrimary,
+  },
+  topPopupMessage: {
+    fontSize: typography.sizes.sm,
+    color: 'rgba(0,0,0,0.7)',
+    fontWeight: typography.weights.medium,
   },
 });

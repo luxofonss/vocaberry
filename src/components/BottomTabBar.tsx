@@ -1,9 +1,10 @@
-// BottomTabBar - Claymorphism Navigation Pill
+// BottomTabBar - Claymorphism Navigation Bar
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Keyboard, Platform, Pressable } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Keyboard, Platform, Pressable } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { Ionicons } from '@expo/vector-icons';
-import { colors, shadows, innerShadows, borderRadius } from '../theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { colors, shadows } from '../theme';
 import { TabType } from '../types';
 
 interface BottomTabBarProps {
@@ -16,8 +17,8 @@ interface BottomTabBarProps {
 }
 
 /**
- * Floating Navigation Component - Claymorphism Design
- * Features a pill-shaped main menu with soft clay shadows and gradient backgrounds.
+ * Bottom Navigation Component - Claymorphism Design
+ * Features a full-width bar with soft clay shadows.
  * Tab icons have embossed/debossed effects based on active state.
  * Automatically hides when keyboard is visible to prevent visual clutter.
  */
@@ -29,6 +30,7 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
 }) => {
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
   const [isAddPressed, setIsAddPressed] = useState(false);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
@@ -59,124 +61,108 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
 
   return (
     <View style={styles.containerWrapper}>
-      <View style={styles.floatRow}>
-        {/* MAIN PILL - Claymorphism white background per rules.md */}
-        <View style={styles.mainPillContainer}>
-          <BlurView intensity={60} tint="light" style={styles.mainPillBlur}>
-              {/* Home Tab */}
-              <TouchableOpacity
-                style={styles.tabItem}
-                onPress={() => onTabChange('home')}
-              >
-                <View style={[
-                  styles.iconContainer,
-                  activeTab === 'home' ? styles.iconEmbossed : styles.iconDebossed
-                ]}>
-                  <Ionicons
-                    name={activeTab === 'home' ? 'home' : 'home-outline'}
-                    size={28}
-                    color={activeTab === 'home' ? colors.primary : colors.textSecondary}
-                  />
-                </View>
-                <Text style={[
-                  styles.tabLabel, 
-                  activeTab === 'home' && [
-                    styles.tabLabelActive, 
-                    { color: colors.primary }
-                  ]
-                ]}>
-                  Home
-                </Text>
-              </TouchableOpacity>
+      {/* Background Tab Bar */}
+      <View style={[styles.mainBarShadow, { paddingBottom: insets.bottom }]}>
+        <BlurView intensity={80} tint="light" style={styles.mainBarContent}>
+          <View style={styles.tabRow}>
+            {/* Home Tab */}
+            <TouchableOpacity
+              style={styles.tabItem}
+              onPress={() => onTabChange('home')}
+            >
+              <View style={[
+                styles.iconContainer,
+                activeTab === 'home' ? styles.iconEmbossed : styles.iconDebossed
+              ]}>
+                <Ionicons
+                  name={activeTab === 'home' ? 'home' : 'home-outline'}
+                  size={24}
+                  color={activeTab === 'home' ? colors.primary : colors.textSecondary}
+                />
+              </View>
+            </TouchableOpacity>
 
-              {/* Topics Tab */}
-              <TouchableOpacity
-                style={styles.tabItem}
-                onPress={() => onTabChange('topics')}
-              >
-                <View style={[
-                  styles.iconContainer,
-                  activeTab === 'topics' ? styles.iconEmbossed : styles.iconDebossed
-                ]}>
-                  <Ionicons
-                    name={activeTab === 'topics' ? 'folder' : 'folder-outline'}
-                    size={28}
-                    color={activeTab === 'topics' ? colors.primary : colors.textSecondary}
-                  />
-                </View>
-                <Text style={[
-                  styles.tabLabel, 
-                  activeTab === 'topics' && [
-                    styles.tabLabelActive,
-                    { color: colors.primary }
-                  ]
-                ]}>
-                  Topics
-                </Text>
-              </TouchableOpacity>
+            {/* Topics Tab */}
+            <TouchableOpacity
+              style={styles.tabItem}
+              onPress={() => onTabChange('topics')}
+            >
+              <View style={[
+                styles.iconContainer,
+                activeTab === 'topics' ? styles.iconEmbossed : styles.iconDebossed
+              ]}>
+                <Ionicons
+                  name={activeTab === 'topics' ? 'folder' : 'folder-outline'}
+                  size={24}
+                  color={activeTab === 'topics' ? colors.primary : colors.textSecondary}
+                />
+              </View>
+            </TouchableOpacity>
 
-              {/* ADD BUTTON - FAB per rules.md: 64x64px, #7C3AED, Level 4 shadow, 4px white border */}
-              <Pressable
-                onPress={onAddPress}
-                onPressIn={handleAddPressIn}
-                onPressOut={handleAddPressOut}
-                style={({ pressed }) => [
-                  styles.addBtnOuter,
-                  pressed && styles.addBtnPressed
-                ]}
-              >
-                <View style={[
-                  styles.addBtn,
-                  isAddPressed && styles.addBtnPressedInner
-                ]}>
-                  <Ionicons name="add" size={32} color={colors.white} />
-                </View>
-              </Pressable>
+            {/* SPACER for Floating Button */}
+            <View style={{ width: 60 }} />
 
-              {/* Practice Tab */}
-              <TouchableOpacity
-                style={styles.tabItem}
-                onPress={() => onTabChange('practice')}
-              >
-                <View style={[
-                  styles.iconContainer,
-                  activeTab === 'practice' ? styles.iconEmbossed : styles.iconDebossed
-                ]}>
-                  <Ionicons
-                    name={activeTab === 'practice' ? 'school' : 'school-outline'}
-                    size={28}
-                    color={activeTab === 'practice' ? colors.textSecondary : colors.textSecondary}
-                  />
-                </View>
-                <Text style={[
-                  styles.tabLabel, 
-                  activeTab === 'practice' && styles.tabLabelActive
-                ]}>
-                  Practice
-                </Text>
-              </TouchableOpacity>
+            {/* Practice Tab */}
+            <TouchableOpacity
+              style={styles.tabItem}
+              onPress={() => onTabChange('practice')}
+            >
+              <View style={[
+                styles.iconContainer,
+                activeTab === 'practice' ? styles.iconEmbossed : styles.iconDebossed
+              ]}>
+                <Ionicons
+                  name={activeTab === 'practice' ? 'school' : 'school-outline'}
+                  size={24}
+                  color={activeTab === 'practice' ? colors.primary : colors.textSecondary}
+                />
+              </View>
+            </TouchableOpacity>
 
-              {/* Search Tab */}
-              <TouchableOpacity
-                style={styles.tabItem}
-                onPress={onSearchPress}
-              >
-                <View style={[
-                  styles.iconContainer,
-                  styles.iconDebossed
-                ]}>
-                  <Ionicons
-                    name="search-outline"
-                    size={28}
-                    color={colors.textSecondary}
-                  />
-                </View>
-                <Text style={styles.tabLabel}>
-                  Search
-                </Text>
-              </TouchableOpacity>
-            </BlurView>
-        </View>
+            {/* Search Tab */}
+            <TouchableOpacity
+              style={styles.tabItem}
+              onPress={onSearchPress}
+            >
+              <View style={[
+                styles.iconContainer,
+                styles.iconDebossed
+              ]}>
+                <Ionicons
+                  name="search-outline"
+                  size={24}
+                  color={colors.textSecondary}
+                />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </BlurView>
+      </View>
+
+      {/* FLOATING ADD BUTTON - Absolute Positioned */}
+      <View
+        style={[
+          styles.floatBtnContainer,
+          { bottom: insets.bottom + 20 }
+        ]}
+        pointerEvents="box-none"
+      >
+        <Pressable
+          onPress={onAddPress}
+          onPressIn={handleAddPressIn}
+          onPressOut={handleAddPressOut}
+          style={({ pressed }) => [
+            styles.addBtnOuter,
+            pressed && styles.addBtnPressed
+          ]}
+        >
+          <View style={[
+            styles.addBtn,
+            isAddPressed && styles.addBtnPressedInner
+          ]}>
+            <Ionicons name="add" size={32} color={colors.white} />
+          </View>
+        </Pressable>
       </View>
     </View>
   );
@@ -185,124 +171,125 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
 const styles = StyleSheet.create({
   containerWrapper: {
     position: 'absolute',
-    bottom: Platform.OS === 'ios' ? 32 : 20,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+  },
+  // Main bar container with top shadow
+  mainBarShadow: {
+    backgroundColor: colors.white,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    // Custom top shadow
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 16,
+      },
+      android: {
+        elevation: 16,
+      },
+    }),
+  },
+  // Main bar content
+  mainBarContent: {
+    overflow: 'hidden',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+  },
+  tabRow: {
+    flexDirection: 'row',
+    height: 60, // Reduced height (was 80)
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    paddingHorizontal: 8,
+  },
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Icon container - claymorphism
+  iconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Embossed active state (Raised Clay)
+  iconEmbossed: {
+    backgroundColor: '#F0F5FF', // Very light blue/white mix
+    borderTopWidth: 1,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderBottomWidth: 1,
+    borderTopColor: '#FFFFFF',
+    borderLeftColor: '#FFFFFF',
+    borderRightColor: '#D1D9E6',
+    borderBottomColor: '#D1D9E6',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#A3B1C6',
+        shadowOffset: { width: 4, height: 4 },
+        shadowOpacity: 0.4,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
+  },
+  // Debossed inactive state (Pressed/Flat Clay) - Subtler
+  iconDebossed: {
+    backgroundColor: 'transparent',
+    // No bold borders for inactive, just clean
+  },
+  // Floating Button Container
+  floatBtnContainer: {
+    position: 'absolute',
     left: 0,
     right: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 100,
+    zIndex: 110,
   },
-  floatRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  // Main pill container - Bottom nav shadow per rules.md: 0 -2px 12px rgba(0, 0, 0, 0.06)
-  mainPillContainer: {
-    borderRadius: 36,
-    backgroundColor: colors.white, // White background per rules.md
-    // Custom bottom shadow for navigation bar
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000000',
-        shadowOffset: { width: 0, height: -2 }, // Negative height for bottom shadow
-        shadowOpacity: 0.06,
-        shadowRadius: 12,
-      },
-      android: {
-        elevation: 8,
-      },
-    }),
-  },
-  // Main pill content - white background with claymorphism
-  mainPillBlur: {
-    flexDirection: 'row',
-    height: 80, // 72-80px per rules.md
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'space-around',
-    backgroundColor: colors.white,
-    borderRadius: 36,
-    // Inner highlight for claymorphism
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-  },
-  tabItem: {
-    flex: 0,
+  // Add button outer - Floating Clay
+  addBtnOuter: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.background, // Match bar bg parent for cutout effect illusion
+    padding: 6, // Border thickness imitation
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    minWidth: 60,
+    ...shadows.level2,
   },
-  // Icon container - claymorphism with embossed/debossed effect
-  iconContainer: {
+  addBtnPressed: {
+    transform: [{ scale: 0.95 }],
+  },
+  // Add button inner - Gradient-like fill
+  addBtn: {
     width: 44,
     height: 44,
     borderRadius: 22,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 4,
-  },
-  // Embossed effect for active tab icons (raised clay appearance)
-  iconEmbossed: {
-    backgroundColor: colors.cardSurface,
     borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.shadowInnerDark,
-    ...shadows.claySoft,
+    borderTopColor: 'rgba(255, 255, 255, 0.5)',
+    borderBottomWidth: 2,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
-  // Debossed effect for inactive tab icons (pressed-in clay appearance)
-  iconDebossed: {
-    backgroundColor: 'rgba(139, 124, 246, 0.08)',
-    borderTopWidth: 0.5,
-    borderTopColor: 'rgba(124, 58, 237, 0.15)',
-  },
-  // Tab label text
-  tabLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  tabLabelActive: {
-    fontWeight: '600',
-  },
-  // Add button outer container - FAB per rules.md: 64x64px, Level 4 shadow, 4px white border
-  addBtnOuter: {
-    marginHorizontal: 8,
-    width: 64, // FAB size per rules.md
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: colors.white, // White border background
-    padding: 4, // 4px border per rules.md
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadows.level4, // Level 4 shadow per rules.md
-    zIndex: 10, // z-index: 10 per rules.md
-  },
-  // Add button pressed state - squish animation
-  addBtnPressed: {
-    transform: [{ scale: 0.92 }],
-    ...shadows.clayPressed,
-  },
-  // Add button - gradient fill with claymorphism inner highlight
-  addBtn: {
-    width: 56, // 64 - 4px border * 2
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary, // #7C3AED per rules.md
-    // Inner highlight for 3D clay effect
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.4)',
-    borderBottomWidth: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-  },
-  // Add button pressed inner state
   addBtnPressedInner: {
+    backgroundColor: colors.primaryDark,
     borderTopWidth: 0,
+    borderBottomWidth: 0,
   },
 });
