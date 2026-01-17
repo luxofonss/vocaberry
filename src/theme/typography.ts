@@ -12,18 +12,28 @@ export const typography = {
           heavy: '900' as const,
      },
 
-     // Font Sizes
+     // Font Sizes per rules.md
      sizes: {
+          // Labels: 12-14px per rules.md
           xs: 10,
-          sm: 12,
-          base: 14,
-          md: 16,
-          lg: 18,
-          xl: 20,
-          xxl: 24,
-          xxxl: 28,
-          display: 32,
-          hero: 40,
+          sm: 12, // Label minimum
+          base: 14, // Label maximum
+
+          // Body: 16-18px per rules.md
+          md: 16, // Body minimum
+          lg: 18, // Body maximum
+
+          // Buttons: 18-20px per rules.md
+          button: 19, // Button size (18-20px range)
+
+          // H2 (Section Headers): 20-24px per rules.md
+          xl: 20, // H2 minimum
+          xxl: 24, // H2 maximum
+
+          // H1 (Screen Titles): 36-42px per rules.md
+          xxxl: 36, // H1 minimum
+          display: 40, // H1 mid
+          hero: 42, // H1 maximum
      },
 
      // Line Heights

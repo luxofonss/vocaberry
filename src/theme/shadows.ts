@@ -2,8 +2,74 @@
 import { Platform } from 'react-native';
 import { colors } from './colors';
 
-// Multi-layer shadow system for claymorphism
+// Shadow system per rules.md - 4 shadow levels
 export const shadows = {
+     // Level 1 - Cards per rules.md: 0 2px 8px rgba(0, 0, 0, 0.06)
+     level1: Platform.select({
+          ios: {
+               shadowColor: '#000000',
+               shadowOffset: { width: 0, height: 2 },
+               shadowOpacity: 0.06,
+               shadowRadius: 8,
+          },
+          android: {
+               elevation: 2,
+          },
+     }),
+     
+     // Level 2 - Buttons per rules.md: 0 4px 12px rgba(124, 58, 237, 0.2)
+     level2: Platform.select({
+          ios: {
+               shadowColor: '#7C3AED',
+               shadowOffset: { width: 0, height: 4 },
+               shadowOpacity: 0.2,
+               shadowRadius: 12,
+          },
+          android: {
+               elevation: 4,
+          },
+     }),
+     
+     // Level 3 - Modals per rules.md: 0 8px 24px rgba(0, 0, 0, 0.12)
+     level3: Platform.select({
+          ios: {
+               shadowColor: '#000000',
+               shadowOffset: { width: 0, height: 8 },
+               shadowOpacity: 0.12,
+               shadowRadius: 24,
+          },
+          android: {
+               elevation: 8,
+          },
+     }),
+     
+     // Level 4 - Floating Elements per rules.md: 0 12px 32px rgba(0, 0, 0, 0.16)
+     level4: Platform.select({
+          ios: {
+               shadowColor: '#000000',
+               shadowOffset: { width: 0, height: 12 },
+               shadowOpacity: 0.16,
+               shadowRadius: 32,
+          },
+          android: {
+               elevation: 12,
+          },
+     }),
+     
+     // Glow effect per rules.md - Active buttons: purple glow with 20% opacity
+     glow: Platform.select({
+          ios: {
+               shadowColor: '#7C3AED',
+               shadowOffset: { width: 0, height: 0 },
+               shadowOpacity: 0.2,
+               shadowRadius: 16,
+          },
+          android: {
+               elevation: 6,
+          },
+     }),
+
+     // Legacy multi-layer shadow system for claymorphism (kept for compatibility)
      // Soft clay effect - subtle floating
      claySoft: Platform.select({
           ios: {

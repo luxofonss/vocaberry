@@ -353,10 +353,21 @@ export const PracticeScreen: React.FC = () => {
     return TIME_FORMAT.daysAgo.replace('{count}', String(days));
   }, []);
 
+  const handleBackToHome = useCallback(() => {
+    EventBus.emit('switchToHomeTab');
+  }, []);
+
   const renderSetup = () => (
-    <View style={styles.centerContent}>
-      <Text style={styles.title}>{PRACTICE_TEXTS.title}</Text>
-      <Text style={styles.subtitle}>{PRACTICE_TEXTS.subtitle}</Text>
+    <View style={{ flex: 1 }}>
+      <View style={styles.setupHeader}>
+        <TouchableOpacity onPress={handleBackToHome} style={styles.backButton}>
+          <Text style={styles.backIcon}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.setupHeaderTitle}>{PRACTICE_TEXTS.title}</Text>
+        <View style={{ width: 40 }} />
+      </View>
+      <View style={styles.centerContent}>
+        <Text style={styles.subtitle}>{PRACTICE_TEXTS.subtitle}</Text>
 
       <View style={styles.card}>
         <Text style={styles.label}>{PRACTICE_TEXTS.howManyWords}</Text>
@@ -411,6 +422,7 @@ export const PracticeScreen: React.FC = () => {
           </View>
         </View>
       )}
+      </View>
     </View>
   );
 
@@ -677,7 +689,7 @@ export const PracticeScreen: React.FC = () => {
 
                 <View style={styles.phoneticRow}>
                   <Text style={styles.phoneticText}>{currentWord.phonetic || DEFAULTS.phonetic}</Text>
-                  <SpeakButton text={currentWord.word} size="medium" />
+                  <SpeakButton audioUrl={currentWord.audioUrl} text={currentWord.word} size="medium" />
                 </View>
               </View>
 
@@ -700,7 +712,7 @@ export const PracticeScreen: React.FC = () => {
                     <View style={styles.coloredWordContainer}>
                       {currentWord.word.split('').map((char, index) => {
                         const status = pronunciationResult.isLetterCorrect?.[index];
-                        const color = status === '1' ? colors.success : (status === '0' ? colors.error : colors.text);
+                        const color = status === '1' ? colors.success : (status === '0' ? colors.error : colors.textPrimary);
                         return (
                           <Text key={index} style={[styles.coloredChar, { color }]}>
                             {char}
@@ -800,7 +812,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md
   },
-
+  // Setup screen header with back button
+  setupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.xl,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.cardSurface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 0,
+    borderLeftWidth: 0,
+    borderRightWidth: 0,
+    ...shadows.claySoft,
+  },
+  backIcon: {
+    fontSize: typography.sizes.xl,
+    fontWeight: typography.weights.bold,
+    color: colors.textSecondary,
+  },
+  setupHeaderTitle: {
+    flex: 1,
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.extraBold,
+    color: colors.textPrimary,
+    textAlign: 'center',
+  },
   title: {
     fontSize: typography.sizes.xl,
     fontWeight: typography.weights.extraBold,
@@ -921,8 +967,6 @@ const styles = StyleSheet.create({
   },
 
   clueCard: {
-    backgroundColor: colors.cardSurface,
-    borderRadius: borderRadius.xxxl,
     padding: spacing.md,
     marginBottom: spacing.sm,
     alignItems: 'center',
@@ -932,13 +976,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0,
     borderLeftWidth: 0,
     borderRightWidth: 0,
-    ...shadows.clayMedium,
   },
   clueImageWrapper: {
     width: SCREEN_WIDTH * 0.35,
     height: SCREEN_WIDTH * 0.35,
-    borderRadius: borderRadius.clayCard,
-    backgroundColor: colors.backgroundSoft,
+    borderRadius: borderRadius.sm,
     marginBottom: spacing.sm,
     overflow: 'hidden',
     borderTopWidth: 1,
@@ -1555,7 +1597,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 1.5,
     marginHorizontal: 1,
-    ...shadows.textSoft,
   },
   ipaComparisonContainer: {
     flexDirection: 'row',

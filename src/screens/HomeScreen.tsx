@@ -23,7 +23,9 @@ import { DictionaryService } from '../services/DictionaryService';
 import {
   WordCard,
   QuickAddModal,
-  SearchModal
+  SearchModal,
+  FilterChip,
+  CategoryFilter
 } from '../components';
 import { EventBus } from '../services/EventBus';
 import { PracticeScreen } from './PracticeScreen';
@@ -51,6 +53,7 @@ export const HomeScreen: React.FC = () => {
   const [isSearchVisible, setSearchVisible] = useState(false);
   const [sortBy, setSortBy] = useState<'alphabet' | 'newest' | 'views'>('newest');
   const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>({});
+  const [selectedCategory, setSelectedCategory] = useState<string>('All Words');
   const [userName, setUserName] = useState<string | null>(null);
   const [leastViewedWords, setLeastViewedWords] = useState<Word[]>([]);
   const [showNotification, setShowNotification] = useState(false);
@@ -78,6 +81,15 @@ export const HomeScreen: React.FC = () => {
     };
     EventBus.on('wordImageUpdated', cb);
     return () => EventBus.off('wordImageUpdated', cb);
+  }, []);
+
+  // Listen for switch to home tab event from PracticeScreen
+  useEffect(() => {
+    const handleSwitchToHome = () => {
+      setActiveTab('home');
+    };
+    EventBus.on('switchToHomeTab', handleSwitchToHome);
+    return () => EventBus.off('switchToHomeTab', handleSwitchToHome);
   }, []);
 
   // Tự động load lại dữ liệu mỗi khi màn hình được Focus (quay lại từ màn hình khác)
@@ -177,6 +189,27 @@ export const HomeScreen: React.FC = () => {
   }, [notificationAnim]);
 
   // -- Computed Data --
+  // Get available categories from words
+  const availableCategories = useMemo(() => {
+    const categorySet = new Set<string>(['All Words']);
+    words.forEach(w => {
+      const wordTopics = w.topics || ['Uncategorized'];
+      wordTopics.forEach(t => categorySet.add(t));
+    });
+    return Array.from(categorySet).sort();
+  }, [words]);
+
+  // Filter words by selected category
+  const filteredWords = useMemo(() => {
+    if (selectedCategory === 'All Words') {
+      return words;
+    }
+    return words.filter(w => {
+      const wordTopics = w.topics || ['Uncategorized'];
+      return wordTopics.includes(selectedCategory);
+    });
+  }, [words, selectedCategory]);
+
   const inventoryData = useMemo(() => {
     const groups: Record<string, Word[]> = {};
     words.forEach(w => {
@@ -207,37 +240,35 @@ export const HomeScreen: React.FC = () => {
   // -- Render Components --
 
   const renderHeader = useCallback(() => {
-    const greeting = getGreetingText(userName);
+    const greetingName = userName || 'there';
     const avatarInitial = getUserInitial(userName);
+    const hasNotifications = false; // TODO: Add notification logic
 
     return (
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.greeting}>{greeting}</Text>
-            {wordsForReview > 0 ? (
-              <Text style={styles.subGreeting}>{wordsForReview} words to review.💡</Text>
-            ) : leastViewedCount > 0 ? (
-              <Text style={styles.subGreeting}>
-                💡 {leastViewedCount} least viewed word needs practice.💡
-              </Text>
-            ) : (
-              <Text style={styles.subGreeting}>All caught up! 🎉</Text>
-            )}
+          <View style={styles.greetingContainer}>
+            <Text style={styles.greeting}>
+              Hi, {greetingName}! <Text style={styles.wavingEmoji}>👋</Text>
+            </Text>
+            <Text style={styles.subGreeting}>Ready for some fresh words?</Text>
           </View>
-          <Pressable
-            style={({ pressed }) => [
-              styles.avatar,
-              pressed && styles.avatarPressed
-            ]}
-            onPress={() => navigation.navigate('Settings')}
-          >
-            <Text style={styles.avatarText}>{avatarInitial}</Text>
-          </Pressable>
+          <View style={styles.avatarContainer}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.avatar,
+                pressed && styles.avatarPressed
+              ]}
+              onPress={() => navigation.navigate('Settings')}
+            >
+              <Text style={styles.avatarText}>{avatarInitial}</Text>
+            </Pressable>
+            {hasNotifications && <View style={styles.notificationDot} />}
+          </View>
         </View>
       </View>
     );
-  }, [userName, wordsForReview, leastViewedCount, navigation]);
+  }, [userName, navigation]);
 
   const renderEmpty = useCallback(() => (
     <View style={styles.emptyContainer}>
@@ -296,19 +327,12 @@ export const HomeScreen: React.FC = () => {
       <Text style={styles.filterLabel}>Sort by:</Text>
       <View style={styles.filterOptions}>
         {(['newest', 'alphabet', 'views'] as const).map(option => (
-          <Pressable
+          <FilterChip
             key={option}
-            style={({ pressed }) => [
-              styles.filterChip,
-              sortBy === option && styles.filterChipActive,
-              pressed && styles.filterChipPressed
-            ]}
+            label={option.charAt(0).toUpperCase() + option.slice(1)}
+            active={sortBy === option}
             onPress={() => setSortBy(option)}
-          >
-            <Text style={[styles.filterChipText, sortBy === option && styles.filterChipTextActive]}>
-              {option.charAt(0).toUpperCase() + option.slice(1)}
-            </Text>
-          </Pressable>
+          />
         ))}
       </View>
     </View>
@@ -322,7 +346,7 @@ export const HomeScreen: React.FC = () => {
       return (
         <FlatList
           key="home-grid"
-          data={words}
+          data={filteredWords}
           renderItem={({ item }) => (
             <WordCard
               word={item} variant="compact"
@@ -364,7 +388,7 @@ export const HomeScreen: React.FC = () => {
         }
       />
     );
-  }, [activeTab, words, navigation, renderHeader, renderEmpty, refreshing, handleRefresh, inventoryData, renderTopicBlock, renderFilterToolbar]);
+  }, [activeTab, filteredWords, navigation, renderHeader, renderEmpty, refreshing, handleRefresh, inventoryData, renderTopicBlock, renderFilterToolbar]);
 
 
   return (
@@ -413,14 +437,16 @@ export const HomeScreen: React.FC = () => {
           {renderContent()}
         </View>
 
-        <BottomTabBar
-          activeTab={activeTab}
-          wordCount={words.length}
-          reviewCount={wordsForReview}
-          onTabChange={setActiveTab}
-          onAddPress={() => setQuickAddVisible(true)}
-          onSearchPress={() => setSearchVisible(true)}
-        />
+        {activeTab !== 'practice' && (
+          <BottomTabBar
+            activeTab={activeTab}
+            wordCount={words.length}
+            reviewCount={wordsForReview}
+            onTabChange={setActiveTab}
+            onAddPress={() => setQuickAddVisible(true)}
+            onSearchPress={() => setSearchVisible(true)}
+          />
+        )}
 
         <QuickAddModal
           visible={quickAddVisible}
@@ -446,9 +472,12 @@ const styles = StyleSheet.create({
   loadingText: { color: colors.textSecondary, fontSize: typography.sizes.base },
 
   header: { paddingHorizontal: spacing.screenPadding, paddingTop: spacing.lg, paddingBottom: spacing.sm },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.sm },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.md },
+  greetingContainer: { flex: 1, marginRight: spacing.md },
   greeting: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.extraBold, color: colors.textPrimary, letterSpacing: -0.5 },
-  subGreeting: { fontSize: typography.sizes.base, color: colors.textSecondary, marginTop: 4 },
+  wavingEmoji: { fontSize: typography.sizes.xxl },
+  subGreeting: { fontSize: typography.sizes.base, color: colors.textSecondary, marginTop: 8 },
+  avatarContainer: { position: 'relative' },
   // Avatar with claySoft shadow and subtle gradient styling
   avatar: {
     width: 44,
@@ -462,12 +491,31 @@ const styles = StyleSheet.create({
     borderTopColor: colors.shadowInnerLight,
     ...shadows.claySoft,
   },
-  // Avatar pressed state - compressed clay effect
+  // Avatar pressed state - compressed clay effect (squish animation per rules.md)
   avatarPressed: {
-    transform: [{ scale: 0.94 }],
+    transform: [{ scale: 0.92 }],
     ...shadows.clayPressed,
   },
   avatarText: { color: colors.primary, fontWeight: typography.weights.bold, fontSize: typography.sizes.lg },
+  notificationDot: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.accentRed, // #EF4444 per rules.md
+    borderWidth: 2,
+    borderColor: colors.white,
+  },
+
+  categoryFiltersContainer: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing.xl,
+    marginTop: spacing.sm,
+  },
 
   listContent: { paddingBottom: 120 },
   columnWrapper: { paddingHorizontal: spacing.screenPadding, gap: spacing.itemGap, marginBottom: spacing.md },
@@ -475,12 +523,12 @@ const styles = StyleSheet.create({
   emptyContainer: { alignItems: 'center', marginTop: 60 },
   emptyEmoji: { fontSize: typography.sizes.hero, marginBottom: spacing.lg },
   emptyText: { fontSize: typography.sizes.lg, fontWeight: typography.weights.bold, color: colors.textSecondary },
-  emptySubText: { marginTop: spacing.sm, color: colors.textLight, fontSize: typography.sizes.base },
+  emptySubText: { marginTop: spacing.sm, color: colors.textSecondary, fontSize: typography.sizes.base },
 
   topicSection: { marginBottom: spacing.xxxl },
   topicHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg, paddingHorizontal: spacing.screenPadding },
   topicBlockTitle: { fontSize: typography.sizes.lg, fontWeight: typography.weights.bold, color: colors.textPrimary },
-  topicCount: { color: colors.textLight, fontWeight: typography.weights.regular, fontSize: typography.sizes.base },
+  topicCount: { color: colors.textSecondary, fontWeight: typography.weights.regular, fontSize: typography.sizes.base },
   expandText: { color: colors.primary, fontWeight: typography.weights.semibold, fontSize: typography.sizes.sm },
 
   topicGridContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.itemGap, paddingHorizontal: spacing.screenPadding },
@@ -495,9 +543,9 @@ const styles = StyleSheet.create({
     borderWidth: 0,
     ...shadows.claySoft
   },
-  // See more button pressed state - compressed clay effect
+  // See more button pressed state - compressed clay effect (squish animation per rules.md)
   seeMoreBtnPressed: {
-    transform: [{ scale: 0.97 }],
+    transform: [{ scale: 0.92 }],
     ...shadows.clayPressed,
   },
   seeMoreText: { color: colors.textSecondary, fontSize: typography.sizes.sm, fontWeight: typography.weights.semibold },
@@ -505,27 +553,6 @@ const styles = StyleSheet.create({
   filterToolbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.screenPadding, marginBottom: spacing.xxl, marginTop: spacing.sm },
   filterLabel: { color: colors.textSecondary, marginRight: spacing.md, fontSize: typography.sizes.sm },
   filterOptions: { flexDirection: 'row', gap: spacing.sm },
-  // Filter chip with claySoft shadow, no border
-  filterChip: {
-    paddingHorizontal: spacing.puffySm,
-    paddingVertical: spacing.sm,
-    borderRadius: borderRadius.clayBadge,
-    backgroundColor: colors.cardSurface,
-    borderWidth: 0,
-    ...shadows.claySoft,
-  },
-  // Active filter chip with clayPrimary shadow
-  filterChipActive: {
-    backgroundColor: colors.primary,
-    ...shadows.clayPrimary,
-  },
-  // Filter chip pressed state - compressed clay effect
-  filterChipPressed: {
-    transform: [{ scale: 0.97 }],
-    ...shadows.clayPressed,
-  },
-  filterChipText: { fontSize: typography.sizes.sm, color: colors.textSecondary, fontWeight: typography.weights.medium },
-  filterChipTextActive: { color: colors.white, fontWeight: typography.weights.bold },
 
   // Notification Styles with claymorphism
   notificationContainer: {
@@ -573,7 +600,7 @@ const styles = StyleSheet.create({
   notificationClose: {
     width: 28,
     height: 28,
-    borderRadius: 14,
+    borderRadius: 20, // Minimum 20px per rules.md
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',

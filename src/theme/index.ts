@@ -3,7 +3,7 @@ import { colors } from './colors';
 import { typography } from './typography';
 import { spacing, borderRadius } from './spacing';
 import { shadows, innerShadows } from './shadows';
-import { globalStyles, gradients } from './styles';
+import { globalStyles, gradients, welcomeStyles } from './styles';
 
 export {
      colors,
@@ -14,6 +14,7 @@ export {
      innerShadows,
      globalStyles,
      gradients,
+     welcomeStyles,
 };
 
 // Common Theme object for easy access if needed

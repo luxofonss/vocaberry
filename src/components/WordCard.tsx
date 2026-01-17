@@ -17,6 +17,7 @@ import { getDisplayImageUrl, isValidImageUrl } from '../utils/imageUtils';
 import { spacing, borderRadius } from '../theme';
 import { shadows } from '../theme/shadows';
 import { SkeletonLoader } from './SkeletonLoader';
+import { SpeechService } from '../services/SpeechService';
 
 // Grid configuration
 const GRID_CONFIG = {
@@ -91,6 +92,13 @@ const WordCardComponent: React.FC<WordCardProps> = ({
       friction: 5
     }).start();
   }, [scaleValue]);
+
+  const handleAudioPress = useCallback((e: any) => {
+    e.stopPropagation(); // Prevent card press event
+    if (word.audioUrl && word.word) {
+      SpeechService.speakWord(word.word);
+    }
+  }, [word.audioUrl, word.word]);
 
   const containerStyle = useMemo(() => [
     styles.container,
@@ -213,6 +221,22 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  // Audio icon overlay - translucent grey circle bottom right
+  audioIconContainer: {
+    position: 'absolute',
+    bottom: 10,
+    right: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(156, 163, 175, 0.85)', // Translucent grey per design
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.subtle,
+  },
+  audioIcon: {
+    fontSize: 16,
   },
   textContainer: {
     marginTop: 10,

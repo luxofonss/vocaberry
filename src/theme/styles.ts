@@ -4,6 +4,7 @@ import { StyleSheet } from 'react-native';
 import { colors } from './colors';
 import { shadows } from './shadows';
 import { borderRadius, spacing } from './spacing';
+import { typography } from './typography';
 
 export const globalStyles = StyleSheet.create({
      // Container styles
@@ -346,7 +347,68 @@ export const gradients = {
           start: { x: 0, y: 0 },
           end: { x: 0, y: 1 },
      },
+
+     // Welcome button gradient - Purple gradient
+     buttonWelcome: {
+          colors: [colors.welcome.buttonPurpleStart, colors.welcome.buttonPurpleEnd],
+          start: { x: 0, y: 0 },
+          end: { x: 1, y: 0 }, // Horizontal gradient
+     },
 };
+
+// Welcome Screen Styles
+export const welcomeStyles = StyleSheet.create({
+    // Typography
+    titleSmall: {
+        fontSize: 28,
+        fontWeight: typography.weights.bold,
+        color: colors.welcome.textDark,
+        letterSpacing: -0.3,
+    },
+    titleLarge: {
+        fontSize: 42,
+        fontWeight: typography.weights.bold,
+        color: colors.welcome.textDark,
+        letterSpacing: -0.5,
+    },
+    label: {
+        fontSize: typography.sizes.sm,
+        fontWeight: typography.weights.semibold,
+        color: colors.welcome.textLabel,
+        textTransform: 'uppercase',
+        letterSpacing: 1,
+    },
+    buttonText: {
+        fontSize: typography.sizes.lg,
+        fontWeight: typography.weights.semibold,
+        color: colors.white,
+        letterSpacing: 0.3,
+    },
+    // Button styles
+    buttonWelcome: {
+        paddingVertical: spacing.puffyMd,
+        paddingHorizontal: spacing.puffyXl,
+        borderRadius: borderRadius.clayButton,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row',
+        ...shadows.clayPrimary,
+    },
+    // Input styles
+    inputWelcome: {
+        height: 60,
+        width: '100%',
+        backgroundColor: colors.white,
+        borderRadius: borderRadius.clayInput,
+        paddingHorizontal: spacing.puffyMd,
+        paddingVertical: spacing.md,
+        paddingRight: 50, // Space for icon
+        fontSize: typography.sizes.md,
+        color: colors.textPrimary,
+        borderWidth: 2,
+        borderColor: colors.welcome.borderInput,
+    },
+});
 
 // Re-export spacing and borderRadius for convenience
 export { spacing, borderRadius };

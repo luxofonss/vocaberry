@@ -195,7 +195,7 @@ export const WordPreviewModal: React.FC<WordPreviewModalProps> = ({
                       <Text style={styles.phoneticText}>{currentWordData.phonetic || DEFAULTS.phonetic}</Text>
                     </View>
                   </View>
-                  <SpeakButton text={currentWordData.word} size="medium" isLoading={isImageLoading} />
+                  <SpeakButton audioUrl={currentWordData.audioUrl} text={currentWordData.word} size="medium" isLoading={isImageLoading} />
                 </View>
 
                 <View style={styles.divider} />

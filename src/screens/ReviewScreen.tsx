@@ -286,7 +286,7 @@ export const ReviewScreen: React.FC = () => {
             >
               <View style={styles.wordRow}>
                 <Text style={styles.wordText}>{currentWord.word}</Text>
-                <SpeakButton text={currentWord.word} size="small" />
+                <SpeakButton audioUrl={currentWord.audioUrl} text={currentWord.word} size="small" />
               </View>
               <Text style={styles.definitionText}>{currentWord.meanings[0]?.definition || REVIEW_TEXTS.noDefinition}</Text>
             </Animated.View>

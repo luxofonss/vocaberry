@@ -7,15 +7,19 @@ import {
   TextInput,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   KeyboardAvoidingView,
   Platform,
   Dimensions,
+  ScrollView,
+  ImageBackground,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
-import { theme, colors, typography, spacing, borderRadius, shadows } from '../theme';
+import { Ionicons } from '@expo/vector-icons';
+import { theme, colors, typography, spacing, borderRadius, shadows, welcomeStyles, gradients } from '../theme';
 import { RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
 
@@ -51,57 +55,66 @@ export const WelcomeScreen: React.FC = () => {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.keyboardView}
       >
-        <LinearGradient
-          colors={[colors.primaryLighter, colors.primaryLight, colors.primary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.gradient}
+        <ImageBackground
+          source={require('../../assets/welcome.jpg')}
+          style={styles.backgroundImage}
+          resizeMode="cover"
         >
-          <View style={styles.content}>
-            {/* Welcome Icon/Emoji */}
-            <View style={styles.iconContainer}>
-              <Text style={styles.welcomeEmoji}>👋</Text>
-            </View>
-
-            {/* Welcome Text */}
-            <Text style={styles.welcomeTitle}>Welcome!</Text>
-            <Text style={styles.welcomeSubtitle}>
-              Let's get started by telling us your name
-            </Text>
-
-            {/* Name Input */}
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={styles.input}
-                placeholder="Enter your name"
-                placeholderTextColor={colors.textLight}
-                value={name}
-                onChangeText={setName}
-                autoFocus
-                autoCapitalize="words"
-                autoCorrect={false}
-                returnKeyType="done"
-                onSubmitEditing={handleContinue}
-                editable={!isSubmitting}
-              />
-            </View>
-
-            {/* Continue Button */}
-            <TouchableOpacity
-              style={[
-                styles.continueButton,
-                (!name.trim() || isSubmitting) && styles.continueButtonDisabled,
-              ]}
-              onPress={handleContinue}
-              disabled={!name.trim() || isSubmitting}
-              activeOpacity={0.8}
+            <ScrollView
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
             >
-              <Text style={styles.continueButtonText}>
-                {isSubmitting ? 'Getting Started...' : 'Continue'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </LinearGradient>
+              <View style={styles.content}>
+              {/* Name Input with Label */}
+              <View style={styles.inputContainer}>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={welcomeStyles.inputWelcome}
+                    placeholder="Enter your name..."
+                    placeholderTextColor={colors.welcome.textPlaceholder}
+                    value={name}
+                    onChangeText={setName}
+                    autoFocus
+                    autoCapitalize="words"
+                    autoCorrect={false}
+                    returnKeyType="done"
+                    onSubmitEditing={handleContinue}
+                    editable={!isSubmitting}
+                  />
+                  <View style={styles.inputIcon}>
+                    <Ionicons name="person-outline" size={20} color={colors.welcome.buttonPurpleEnd} />
+                  </View>
+                </View>
+              </View>
+
+              {/* Get Started Button */}
+              <Pressable
+                style={({ pressed }) => [
+                  welcomeStyles.buttonWelcome,
+                  styles.getStartedButtonWidth,
+                  (!name.trim() || isSubmitting) && styles.getStartedButtonDisabled,
+                  pressed && styles.getStartedButtonPressed,
+                ]}
+                onPress={handleContinue}
+                disabled={!name.trim() || isSubmitting}
+              >
+                <LinearGradient
+                  colors={gradients.buttonWelcome.colors as [string, string, ...string[]]}
+                  start={gradients.buttonWelcome.start}
+                  end={gradients.buttonWelcome.end}
+                  style={[StyleSheet.absoluteFill, { borderRadius: borderRadius.clayButton }]}
+                />
+                <Text style={welcomeStyles.buttonText}>
+                  {isSubmitting ? 'Getting Started...' : 'Get Started'}
+                </Text>
+                {!isSubmitting && (
+                  <Ionicons name="arrow-forward" size={20} color={colors.white} style={styles.arrowIcon} />
+                )}
+              </Pressable>
+              </View>
+            </ScrollView>
+        </ImageBackground>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -114,103 +127,62 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  gradient: {
+  backgroundImage: {
     flex: 1,
+    width: '100%',
+    height: '100%',
+  },
+  gradientOverlay: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
-    alignItems: 'center',
+    paddingVertical: spacing.xxxl,
   },
   content: {
     width: SCREEN_WIDTH * 0.85,
     maxWidth: 400,
     alignItems: 'center',
+    alignSelf: 'center',
   },
-  // Claymorphism icon container - floating 3D pill with inner highlight
-  iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  // Title container with two-line structure
+  titleContainer: {
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xl,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.4)',
-    borderBottomWidth: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    shadowColor: 'rgba(0, 0, 0, 0.15)',
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 1,
-    shadowRadius: 32,
-    elevation: 12,
-  },
-  welcomeEmoji: {
-    fontSize: 64,
-  },
-  welcomeTitle: {
-    fontSize: typography.sizes.xxl,
-    fontWeight: '700',
-    color: colors.white,
-    marginBottom: spacing.sm,
-    textAlign: 'center',
-  },
-  welcomeSubtitle: {
-    fontSize: typography.sizes.md,
-    color: 'rgba(255, 255, 255, 0.9)',
-    textAlign: 'center',
-    marginBottom: spacing.xl,
-    lineHeight: 24,
+    marginBottom: spacing.xxl,
   },
   inputContainer: {
     width: '100%',
     marginBottom: spacing.lg,
   },
-  // Claymorphism input - soft clay with inner shadow
-  input: {
+  inputWrapper: {
+    position: 'relative',
     width: '100%',
-    height: 60,
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.clayInput,
-    paddingHorizontal: spacing.puffyMd,
-    fontSize: typography.sizes.md,
-    color: colors.textPrimary,
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerDark,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.shadowInnerLight,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    shadowColor: colors.shadowOuter,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 1,
-    shadowRadius: 20,
-    elevation: 8,
   },
-  // Claymorphism continue button - floating 3D clay with inner highlight
-  continueButton: {
+  inputIcon: {
+    position: 'absolute',
+    right: spacing.puffyMd,
+    top: '50%',
+    transform: [{ translateY: -10 }],
+  },
+  getStartedButtonWidth: {
     width: '100%',
-    height: 60,
-    backgroundColor: colors.white,
-    borderRadius: borderRadius.clayButton,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-    borderBottomWidth: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    shadowColor: colors.shadowOuter,
-    shadowOffset: { width: 0, height: 16 },
-    shadowOpacity: 1,
-    shadowRadius: 32,
-    elevation: 12,
   },
-  continueButtonDisabled: {
+  getStartedButtonDisabled: {
     opacity: 0.5,
   },
-  continueButtonText: {
-    fontSize: typography.sizes.md,
-    fontWeight: '700',
-    color: colors.primary,
+  // Active: Scale 0.98 per rules.md
+  getStartedButtonPressed: {
+    transform: [{ scale: 0.98 }],
+  },
+  arrowIcon: {
+    marginLeft: spacing.xs,
+  },
+  legalText: {
+    fontSize: 12, // Labels: 12-14px per rules.md
+    color: '#9CA3AF', // Medium Gray per rules.md
+    textAlign: 'center',
+    marginTop: spacing.xl,
+    paddingHorizontal: spacing.lg,
   },
 });

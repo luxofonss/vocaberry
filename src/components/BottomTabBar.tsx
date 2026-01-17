@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Keyboard, Platform, Pressable } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { colors, shadows, innerShadows, borderRadius } from '../theme';
 import { TabType } from '../types';
 
@@ -60,15 +60,9 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
   return (
     <View style={styles.containerWrapper}>
       <View style={styles.floatRow}>
-        {/* MAIN PILL - Claymorphism with gradient background */}
+        {/* MAIN PILL - Claymorphism white background per rules.md */}
         <View style={styles.mainPillContainer}>
-          <LinearGradient
-            colors={[colors.gradientCardTop, colors.gradientCardBottom]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 0, y: 1 }}
-            style={styles.mainPillGradient}
-          >
-            <BlurView intensity={60} tint="light" style={styles.mainPillBlur}>
+          <BlurView intensity={60} tint="light" style={styles.mainPillBlur}>
               {/* Home Tab */}
               <TouchableOpacity
                 style={styles.tabItem}
@@ -78,9 +72,21 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
                   styles.iconContainer,
                   activeTab === 'home' ? styles.iconEmbossed : styles.iconDebossed
                 ]}>
-                  <Text style={[styles.tabIcon, activeTab === 'home' && styles.activeIcon]}>🏠</Text>
+                  <Ionicons
+                    name={activeTab === 'home' ? 'home' : 'home-outline'}
+                    size={28}
+                    color={activeTab === 'home' ? colors.primary : colors.textSecondary}
+                  />
                 </View>
-                {activeTab === 'home' && <View style={styles.dot} />}
+                <Text style={[
+                  styles.tabLabel, 
+                  activeTab === 'home' && [
+                    styles.tabLabelActive, 
+                    { color: colors.primary }
+                  ]
+                ]}>
+                  Home
+                </Text>
               </TouchableOpacity>
 
               {/* Topics Tab */}
@@ -92,12 +98,24 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
                   styles.iconContainer,
                   activeTab === 'topics' ? styles.iconEmbossed : styles.iconDebossed
                 ]}>
-                  <Text style={[styles.tabIcon, activeTab === 'topics' && styles.activeIcon]}>📚</Text>
+                  <Ionicons
+                    name={activeTab === 'topics' ? 'folder' : 'folder-outline'}
+                    size={28}
+                    color={activeTab === 'topics' ? colors.primary : colors.textSecondary}
+                  />
                 </View>
-                {activeTab === 'topics' && <View style={styles.dot} />}
+                <Text style={[
+                  styles.tabLabel, 
+                  activeTab === 'topics' && [
+                    styles.tabLabelActive,
+                    { color: colors.primary }
+                  ]
+                ]}>
+                  Topics
+                </Text>
               </TouchableOpacity>
 
-              {/* ADD BUTTON - Gradient fill with clay shadow */}
+              {/* ADD BUTTON - FAB per rules.md: 64x64px, #7C3AED, Level 4 shadow, 4px white border */}
               <Pressable
                 onPress={onAddPress}
                 onPressIn={handleAddPressIn}
@@ -107,20 +125,12 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
                   pressed && styles.addBtnPressed
                 ]}
               >
-                <LinearGradient
-                  colors={[colors.gradientButtonTop, colors.gradientButtonBottom]}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 0, y: 1 }}
-                  style={[
-                    styles.addBtn,
-                    isAddPressed && styles.addBtnPressedInner
-                  ]}
-                >
-                  <View style={styles.plusContainer}>
-                    <View style={styles.plusVertical} />
-                    <View style={styles.plusHorizontal} />
-                  </View>
-                </LinearGradient>
+                <View style={[
+                  styles.addBtn,
+                  isAddPressed && styles.addBtnPressedInner
+                ]}>
+                  <Ionicons name="add" size={32} color={colors.white} />
+                </View>
               </Pressable>
 
               {/* Practice Tab */}
@@ -132,9 +142,18 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
                   styles.iconContainer,
                   activeTab === 'practice' ? styles.iconEmbossed : styles.iconDebossed
                 ]}>
-                  <Text style={[styles.tabIcon, activeTab === 'practice' && styles.activeIcon]}>🎯</Text>
+                  <Ionicons
+                    name={activeTab === 'practice' ? 'school' : 'school-outline'}
+                    size={28}
+                    color={activeTab === 'practice' ? colors.textSecondary : colors.textSecondary}
+                  />
                 </View>
-                {activeTab === 'practice' && <View style={styles.dot} />}
+                <Text style={[
+                  styles.tabLabel, 
+                  activeTab === 'practice' && styles.tabLabelActive
+                ]}>
+                  Practice
+                </Text>
               </TouchableOpacity>
 
               {/* Search Tab */}
@@ -142,12 +161,21 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
                 style={styles.tabItem}
                 onPress={onSearchPress}
               >
-                <View style={styles.iconContainer}>
-                  <Text style={styles.tabIcon}>🔍</Text>
+                <View style={[
+                  styles.iconContainer,
+                  styles.iconDebossed
+                ]}>
+                  <Ionicons
+                    name="search-outline"
+                    size={28}
+                    color={colors.textSecondary}
+                  />
                 </View>
+                <Text style={styles.tabLabel}>
+                  Search
+                </Text>
               </TouchableOpacity>
             </BlurView>
-          </LinearGradient>
         </View>
       </View>
     </View>
@@ -168,90 +196,106 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  // Main pill container with clayStrong shadow and inner highlight
+  // Main pill container - Bottom nav shadow per rules.md: 0 -2px 12px rgba(0, 0, 0, 0.06)
   mainPillContainer: {
     borderRadius: 36,
-    overflow: 'hidden',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.6)',
-    ...shadows.clayStrong,
+    backgroundColor: colors.white, // White background per rules.md
+    // Custom bottom shadow for navigation bar
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: -2 }, // Negative height for bottom shadow
+        shadowOpacity: 0.06,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
   },
-  // Gradient background for main pill
-  mainPillGradient: {
-    borderRadius: 36,
-    overflow: 'hidden',
-  },
-  // Blur overlay inside gradient - puffy appearance
+  // Main pill content - white background with claymorphism
   mainPillBlur: {
     flexDirection: 'row',
-    height: 64,
+    height: 80, // 72-80px per rules.md
     paddingHorizontal: 16,
     alignItems: 'center',
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255, 251, 248, 0.9)',
+    justifyContent: 'space-around',
+    backgroundColor: colors.white,
+    borderRadius: 36,
+    // Inner highlight for claymorphism
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
   },
   tabItem: {
-    paddingHorizontal: 12,
+    flex: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    height: '100%',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    minWidth: 60,
   },
-  // Icon container - larger for better touch
+  // Icon container - claymorphism with embossed/debossed effect
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    marginBottom: 4,
   },
-  // Embossed effect for active tab icons (raised appearance)
+  // Embossed effect for active tab icons (raised clay appearance)
   iconEmbossed: {
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    backgroundColor: colors.cardSurface,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.8)',
+    borderTopColor: colors.shadowInnerLight,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.shadowInnerDark,
     ...shadows.claySoft,
   },
-  // Debossed effect for inactive tab icons (pressed-in appearance)
+  // Debossed effect for inactive tab icons (pressed-in clay appearance)
   iconDebossed: {
     backgroundColor: 'rgba(139, 124, 246, 0.08)',
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(124, 58, 237, 0.15)',
   },
-  tabIcon: {
-    fontSize: 22,
-    opacity: 0.4,
+  // Tab label text
+  tabLabel: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '500',
+    marginTop: 2,
   },
-  activeIcon: {
-    opacity: 1,
+  tabLabelActive: {
+    fontWeight: '600',
   },
-  // Dot indicator with glow
-  dot: {
-    position: 'absolute',
-    bottom: 6,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.primary,
-    ...shadows.clayGlow,
-  },
-  // Add button outer container - larger and more prominent
+  // Add button outer container - FAB per rules.md: 64x64px, Level 4 shadow, 4px white border
   addBtnOuter: {
-    marginHorizontal: 10,
-    borderRadius: 28,
-    ...shadows.clayPrimary,
+    marginHorizontal: 8,
+    width: 64, // FAB size per rules.md
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: colors.white, // White border background
+    padding: 4, // 4px border per rules.md
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.level4, // Level 4 shadow per rules.md
+    zIndex: 10, // z-index: 10 per rules.md
   },
-  // Add button pressed state
+  // Add button pressed state - squish animation
   addBtnPressed: {
     transform: [{ scale: 0.92 }],
     ...shadows.clayPressed,
   },
-  // Add button with gradient fill - larger
+  // Add button - gradient fill with claymorphism inner highlight
   addBtn: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 56, // 64 - 4px border * 2
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    // Inner highlight for 3D effect
-    borderTopWidth: 1.5,
+    backgroundColor: colors.primary, // #7C3AED per rules.md
+    // Inner highlight for 3D clay effect
+    borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.4)',
     borderBottomWidth: 0,
     borderLeftWidth: 0,
@@ -260,25 +304,5 @@ const styles = StyleSheet.create({
   // Add button pressed inner state
   addBtnPressedInner: {
     borderTopWidth: 0,
-  },
-  plusContainer: {
-    width: 20,
-    height: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  plusVertical: {
-    width: 3,
-    height: 18,
-    backgroundColor: 'white',
-    borderRadius: 1.5,
-    position: 'absolute',
-  },
-  plusHorizontal: {
-    width: 18,
-    height: 3,
-    backgroundColor: 'white',
-    borderRadius: 1.5,
-    position: 'absolute',
   },
 });

@@ -404,7 +404,7 @@ export const WordDetailScreen: React.FC = () => {
           </View>
           <View style={styles.phoneticContainer}>
             <Text style={styles.phoneticText}>{item.phonetic || word?.phonetic || DEFAULTS.phonetic}</Text>
-            <SpeakButton text={word?.word || ''} size="small" isLoading={isImageLoading} />
+            <SpeakButton audioUrl={word?.audioUrl} text={word?.word || ''} size="small" isLoading={isImageLoading} />
           </View>
         </View>
 
@@ -446,7 +446,7 @@ export const WordDetailScreen: React.FC = () => {
                   onWordPress={handleWordPress}
                   style={styles.exampleText}
                 />
-                <SpeakButton text={item.example} size="small" />
+                <SpeakButton audioUrl={item.exampleAudioUrl} text={item.example} size="small" />
               </View>
             </View>
           </View>
@@ -474,15 +474,13 @@ export const WordDetailScreen: React.FC = () => {
                       onWordPress={handleWordPress}
                       style={styles.userExampleText}
                     />
-                    <SpeakButton text={userExample.text} size="small" />
+                    <SpeakButton audioUrl={userExample.audioUrl} text={userExample.text} size="small" />
                   </View>
                 </View>
               </View>
             ))}
           </View>
         )}
-
-        <View style={{ height: spacing.huge }} />
       </ScrollView>
     </View>
   );
@@ -496,29 +494,32 @@ export const WordDetailScreen: React.FC = () => {
     id: 'loading'
   } as unknown as Word;
 
-  // Get display image URL using priority logic (customImageUrl > imageUrl)
-  // Requirements: 9.1 - Display images using priority logic (custom > server)
   const displayImageUrl = word ? getDisplayImageUrl(word) : '';
 
-  // Check if word is loading (for skeleton and disabling audio button)
-  // Requirements: 9.7, 9.8, 9.9
   const isImageLoading = useMemo(() => {
     if (!word) return false;
     return isWordLoading(word);
   }, [word]);
 
   // Create a reversed copy for display so newest/user-added meanings usually show first
-  const displayedMeanings = [...displayWord.meanings];
+  const displayedMeanings = [...displayWord.meanings].reverse();
   const currentMeaning = displayedMeanings[currentIndex];
-  const posAbbr = currentMeaning?.partOfSpeech ? (currentMeaning.partOfSpeech.length > 4 ? currentMeaning.partOfSpeech.substring(0, 3) + '.' : currentMeaning.partOfSpeech.toLowerCase()) : '';
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.headerSafe}>
-        <View style={styles.navHeader}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={styles.navHeader}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
+        </View>
+        <View style={{ flex: 1 }}>
+              <View style={styles.wordTitleRow}>
+                <Text style={styles.wordTitle}>{displayWord.word}</Text>
+                
+              </View>
+            </View>
         </View>
 
         <View style={styles.fixedHeader}>
@@ -546,27 +547,6 @@ export const WordDetailScreen: React.FC = () => {
             )}
           </View>
 
-          <View style={styles.wordInfoRow}>
-            <View style={{ flex: 1 }}>
-              <View style={styles.wordTitleRow}>
-                <Text style={styles.wordTitle}>{displayWord.word}</Text>
-                {posAbbr && !loading ? (
-                  <View style={styles.metaTag}>
-                    <Text style={styles.metaTagText}>{posAbbr}</Text>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-            {!loading && displayedMeanings.length > 0 && (
-              <View style={styles.paginationColumn}>
-                <View style={styles.paginationContainer}>
-                  {displayedMeanings.map((_, i) => (
-                    <View key={i} style={[styles.dot, currentIndex === i && styles.activeDot]} />
-                  ))}
-                </View>
-              </View>
-            )}
-          </View>
         </View>
         <View style={styles.divider} />
       </View>
@@ -577,19 +557,36 @@ export const WordDetailScreen: React.FC = () => {
             <SkeletonLoader width={200} height={24} borderRadius={8} />
           </View>
         ) : (
-          <FlatList
+          <View style={{ flex: 1, position: 'relative' }}>
+            <FlatList
             data={displayedMeanings}
             keyExtractor={(item) => item.id}
             renderItem={renderMeaningSlide}
             horizontal pagingEnabled showsHorizontalScrollIndicator={false}
-            onMomentumScrollEnd={(ev) => {
-              const newIndex = Math.round(ev.nativeEvent.contentOffset.x / SCREEN_WIDTH);
-              setCurrentIndex(newIndex);
-            }}
-            initialNumToRender={1} windowSize={3}
-            style={{ flex: 1 }}
+            snapToInterval={SCREEN_WIDTH}  
+          snapToAlignment="start"
+          decelerationRate="fast"  
+          onScroll={(ev) => {
+            const newIndex = Math.round(ev.nativeEvent.contentOffset.x / SCREEN_WIDTH);
+            setCurrentIndex(newIndex);
+          }}
+          scrollEventThrottle={16}  
+          initialNumToRender={1}
+          windowSize={3}
+          style={{ flex: 1 }}
           />
+           {displayedMeanings.length > 1 && ( 
+    <View style={[styles.paginationColumn, { position: 'absolute', bottom: 0, left: 0, right: 0 }]}>
+      <View style={styles.paginationContainer}>
+        {displayedMeanings.map((_, i) => (
+          <View key={i} style={[styles.dot, currentIndex === i && styles.activeDot]} />
+        ))}
+      </View>
+    </View>
+  )}
+          </View>
         )}
+        
       </View>
 
       <View style={styles.actionBarSafe}>
@@ -661,27 +658,24 @@ const styles = StyleSheet.create({
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // Claymorphism back button - soft clay with inner highlight
   backButton: {
-    width: 40,
-    height: 40,
+    width: 30,
+    height: 30,
+    backgroundColor: colors.cardSurface,
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 20,
-    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.clayInput,
     borderTopWidth: 1,
     borderTopColor: colors.shadowInnerLight,
-    borderBottomWidth: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
     ...shadows.claySoft,
   },
-  backIcon: { fontSize: typography.sizes.xl, color: colors.textPrimary, fontWeight: typography.weights.semibold },
+  backIcon: { fontSize: typography.sizes.xxl, color: colors.textPrimary, fontWeight: typography.weights.semibold },
 
   fixedHeader: { paddingHorizontal: spacing.xxl, paddingBottom: spacing.sm },
   // Claymorphism header image wrapper - floating 3D clay tile
   headerImageWrapper: {
     width: '100%',
     height: 130,
-    borderRadius: borderRadius.clayCard,
+    borderRadius: borderRadius.xs,
     overflow: 'hidden',
     marginBottom: spacing.sm,
     backgroundColor: colors.backgroundSoft,
@@ -690,23 +684,10 @@ const styles = StyleSheet.create({
     ...shadows.clayMedium,
   },
   headerImage: { width: '100%', height: '100%' },
-  wordInfoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   wordTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 0 },
   wordTitle: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.extraBold, color: colors.textPrimary, letterSpacing: -0.4 },
-  // Claymorphism meta tag - floating 3D pill badge
-  metaTag: {
-    backgroundColor: colors.primarySoft,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: borderRadius.clayBadge,
-    marginTop: 4,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(139, 124, 246, 0.2)',
-    ...shadows.subtle,
-  },
-  metaTagText: { color: colors.primary, fontWeight: typography.weights.extraBold, fontSize: typography.sizes.xs, textTransform: 'uppercase', letterSpacing: 0.5 },
-  paginationColumn: { justifyContent: 'flex-end', marginBottom: 6 },
-  paginationContainer: { flexDirection: 'row', gap: 6 },
+  paginationColumn: { paddingTop: 4, paddingBottom: 4 },
+  paginationContainer: { display: 'flex', flexDirection: 'row', justifyContent: 'center', gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.borderMedium },
   activeDot: { backgroundColor: colors.primary, width: 18, height: 6, borderRadius: 3 },
   divider: { height: 1, backgroundColor: colors.borderLight, opacity: 0.3 },

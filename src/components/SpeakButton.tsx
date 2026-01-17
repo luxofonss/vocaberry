@@ -14,7 +14,8 @@ import { ANIMATION } from '../constants';
 type ButtonSize = 'small' | 'medium' | 'large';
 
 interface SpeakButtonProps {
-  text: string;
+  audioUrl?: string;
+  text?: string; // Fallback for TTS if audioUrl is not available
   size?: ButtonSize;
   isLoading?: boolean;
 }
@@ -35,6 +36,7 @@ const SPEAKING_DURATION_MS = 1500;
 const DISABLED_OPACITY = 0.4;
 
 export const SpeakButton: React.FC<SpeakButtonProps> = ({
+  audioUrl,
   text,
   size = 'medium',
   isLoading = false,
@@ -43,7 +45,7 @@ export const SpeakButton: React.FC<SpeakButtonProps> = ({
   const scaleValue = useRef(new Animated.Value(1)).current;
 
   const dimensions = useMemo(() => SIZE_CONFIG[size], [size]);
-  const isDisabled = isLoading || !text;
+  const isDisabled = isLoading || (!audioUrl && !text);
 
   const handlePress = useCallback(async () => {
     if (isDisabled) return;
@@ -62,12 +64,33 @@ export const SpeakButton: React.FC<SpeakButtonProps> = ({
       }),
     ]).start();
 
-    SpeechService.speakWord(text);
-
-    setTimeout(() => {
-      setIsSpeaking(false);
-    }, SPEAKING_DURATION_MS);
-  }, [text, scaleValue, isDisabled]);
+    try {
+      // Prefer audio URL if available
+      if (audioUrl && audioUrl.trim() !== '') {
+        await SpeechService.playAudio(audioUrl);
+        setIsSpeaking(false);
+      } else if (text) {
+        // Fallback to TTS
+        SpeechService.speakWord(text);
+        setTimeout(() => {
+          setIsSpeaking(false);
+        }, SPEAKING_DURATION_MS);
+      } else {
+        setIsSpeaking(false);
+      }
+    } catch (error) {
+      console.error('[SpeakButton] Error playing audio:', error);
+      // Fallback to TTS if audio playback fails
+      if (text) {
+        SpeechService.speakWord(text);
+        setTimeout(() => {
+          setIsSpeaking(false);
+        }, SPEAKING_DURATION_MS);
+      } else {
+        setIsSpeaking(false);
+      }
+    }
+  }, [audioUrl, text, scaleValue, isDisabled]);
 
   const buttonStyle = useMemo(() => ({
     width: dimensions.width,
