@@ -173,7 +173,6 @@ export const ConversationDetailScreen: React.FC = () => {
 
      const handleWordPress = useCallback(async (text: string) => {
           try {
-               setModalVisible(true);
                setIsLookupLoading(true);
                setLookupStatus(`Analyzing "${text}"...`);
 
@@ -181,20 +180,27 @@ export const ConversationDetailScreen: React.FC = () => {
 
                if (!result) {
                     Alert.alert('Not Found', `Could not find "${text}" or it has no definition.`);
-                    setModalVisible(false);
+                    return;
+               }
+
+               // Navigation logic for existing words is now handled automatically by WordPreviewModal
+               // but we can also handle it here for zero-flicker experience
+               if (!result.isNew) {
+                    setIsLookupLoading(false);
+                    navigation.navigate('WordDetail', { wordId: result.word.id });
                     return;
                }
 
                setSelectedWordData(result.word);
-               setIsSelectedWordNew(result.isNew);
+               setIsSelectedWordNew(true);
+               setModalVisible(true);
           } catch (error: any) {
                console.log('[ConversationDetail] Lookup failed', error);
                Alert.alert('Error', error.message || 'Lookup failed');
-               setModalVisible(false);
           } finally {
                setIsLookupLoading(false);
           }
-     }, []);
+     }, [navigation]);
 
      const handleSaveNewWord = useCallback(async (newWord: Word) => {
           try {
@@ -209,7 +215,8 @@ export const ConversationDetailScreen: React.FC = () => {
 
      const handleGoToDetail = useCallback((id: string) => {
           setModalVisible(false);
-          navigation.navigate('WordDetail', { wordId: id });
+          // Use push for WordDetail to allow stacking multiple word depths
+          navigation.push('WordDetail', { wordId: id });
      }, [navigation]);
 
      const handleAddToPractice = async () => {
@@ -492,7 +499,7 @@ export const ConversationDetailScreen: React.FC = () => {
                     wordData={selectedWordData}
                     isNew={isSelectedWordNew}
                     isLoading={isLookupLoading}
-                    loadingStatus={lookupStatus}
+                    statusText={lookupStatus}
                     onClose={() => setModalVisible(false)}
                     onSave={handleSaveNewWord}
                     onGoToDetail={handleGoToDetail}

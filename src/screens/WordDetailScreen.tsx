@@ -200,7 +200,6 @@ export const WordDetailScreen: React.FC = () => {
 
   const handleWordPress = useCallback(async (text: string) => {
     try {
-      setModalVisible(true);
       setIsLookupLoading(true);
       setLookupStatus(DETAIL_TEXTS.analyzing.replace('{word}', text));
 
@@ -208,20 +207,25 @@ export const WordDetailScreen: React.FC = () => {
 
       if (!result) {
         Alert.alert(DETAIL_TEXTS.notFound, DETAIL_TEXTS.notFoundMessage.replace('{word}', text));
-        setModalVisible(false);
+        return;
+      }
+
+      if (!result.isNew) {
+        setIsLookupLoading(false);
+        navigation.push('WordDetail', { wordId: result.word.id });
         return;
       }
 
       setSelectedWordData(result.word);
-      setIsSelectedWordNew(result.isNew);
+      setIsSelectedWordNew(true);
+      setModalVisible(true);
     } catch (error: any) {
       console.log('[WordDetail] Lookup failed', error);
       Alert.alert(DETAIL_TEXTS.error, error.message || MESSAGES.errors.lookupFailed);
-      setModalVisible(false); // Close if fails
     } finally {
       setIsLookupLoading(false);
     }
-  }, []);
+  }, [navigation]);
 
   const handleSaveNewWord = useCallback(async (newWord: Word) => {
     try {
@@ -611,7 +615,7 @@ export const WordDetailScreen: React.FC = () => {
         wordData={selectedWordData}
         isNew={isSelectedWordNew}
         isLoading={isLookupLoading}
-        loadingStatus={lookupStatus}
+        statusText={lookupStatus}
         onClose={() => setModalVisible(false)}
         onSave={handleSaveNewWord}
         onGoToDetail={handleGoToDetail}

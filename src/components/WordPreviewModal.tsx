@@ -52,6 +52,15 @@ export const WordPreviewModal: React.FC<WordPreviewModalProps> = ({
     setCurrentWordData(wordData);
   }, [wordData]);
 
+  // Requirements: Auto-navigate if word already exists in library
+  useEffect(() => {
+    if (visible && !isNew && wordData && onGoToDetail) {
+      console.log(`[WordPreviewModal] 🚀 Word exists locally, navigating to detail: ${wordData.word}`);
+      onGoToDetail(wordData.id);
+      onClose();
+    }
+  }, [visible, isNew, wordData, onGoToDetail, onClose]);
+
   // Listen event wordImageUpdated để update image khi được generate
   useEffect(() => {
     if (!currentWordData?.id || !visible) return;

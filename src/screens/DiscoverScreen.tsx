@@ -68,8 +68,7 @@ export const DiscoverScreen: React.FC = () => {
 
      const handleWordPress = async (word: string) => {
           setIsLookupLoading(true);
-          setModalVisible(true);
-          setLookupStatus('Looking up...');
+          setLookupStatus('Checking library...');
 
           try {
                // 1. Check if word exists in library
@@ -77,20 +76,24 @@ export const DiscoverScreen: React.FC = () => {
                const existing = existingWords.find(w => w.word.toLowerCase() === word.toLowerCase());
 
                if (existing) {
-                    setSelectedWordData(existing);
-                    setIsSelectedWordNew(false);
+                    setIsLookupLoading(false);
+                    navigation.navigate('WordDetail', { wordId: existing.id });
+                    return;
+               }
+
+               // 2. Word not in library, open lookup modal
+               setModalVisible(true);
+               setLookupStatus('Looking up...');
+
+               // Lookup from dictionary service
+               const data = await DictionaryService.lookup(word);
+               if (data) {
+                    setSelectedWordData(data.word);
+                    setIsSelectedWordNew(true);
                     setLookupStatus('');
                } else {
-                    // 2. Lookup from dictionary service
-                    const data = await DictionaryService.lookup(word);
-                    if (data) {
-                         setSelectedWordData(data.word);
-                         setIsSelectedWordNew(true);
-                         setLookupStatus('');
-                    } else {
-                         Alert.alert("Notice", `Could not find details for "${word}".`);
-                         setModalVisible(false);
-                    }
+                    Alert.alert("Notice", `Could not find details for "${word}".`);
+                    setModalVisible(false);
                }
           } catch (error) {
                console.error('Lookup error:', error);
