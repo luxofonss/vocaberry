@@ -82,26 +82,6 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
               </View>
             </TouchableOpacity>
 
-            {/* Topics Tab */}
-            <TouchableOpacity
-              style={styles.tabItem}
-              onPress={() => onTabChange('topics')}
-            >
-              <View style={[
-                styles.iconContainer,
-                activeTab === 'topics' ? styles.iconEmbossed : styles.iconDebossed
-              ]}>
-                <Ionicons
-                  name={activeTab === 'topics' ? 'folder' : 'folder-outline'}
-                  size={24}
-                  color={activeTab === 'topics' ? colors.primary : colors.textSecondary}
-                />
-              </View>
-            </TouchableOpacity>
-
-            {/* SPACER for Floating Button */}
-            <View style={{ width: 60 }} />
-
             {/* Practice Tab */}
             <TouchableOpacity
               style={styles.tabItem}
@@ -115,6 +95,26 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
                   name={activeTab === 'practice' ? 'school' : 'school-outline'}
                   size={24}
                   color={activeTab === 'practice' ? colors.primary : colors.textSecondary}
+                />
+              </View>
+            </TouchableOpacity>
+
+            {/* SPACER for Floating Button */}
+            <View style={{ width: 60 }} />
+
+            {/* Topics Tab */}
+            <TouchableOpacity
+              style={styles.tabItem}
+              onPress={() => onTabChange('topics')}
+            >
+              <View style={[
+                styles.iconContainer,
+                activeTab === 'topics' ? styles.iconEmbossed : styles.iconDebossed
+              ]}>
+                <Ionicons
+                  name={activeTab === 'topics' ? 'folder' : 'folder-outline'}
+                  size={24}
+                  color={activeTab === 'topics' ? colors.primary : colors.textSecondary}
                 />
               </View>
             </TouchableOpacity>

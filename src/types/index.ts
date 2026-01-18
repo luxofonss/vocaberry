@@ -102,12 +102,15 @@ export type RootStackParamList = {
      Review: undefined;
      Practice: { topic?: string }; // Topic-specific practice
      Settings: undefined;
+     SentencePractice: { sentenceId?: string }; // Practice mode for sentences
 };
 
 export interface Sentence {
      id: string;
      text: string;
      practiceCount: number;
+     lastPracticedAt?: string; // ISO Date String
+     totalScore?: number;      // Accumulated score
      createdAt: string;
      localCreatedAt?: string;
 }

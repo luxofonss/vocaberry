@@ -1,0 +1,664 @@
+// SentencePracticeScreen - Dedicated screen for sentence speaking practice
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+     View,
+     Text,
+     StyleSheet,
+     TouchableOpacity,
+     Alert,
+     Animated,
+     Easing,
+     Platform,
+     Dimensions,
+     ActivityIndicator,
+     ScrollView,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
+import * as FileSystem from 'expo-file-system/legacy';
+
+import { colors, typography, spacing, borderRadius, shadows } from '../theme';
+import { gradients } from '../theme/styles';
+import { Sentence, RootStackParamList } from '../types';
+import { StorageService } from '../services/StorageService';
+import { AiService } from '../services/AiService';
+import { ANIMATION } from '../constants';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'SentencePractice'>;
+type SentencePracticeRouteProp = RouteProp<RootStackParamList, 'SentencePractice'>;
+
+export const SentencePracticeScreen: React.FC = () => {
+     const navigation = useNavigation<NavigationProp>();
+     const route = useRoute<SentencePracticeRouteProp>();
+     const { sentenceId } = route.params || {};
+
+     // -- State --
+     const [sentences, setSentences] = useState<Sentence[]>([]);
+     const [currentIndex, setCurrentIndex] = useState(0);
+     const [loading, setLoading] = useState(true);
+
+     // Audio state
+     const [isRecording, setIsRecording] = useState(false);
+     const [isProcessing, setIsProcessing] = useState(false);
+     const [userAudioUri, setUserAudioUri] = useState<string | null>(null);
+     const [playingUserAudio, setPlayingUserAudio] = useState(false);
+
+     // Result state
+     const [result, setResult] = useState<{
+          accuracy: number;
+          realTranscript: string;
+          ipaTranscript: string;
+          isLetterCorrect: string;
+          userIpa: string;
+     } | null>(null);
+
+     // Refs
+     const audioRecorder = useRef<Audio.Recording | null>(null);
+     const userAudioSound = useRef<Audio.Sound | null>(null);
+     const pulseAnim = useRef(new Animated.Value(1)).current;
+     const fadeAnim = useRef(new Animated.Value(0)).current;
+
+     // -- Load Data --
+     useEffect(() => {
+          const loadData = async () => {
+               try {
+                    const allSentences = await StorageService.getSentences();
+                    if (allSentences.length === 0) {
+                         Alert.alert('No Sentences', 'Please add some sentences first!');
+                         navigation.goBack();
+                         return;
+                    }
+
+                    setSentences(allSentences);
+
+                    if (sentenceId) {
+                         const idx = allSentences.findIndex(s => s.id === sentenceId);
+                         if (idx !== -1) setCurrentIndex(idx);
+                    }
+               } catch (e) {
+                    console.error('Failed to load sentences', e);
+               } finally {
+                    setLoading(false);
+                    Animated.timing(fadeAnim, {
+                         toValue: 1,
+                         duration: 500,
+                         useNativeDriver: true,
+                    }).start();
+               }
+          };
+          loadData();
+     }, [sentenceId]);
+
+     // -- Animations --
+     const startPulse = useCallback(() => {
+          Animated.loop(
+               Animated.sequence([
+                    Animated.timing(pulseAnim, { toValue: 1.2, duration: 600, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+                    Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true, easing: Easing.inOut(Easing.ease) }),
+               ])
+          ).start();
+     }, [pulseAnim]);
+
+     const stopPulse = useCallback(() => {
+          pulseAnim.stopAnimation();
+          pulseAnim.setValue(1);
+     }, [pulseAnim]);
+
+     // -- Analysis Logic --
+     const analyzeSpeech = useCallback(async (uri: string) => {
+          setIsProcessing(true);
+          try {
+               const currentSentence = sentences[currentIndex];
+               const base64Audio = await FileSystem.readAsStringAsync(uri, {
+                    encoding: FileSystem.EncodingType.Base64,
+               });
+
+               const response = await AiService.checkPronunciationAccuracy(
+                    currentSentence.text,
+                    `data:audio/m4a;base64,${base64Audio}`
+               );
+
+               const data = response.data;
+               setResult({
+                    accuracy: data.pronunciation_accuracy,
+                    realTranscript: data.real_transcript,
+                    ipaTranscript: data.ipa_transcript,
+                    isLetterCorrect: data.is_letter_correct_all_words,
+                    userIpa: data.real_transcripts_ipa,
+               });
+
+               // Save progress
+               await StorageService.incrementSentencePractice(currentSentence.id, data.pronunciation_accuracy);
+          } catch (error) {
+               console.error('Submit error:', error);
+               Alert.alert('Analysis Failed', 'Sorry, we couldn\'t analyze your speech. Please try again.');
+          } finally {
+               setIsProcessing(false);
+          }
+     }, [sentences, currentIndex]);
+
+     // -- Audio Interaction --
+     const handleMicPress = useCallback(async () => {
+          if (isRecording) {
+               // STOP RECORDING
+               setIsRecording(false);
+               stopPulse();
+               try {
+                    if (!audioRecorder.current) return;
+                    await audioRecorder.current.stopAndUnloadAsync();
+                    const uri = audioRecorder.current.getURI();
+                    setUserAudioUri(uri);
+                    if (uri) {
+                         analyzeSpeech(uri); // AUTO CALL
+                    }
+               } catch (error) {
+                    console.error('Stop recording error:', error);
+               } finally {
+                    audioRecorder.current = null;
+                    Audio.setAudioModeAsync({
+                         allowsRecordingIOS: false,
+                         playsInSilentModeIOS: true,
+                         interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+                         shouldDuckAndroid: true,
+                         interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+                         staysActiveInBackground: false,
+                         playThroughEarpieceAndroid: false,
+                    }).catch(() => { });
+               }
+          } else {
+               // START RECORDING
+               setResult(null);
+               setUserAudioUri(null);
+               try {
+                    const { status } = await Audio.requestPermissionsAsync();
+                    if (status !== 'granted') {
+                         Alert.alert('Permission denied', 'Microphone access is required for practice.');
+                         return;
+                    }
+
+                    await Audio.setAudioModeAsync({
+                         allowsRecordingIOS: true,
+                         playsInSilentModeIOS: true,
+                         interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+                         shouldDuckAndroid: true,
+                         interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+                         staysActiveInBackground: false,
+                         playThroughEarpieceAndroid: false,
+                    });
+
+                    audioRecorder.current = new Audio.Recording();
+                    const recordingOptions: any = {
+                         android: {
+                              extension: '.m4a',
+                              outputFormat: Audio.AndroidOutputFormat.MPEG_4,
+                              audioEncoder: Audio.AndroidAudioEncoder.AAC,
+                              sampleRate: 44100,
+                              numberOfChannels: 1,
+                              bitRate: 128000,
+                         },
+                         ios: {
+                              extension: '.m4a',
+                              audioQuality: Audio.IOSAudioQuality.HIGH,
+                              sampleRate: 44100,
+                              numberOfChannels: 1,
+                              bitRate: 128000,
+                              linearPCMBitDepth: 16,
+                              linearPCMIsBigEndian: false,
+                              linearPCMIsFloat: false,
+                         },
+                    };
+
+                    await audioRecorder.current.prepareToRecordAsync(recordingOptions);
+                    await audioRecorder.current.startAsync();
+                    setIsRecording(true);
+                    startPulse();
+               } catch (error) {
+                    console.error('Start recording error:', error);
+                    setIsRecording(false);
+               }
+          }
+     }, [isRecording, stopPulse, startPulse, analyzeSpeech]);
+
+     const handlePlayBack = useCallback(async () => {
+          if (!userAudioUri) return;
+          try {
+               if (userAudioSound.current) {
+                    await userAudioSound.current.unloadAsync();
+               }
+               setPlayingUserAudio(true);
+               const { sound } = await Audio.Sound.createAsync(
+                    { uri: userAudioUri },
+                    { shouldPlay: true }
+               );
+               userAudioSound.current = sound;
+               sound.setOnPlaybackStatusUpdate((status) => {
+                    if (status.isLoaded && status.didJustFinish) {
+                         setPlayingUserAudio(false);
+                    }
+               });
+          } catch (error) {
+               console.error('Playback error:', error);
+               setPlayingUserAudio(false);
+          }
+     }, [userAudioUri]);
+
+     const handleNext = useCallback(() => {
+          if (currentIndex < sentences.length - 1) {
+               setCurrentIndex(prev => prev + 1);
+               setResult(null);
+               setUserAudioUri(null);
+          } else {
+               Alert.alert('Finish!', 'You have practiced all your sentences.', [
+                    { text: 'OK', onPress: () => navigation.goBack() }
+               ]);
+          }
+     }, [currentIndex, sentences, navigation]);
+     // -- Render Helpers --
+     const renderWordWithFeedback = (text: string, isCorrectStr: string) => {
+          return text.split('').map((char, index) => {
+               const isCorrect = isCorrectStr[index] === '1';
+               const isSpace = char === ' ' || char === '\n' || char === '\t';
+
+               if (isSpace) {
+                    return (
+                         <Text key={index} style={styles.charText}>
+                              {char}
+                         </Text>
+                    );
+               }
+
+               return (
+                    <Text
+                         key={index}
+                         style={[
+                              styles.charText,
+                              isCorrect ? styles.charCorrect : styles.charIncorrect
+                         ]}
+                    >
+                         {char}
+                    </Text>
+               );
+          });
+     };
+
+     if (loading) {
+          return (
+               <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+               </View>
+          );
+     }
+
+     const currentSentence = sentences[currentIndex];
+
+     return (
+          <LinearGradient
+               colors={gradients.backgroundMain.colors as [string, string, ...string[]]}
+               style={styles.container}
+          >
+               <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
+                    {/* Header */}
+                    <View style={styles.header}>
+                         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                              <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
+                         </TouchableOpacity>
+                         <Text style={styles.headerTitle}>Practice Speaking</Text>
+                         <View style={styles.progressBadge}>
+                              <Text style={styles.progressText}>{currentIndex + 1}/{sentences.length}</Text>
+                         </View>
+                    </View>
+
+                    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                         <Animated.View style={[styles.mainCard, shadows.claySoft, { opacity: fadeAnim }]}>
+                              <View style={styles.cardHeader}>
+                                   <View style={styles.quoteIconContainer}>
+                                        <Ionicons name="chatbubble-ellipses-outline" size={24} color={colors.primaryLight} />
+                                   </View>
+                              </View>
+
+                              <Text style={styles.sentenceText}>{currentSentence.text}</Text>
+
+                              <View style={styles.divider} />
+
+                              {result ? (
+                                   <View style={styles.resultContainer}>
+                                        <View style={styles.scoreRow}>
+                                             <View style={[styles.scoreCircle, { borderColor: result.accuracy >= 80 ? colors.success : colors.warning }]}>
+                                                  <Text style={[styles.scoreValue, { color: result.accuracy >= 80 ? colors.success : colors.warning }]}>
+                                                       {result.accuracy}%
+                                                  </Text>
+                                                  <Text style={styles.scoreLabel}>Accuracy</Text>
+                                             </View>
+
+                                             <View style={styles.ipaSection}>
+                                                  <Text style={styles.ipaTitle}>IPA Transcription</Text>
+                                                  <Text style={styles.ipaValue}>{result.ipaTranscript || '—'}</Text>
+                                                  <Text style={styles.ipaUserTitle}>Your IPA</Text>
+                                                  <Text style={styles.ipaUserValue}>{result.userIpa || '—'}</Text>
+                                             </View>
+                                        </View>
+
+                                        <View style={styles.feedbackSection}>
+                                             <View style={styles.feedbackHeader}>
+                                                  <Text style={styles.feedbackTitle}>Character Correction</Text>
+                                                  {userAudioUri && !isRecording && (
+                                                       <TouchableOpacity
+                                                            style={styles.listenCardBtn}
+                                                            onPress={handlePlayBack}
+                                                            disabled={playingUserAudio}
+                                                       >
+                                                            <Ionicons
+                                                                 name={playingUserAudio ? "volume-high" : "play-circle"}
+                                                                 size={22}
+                                                                 color={colors.primary}
+                                                            />
+                                                            <Text style={styles.listenSmallText}>{playingUserAudio ? "Playing..." : "Listen to me"}</Text>
+                                                       </TouchableOpacity>
+                                                  )}
+                                             </View>
+                                             <View style={styles.charContainer}>
+                                                  {renderWordWithFeedback(currentSentence.text, result.isLetterCorrect)}
+                                             </View>
+                                        </View>
+
+                                        {currentIndex < sentences.length - 1 && (
+                                             <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
+                                                  <Text style={styles.nextBtnText}>Next Sentence</Text>
+                                                  <Ionicons name="arrow-forward" size={20} color={colors.white} />
+                                             </TouchableOpacity>
+                                        )}
+                                   </View>
+                              ) : (
+                                   <View style={styles.placeholderContainer}>
+                                        {isProcessing ? (
+                                             <>
+                                                  <ActivityIndicator size="large" color={colors.primary} />
+                                                  <Text style={styles.placeholderText}>Analyzing your speech...</Text>
+                                             </>
+                                        ) : (
+                                             <>
+                                                  <Ionicons name="mic-outline" size={48} color={colors.textSecondary} style={{ opacity: 0.3 }} />
+                                                  <Text style={styles.placeholderText}>Tap the mic to start speaking</Text>
+                                             </>
+                                        )}
+                                   </View>
+                              )}
+                         </Animated.View>
+
+                         {/* Centered Mic Controls below card */}
+                         <View style={styles.controlsPlaceholder}>
+                              <View style={styles.micContainer}>
+                                   <Animated.View style={[
+                                        styles.micPulse,
+                                        { transform: [{ scale: pulseAnim }], opacity: isRecording ? 0.3 : 0 }
+                                   ]} />
+                                   <TouchableOpacity
+                                        onPress={handleMicPress}
+                                        disabled={isProcessing}
+                                        style={[
+                                             styles.micBtnLarge,
+                                             isRecording ? styles.micBtnActive : styles.micBtnInactive,
+                                             isProcessing && { opacity: 0.5 },
+                                             shadows.clayStrong
+                                        ]}
+                                        activeOpacity={0.8}
+                                   >
+                                        <Ionicons
+                                             name={isRecording ? "stop" : "mic"}
+                                             size={40}
+                                             color={colors.white}
+                                        />
+                                   </TouchableOpacity>
+                                   <Text style={styles.micStatusTextLarge}>
+                                        {isRecording ? "Recording..." : (userAudioUri ? "Re-record" : "Tap to Speak")}
+                                   </Text>
+                              </View>
+                         </View>
+                    </ScrollView>
+               </SafeAreaView>
+          </LinearGradient>
+     );
+};
+
+const styles = StyleSheet.create({
+     container: {
+          flex: 1,
+     },
+     safeArea: {
+          flex: 1,
+     },
+     loadingContainer: {
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: '#fff',
+     },
+     header: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: spacing.screenPadding,
+          paddingVertical: spacing.md,
+     },
+     backButton: {
+          padding: spacing.xs,
+     },
+     headerTitle: {
+          fontSize: 20,
+          fontWeight: '800',
+          color: colors.textPrimary,
+     },
+     progressBadge: {
+          backgroundColor: 'rgba(124, 58, 237, 0.1)',
+          paddingHorizontal: 12,
+          paddingVertical: 6,
+          borderRadius: 100,
+     },
+     progressText: {
+          fontSize: 14,
+          fontWeight: '700',
+          color: colors.primary,
+     },
+     scrollContent: {
+          paddingHorizontal: spacing.screenPadding,
+          paddingTop: spacing.lg,
+          paddingBottom: 40,
+     },
+     mainCard: {
+          backgroundColor: colors.white,
+          borderRadius: 32,
+          padding: spacing.xxl,
+          minHeight: 380,
+     },
+     cardHeader: {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          marginBottom: spacing.md,
+     },
+     listenCardBtn: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: '#F5F3FF',
+          paddingHorizontal: 10,
+          paddingVertical: 4,
+          borderRadius: 10,
+          gap: 4,
+     },
+     listenSmallText: {
+          fontSize: 12,
+          fontWeight: '700',
+          color: colors.primary,
+     },
+     quoteIconContainer: {
+          // marginBottom: spacing.md,
+     },
+     sentenceText: {
+          fontSize: 24,
+          fontWeight: '700',
+          color: colors.textPrimary,
+          lineHeight: 34,
+          marginBottom: spacing.xl,
+     },
+     divider: {
+          height: 1,
+          backgroundColor: 'rgba(0,0,0,0.05)',
+          marginBottom: spacing.xl,
+     },
+     placeholderContainer: {
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingVertical: 40,
+     },
+     placeholderText: {
+          marginTop: spacing.md,
+          color: colors.textSecondary,
+          fontSize: 16,
+          fontWeight: '500',
+     },
+     resultContainer: {
+          flex: 1,
+     },
+     scoreRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          marginBottom: spacing.xxl,
+          gap: spacing.xl,
+     },
+     scoreCircle: {
+          width: 90,
+          height: 90,
+          borderRadius: 45,
+          borderWidth: 6,
+          justifyContent: 'center',
+          alignItems: 'center',
+     },
+     scoreValue: {
+          fontSize: 22,
+          fontWeight: '800',
+     },
+     scoreLabel: {
+          fontSize: 10,
+          color: colors.textSecondary,
+          fontWeight: '600',
+          textTransform: 'uppercase',
+     },
+     ipaSection: {
+          flex: 1,
+     },
+     ipaTitle: {
+          fontSize: 12,
+          color: colors.textSecondary,
+          fontWeight: '700',
+          marginBottom: 4,
+     },
+     ipaValue: {
+          fontSize: 16,
+          color: colors.primary,
+          fontWeight: '600',
+          marginBottom: 12,
+     },
+     ipaUserTitle: {
+          fontSize: 11,
+          color: colors.textSecondary,
+          fontWeight: '700',
+          marginBottom: 2,
+     },
+     ipaUserValue: {
+          fontSize: 14,
+          color: colors.textPrimary,
+          fontStyle: 'italic',
+     },
+     feedbackSection: {
+          marginTop: spacing.md,
+          marginBottom: 20,
+     },
+     feedbackHeader: {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: spacing.md,
+     },
+     feedbackTitle: {
+          fontSize: 14,
+          fontWeight: '800',
+          color: colors.textPrimary,
+     },
+     charContainer: {
+          flexDirection: 'row',
+          flexWrap: 'wrap',
+          backgroundColor: '#F9FAFB',
+          padding: spacing.md,
+          borderRadius: 16,
+     },
+     charText: {
+          fontSize: 18,
+          fontWeight: '600',
+          fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+     },
+     charCorrect: {
+          color: colors.success,
+     },
+     charIncorrect: {
+          color: colors.error,
+          backgroundColor: '#FEE2E2',
+          textDecorationLine: 'underline',
+     },
+     nextBtn: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.primary,
+          paddingVertical: 14,
+          borderRadius: 20,
+          gap: 10,
+          ...shadows.claySoft,
+     },
+     nextBtnText: {
+          color: colors.white,
+          fontSize: 16,
+          fontWeight: '700',
+     },
+     controlsPlaceholder: {
+          marginTop: 40,
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingBottom: 40,
+     },
+     micContainer: {
+          alignItems: 'center',
+     },
+     micPulse: {
+          position: 'absolute',
+          width: 100,
+          height: 100,
+          borderRadius: 50,
+          backgroundColor: colors.primary,
+     },
+     micBtnLarge: {
+          width: 88,
+          height: 88,
+          borderRadius: 44,
+          justifyContent: 'center',
+          alignItems: 'center',
+     },
+     micBtnActive: {
+          backgroundColor: colors.error,
+     },
+     micBtnInactive: {
+          backgroundColor: colors.primary,
+     },
+     micStatusTextLarge: {
+          marginTop: 12,
+          fontSize: 14,
+          fontWeight: '800',
+          color: colors.textSecondary,
+     },
+});

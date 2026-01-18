@@ -65,6 +65,7 @@ export const HomeScreen: React.FC = () => {
   const [leastViewedWords, setLeastViewedWords] = useState<Word[]>([]);
   const [showNotification, setShowNotification] = useState(false);
   const [notificationData, setNotificationData] = useState<{ emoji: string; title: string; message: string } | null>(null);
+  const [showAddSentence, setShowAddSentence] = useState(false);
   const notificationAnim = useRef(new Animated.Value(-100)).current;
 
   // -- Effects --
@@ -383,12 +384,7 @@ export const HomeScreen: React.FC = () => {
           {renderHeader()}
 
           {/* Sub Tab Selector */}
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            style={styles.subTabScrollView}
-            contentContainerStyle={styles.subTabContainer}
-          >
+          <View style={styles.subTabRow}>
             {[
               { id: 'words', label: 'Words' },
               { id: 'sentences', label: 'Sentences' }
@@ -402,13 +398,14 @@ export const HomeScreen: React.FC = () => {
                 <Text style={[styles.subTabText, homeSubTab === tab.id && styles.subTabTextActive]}>{tab.label}</Text>
               </TouchableOpacity>
             ))}
-          </ScrollView>
+          </View>
 
           {homeSubTab === 'words' && (
             <View style={styles.contentContainer}>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
+                style={styles.categoryChipsContainer}
                 contentContainerStyle={styles.categoryChipsScroll}
               >
                 {availableCategories.map(cat => {
@@ -441,6 +438,7 @@ export const HomeScreen: React.FC = () => {
 
               <FlatList
                 key="home-grid"
+                style={styles.wordsFlatList}
                 data={filteredWords}
                 renderItem={({ item }) => (
                   <WordCard
@@ -471,35 +469,38 @@ export const HomeScreen: React.FC = () => {
                 <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
               }
             >
-              <View style={[styles.sentenceInputCard, shadows.claySoft]}>
-                <TextInput
-                  style={styles.sentenceInput}
-                  placeholder="Type a new sentence here..."
-                  placeholderTextColor={colors.textLight}
-                  multiline
-                  value={newSentence}
-                  onChangeText={setNewSentence}
-                />
+              <View style={styles.sentenceInputRow}>
+                <View style={[styles.sentenceInputCardFlexible, shadows.claySoft]}>
+                  <TextInput
+                    style={styles.sentenceInputFlexible}
+                    placeholder="Add a sentence..."
+                    placeholderTextColor={colors.textLight}
+                    value={newSentence}
+                    onChangeText={setNewSentence}
+                    multiline
+                  />
+                </View>
+                <TouchableOpacity
+                  style={[styles.saveBtnCompact, shadows.clayStrong]}
+                  onPress={handleSaveSentence}
+                >
+                  <LinearGradient
+                    colors={[colors.primary, '#8B5CF6']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.gradientBtnCompact}
+                  >
+                    <Ionicons name="arrow-up" size={20} color={colors.white} />
+                  </LinearGradient>
+                </TouchableOpacity>
               </View>
 
-              <TouchableOpacity
-                style={[styles.savePracticeBtn, shadows.clayStrong]}
-                onPress={handleSaveSentence}
-              >
-                <LinearGradient
-                  colors={[colors.primary, '#8B5CF6']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.gradientBtn}
-                >
-                  <Text style={styles.savePracticeText}>Save & Practice</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-
               <View style={styles.recentListHeader}>
-                <Text style={styles.recentListTitle}>RECENT LIST</Text>
-                <View style={styles.sentenceCountBadge}>
-                  <Text style={styles.sentenceCountBadgeText}>{sentences.length} Sentences</Text>
+                <View style={styles.recentListTitleRow}>
+                  <Text style={styles.recentListTitle}>RECENT LIST</Text>
+                  <View style={styles.sentenceCountBadge}>
+                    <Text style={styles.sentenceCountBadgeText}>{sentences.length}</Text>
+                  </View>
                 </View>
               </View>
 
@@ -510,19 +511,35 @@ export const HomeScreen: React.FC = () => {
                 </View>
               ) : (
                 sentences.map((sent) => (
-                  <View key={sent.id} style={[styles.sentenceCard, shadows.claySoft]}>
+                  <TouchableOpacity
+                    key={sent.id}
+                    style={[styles.sentenceCard, shadows.claySoft]}
+                    onPress={() => navigation.navigate('SentencePractice', { sentenceId: sent.id })}
+                  >
                     <View style={styles.sentenceCardHeader}>
                       <Text style={styles.sentenceText}>{sent.text}</Text>
-                      <TouchableOpacity onPress={() => handleDeleteSentence(sent.id)}>
+                      <TouchableOpacity onPress={() => handleDeleteSentence(sent.id)} style={styles.actionBtn}>
                         <Ionicons name="trash-outline" size={18} color={colors.textLight} />
                       </TouchableOpacity>
                     </View>
                     <View style={styles.sentenceCardFooter}>
-                      <View style={styles.practiceBadge}>
-                        <Text style={styles.practiceBadgeText}>{sent.practiceCount || 0} practices</Text>
+                      <View style={styles.practiceBadgesRow}>
+                        <View style={styles.practiceBadge}>
+                          <Text style={styles.practiceBadgeText}>{sent.practiceCount || 0} practices</Text>
+                        </View>
+                        {sent.totalScore !== undefined && sent.totalScore > 0 && (
+                          <View style={[styles.practiceBadge, { backgroundColor: '#FFF7ED' }]}>
+                            <Text style={[styles.practiceBadgeText, { color: '#EA580C' }]}>⭐️ {sent.totalScore} pts</Text>
+                          </View>
+                        )}
                       </View>
+                      {sent.lastPracticedAt && (
+                        <Text style={styles.lastPracticedText}>
+                          Last: {new Date(sent.lastPracticedAt).toLocaleDateString()}
+                        </Text>
+                      )}
                     </View>
-                  </View>
+                  </TouchableOpacity>
                 ))
               )}
             </ScrollView>
@@ -552,7 +569,7 @@ export const HomeScreen: React.FC = () => {
         }
       />
     );
-  }, [activeTab, filteredWords, navigation, renderHeader, renderEmpty, refreshing, handleRefresh, inventoryData, renderTopicBlock, renderFilterToolbar, homeSubTab, availableCategories, selectedCategory, sentences, newSentence, handleSaveSentence, handleDeleteSentence]);
+  }, [activeTab, filteredWords, navigation, renderHeader, renderEmpty, refreshing, handleRefresh, inventoryData, renderTopicBlock, renderFilterToolbar, homeSubTab, availableCategories, selectedCategory, sentences, newSentence, handleSaveSentence, handleDeleteSentence, showAddSentence]);
 
   return (
     <LinearGradient
@@ -639,7 +656,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   contentContainer: {
-    display: 'flex',
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -860,19 +877,17 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.bold,
   },
 
-  // Sub Tab Styles
-  subTabScrollView: {
-    flexGrow: 0,
-    marginBottom: 8,
-  },
-  subTabContainer: {
+  subTabRow: {
     flexDirection: 'row',
     paddingHorizontal: spacing.screenPadding,
-    gap: spacing.lg,
-    paddingBottom: 2,
+    gap: spacing.xl,
+    paddingBottom: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+    marginBottom: spacing.md,
   },
   subTabButton: {
-    paddingVertical: 6,
+    paddingVertical: 12,
     borderBottomWidth: 3,
     borderBottomColor: 'transparent',
   },
@@ -880,8 +895,8 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.primary,
   },
   subTabText: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: 18,
+    fontWeight: '800',
     color: colors.textSecondary,
   },
   subTabTextActive: {
@@ -923,6 +938,54 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 18,
     fontWeight: '800',
+  },
+  sentenceInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
+  },
+  sentenceInputCardFlexible: {
+    flex: 1,
+    backgroundColor: '#F8FAFF',
+    borderRadius: 16,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 10,
+    minHeight: 48,
+    maxHeight: 120,
+    justifyContent: 'center',
+  },
+  sentenceInputFlexible: {
+    fontSize: 15,
+    color: colors.textPrimary,
+    lineHeight: 20,
+  },
+  saveBtnCompact: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  gradientBtnCompact: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recentListTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  plusBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plusBtnActive: {
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
   },
   recentListHeader: {
     flexDirection: 'row',
@@ -968,6 +1031,17 @@ const styles = StyleSheet.create({
   },
   sentenceCardFooter: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  practiceBadgesRow: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+  },
+  lastPracticedText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
   practiceBadge: {
     backgroundColor: '#ECFDF5',
@@ -985,18 +1059,45 @@ const styles = StyleSheet.create({
     marginTop: 40,
   },
 
-  // Words Subtab Categories
+  practiceAllBtn: {
+    backgroundColor: colors.white,
+    paddingVertical: 14,
+    borderRadius: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.xl,
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.1)',
+  },
+  practiceAllText: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  sentenceActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  actionBtn: {
+    padding: 4,
+  },
+  categoryChipsContainer: {
+    flexGrow: 0,
+    marginBottom: spacing.md,
+  },
   categoryChipsScroll: {
     paddingHorizontal: spacing.screenPadding,
     gap: spacing.sm,
     paddingTop: 0,
-    paddingBottom: 0,
-    marginBottom: 8,
+    paddingBottom: spacing.xxs,
   },
   categoryChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 25,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 100,
     justifyContent: 'center',
     alignItems: 'center',
     ...shadows.subtle,
@@ -1008,8 +1109,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
   },
   categoryChipText: {
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  wordsFlatList: {
+    flex: 1,
   },
   categoryChipTextActive: {
     color: colors.white,

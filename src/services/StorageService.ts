@@ -465,6 +465,8 @@ export const StorageService = {
                id: Date.now().toString(),
                text,
                practiceCount: 0,
+               lastPracticedAt: undefined,
+               totalScore: 0,
                createdAt: new Date().toISOString(),
                localCreatedAt: new Date().toISOString(),
           };
@@ -477,11 +479,13 @@ export const StorageService = {
           return await DatabaseService.getAllSentences();
      },
 
-     incrementSentencePractice: async (id: string) => {
+     incrementSentencePractice: async (id: string, score: number = 10) => {
           const sentences = await DatabaseService.getAllSentences();
           const sentence = sentences.find(s => s.id === id);
           if (sentence) {
                sentence.practiceCount = (sentence.practiceCount || 0) + 1;
+               sentence.lastPracticedAt = new Date().toISOString();
+               sentence.totalScore = (sentence.totalScore || 0) + score;
                await DatabaseService.saveSentence(sentence);
           }
           return await DatabaseService.getAllSentences();
