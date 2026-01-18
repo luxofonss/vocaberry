@@ -1,15 +1,16 @@
 // Speech Service using Expo Speech and Audio
 
 import * as Speech from 'expo-speech';
-import { Audio } from 'expo-av';
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 
 export const SpeechService = {
      // Speak a word or sentence (TTS fallback)
-     speak(text: string, options?: { rate?: number; pitch?: number }): void {
+     speak(text: string, options?: { rate?: number; pitch?: number; volume?: number }): void {
           Speech.speak(text, {
                language: 'en-US',
                rate: options?.rate ?? 0.9,
                pitch: options?.pitch ?? 1.0,
+               volume: options?.volume ?? 1.0,
                onError: (error) => {
                     console.error('Speech error:', error);
                },
@@ -35,15 +36,20 @@ export const SpeechService = {
                     return;
                }
 
-               // Stop any currently playing audio
+               // Stop any currently playing audio and optimize for playback
                await Audio.setAudioModeAsync({
+                    allowsRecordingIOS: false,
                     playsInSilentModeIOS: true,
+                    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
                     shouldDuckAndroid: true,
+                    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+                    staysActiveInBackground: false,
+                    playThroughEarpieceAndroid: false, // Ensure it plays through speaker
                });
 
                const { sound: newSound } = await Audio.Sound.createAsync(
                     { uri: audioUrl },
-                    { shouldPlay: true }
+                    { shouldPlay: true, volume: 1.0 }
                );
                sound = newSound;
 
@@ -54,16 +60,16 @@ export const SpeechService = {
                     }, 10000); // 10 second timeout
 
                     sound?.setOnPlaybackStatusUpdate((status) => {
-                         if (status.isLoaded) {
-                              if (status.didJustFinish) {
-                                   clearTimeout(timeout);
-                                   resolve();
-                              } else if (status.error) {
+                         if (!status.isLoaded) {
+                              if (status.error) {
                                    clearTimeout(timeout);
                                    reject(new Error(`Audio playback error: ${status.error}`));
                               }
                          } else {
-                              // Status not loaded yet, wait
+                              if (status.didJustFinish) {
+                                   clearTimeout(timeout);
+                                   resolve();
+                              }
                          }
                     });
                });

@@ -23,7 +23,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 
-import { Audio, AVPlaybackStatus } from 'expo-av';
+import { Audio, AVPlaybackStatus, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 
 import { theme, colors, typography, spacing, borderRadius, shadows } from '../theme';
@@ -107,6 +107,11 @@ export const PracticeScreen: React.FC = () => {
   const [imageViewerVisible, setImageViewerVisible] = useState(false);
   const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
 
+  // -- User Audio Playback --
+  const [userAudioUri, setUserAudioUri] = useState<string | null>(null);
+  const [playingUserAudio, setPlayingUserAudio] = useState(false);
+  const userAudioSound = useRef<Audio.Sound | null>(null);
+
   // -- Load Practice Stats --
   useEffect(() => {
     const loadStats = async () => {
@@ -123,14 +128,14 @@ export const PracticeScreen: React.FC = () => {
         // Load success sound (high pitch beep)
         const { sound: success } = await Audio.Sound.createAsync(
           { uri: 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3' },
-          { shouldPlay: false, volume: 0.5 }
+          { shouldPlay: false, volume: 1.0 }
         );
         successSound.current = success;
 
         // Load error sound (low buzz)
         const { sound: error } = await Audio.Sound.createAsync(
           { uri: 'https://assets.mixkit.co/active_storage/sfx/2001/2001-preview.mp3' },
-          { shouldPlay: false, volume: 0.5 }
+          { shouldPlay: false, volume: 1.0 }
         );
         errorSound.current = error;
       } catch (error) {
@@ -217,9 +222,16 @@ export const PracticeScreen: React.FC = () => {
     setIsProcessing(false);
     setPronunciationResult(null);
     setMeaningIndex(0);
+    setUserAudioUri(null);
+    setPlayingUserAudio(false);
     stopPulse();
     // Hide popup immediately on reset
     popupAnim.setValue(-150);
+
+    if (userAudioSound.current) {
+      userAudioSound.current.unloadAsync().catch(() => { });
+      userAudioSound.current = null;
+    }
 
     if (audioRecorder.current) {
       audioRecorder.current.stopAndUnloadAsync().catch(() => { });
@@ -292,23 +304,83 @@ export const PracticeScreen: React.FC = () => {
     }, 100);
   }, []);
 
-  const checkAnswer = useCallback((customAnswer?: string) => {
+  const checkAnswer = useCallback(async (customAnswer?: string) => {
     const answerToUse = customAnswer !== undefined ? customAnswer : userAnswer;
     const currentWord = quizList[currentIndex];
-    const normalizedInput = answerToUse.trim().toLowerCase();
-    const normalizedTarget = currentWord.word.trim().toLowerCase();
+    const normalizedInput = answerToUse.toLowerCase().trim();
+    const normalizedTarget = currentWord.word.toLowerCase().trim();
+    const isSkipped = customAnswer === '?';
 
-    const correct = normalizedInput === normalizedTarget;
-    const skipped = customAnswer === '?';
+    let finalCorrect = false;
 
-    setIsCorrect(correct);
-    if (correct) setScore(s => s + 1);
+    // If we have a recording, process it through AI first
+    if (userAudioUri && !isSkipped) {
+      setIsProcessing(true);
+      try {
+        const fileInfo = await FileSystem.getInfoAsync(userAudioUri);
+        if (!('exists' in fileInfo) || !fileInfo.exists) {
+          throw new Error('Recording file does not exist');
+        }
+
+        const base64Audio = await FileSystem.readAsStringAsync(userAudioUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        const mimeType = 'audio/m4a';
+        const result = await AiService.checkPronunciationAccuracy(
+          currentWord.word,
+          `data:${mimeType};base64,${base64Audio}`
+        );
+
+        setPronunciationResult({
+          accuracy: result.data.pronunciation_accuracy,
+          realTranscript: result.data.real_transcript,
+          matchedTranscript: result.data.matched_transcripts,
+          ipaTranscript: result.data.ipa_transcript,
+          isLetterCorrect: result.data.is_letter_correct_all_words,
+          userIpa: result.data.real_transcripts_ipa,
+        });
+
+        const audioCorrect = result.data.pronunciation_accuracy >= 70;
+        if (normalizedInput.length > 0) {
+          const textCorrect = normalizedInput === normalizedTarget;
+          finalCorrect = audioCorrect && textCorrect;
+        } else {
+          finalCorrect = audioCorrect;
+          setUserAnswer(result.data.real_transcript);
+        }
+
+
+
+
+
+
+
+
+
+
+
+      } catch (error: any) {
+        console.error('Audio processing error:', error);
+        Alert.alert('Processing Error', error.message || 'Failed to analyze pronunciation');
+        setIsProcessing(false);
+        return;
+      } finally {
+        setIsProcessing(false);
+      }
+    } else {
+      // Just text check (or skipped)
+      finalCorrect = isSkipped ? false : (normalizedInput === normalizedTarget);
+    }
+
+    setIsCorrect(finalCorrect);
+    if (finalCorrect) setScore(s => s + 1);
 
     setIsAnswered(true);
     setShowHint(true);
 
     // Play sound effect
-    playSound(correct && !skipped);
+    playSound(finalCorrect && !isSkipped);
 
     // Scroll to bottom to show results
     scrollToBottom();
@@ -332,19 +404,61 @@ export const PracticeScreen: React.FC = () => {
 
     setQuizResults(prev => [...prev, {
       word: currentWord,
-      status: skipped ? 'skipped' : (correct ? 'correct' : 'incorrect'),
-      userAnswer: skipped ? undefined : answerToUse,
+      status: isSkipped ? 'skipped' : (finalCorrect ? 'correct' : 'incorrect'),
+      userAnswer: isSkipped ? undefined : (normalizedInput || userAnswer),
     }]);
 
-    StorageService.markAsReviewed(currentWord.id, correct);
-  }, [userAnswer, quizList, currentIndex, playSound, scrollToBottom, popupAnim]);
+    StorageService.markAsReviewed(currentWord.id, finalCorrect);
+  }, [userAnswer, userAudioUri, quizList, currentIndex, playSound, scrollToBottom, popupAnim]);
+
+  const handleRetry = useCallback(() => {
+    // If last entry in quizResults is for THIS word, remove it and adjust score
+    const currentWord = quizList[currentIndex];
+    setQuizResults(prev => {
+      if (prev.length > 0) {
+        const lastEntry = prev[prev.length - 1];
+        if (lastEntry.word.id === currentWord.id) {
+          if (lastEntry.status === 'correct') {
+            setScore(s => Math.max(0, s - 1));
+          }
+          return prev.slice(0, -1);
+        }
+      }
+      return prev;
+    });
+    resetQuestion();
+  }, [currentIndex, quizList, resetQuestion]);
+
+  const handlePlayUserAudio = useCallback(async () => {
+    if (!userAudioUri) return;
+    try {
+      if (userAudioSound.current) {
+        await userAudioSound.current.unloadAsync();
+      }
+      setPlayingUserAudio(true);
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: userAudioUri },
+        { shouldPlay: true, volume: 1.0 }
+      );
+      userAudioSound.current = sound;
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setPlayingUserAudio(false);
+          sound.unloadAsync();
+          userAudioSound.current = null;
+        }
+      });
+    } catch (error) {
+      console.error('Error playing user audio:', error);
+      setPlayingUserAudio(false);
+    }
+  }, [userAudioUri]);
 
 
   const handleMicPress = useCallback(async () => {
     if (isRecording) {
       setIsRecording(false);
       stopPulse();
-      setIsProcessing(true);
 
       try {
         if (!audioRecorder.current) {
@@ -358,47 +472,25 @@ export const PracticeScreen: React.FC = () => {
           throw new Error('No recording URI - recording may have failed');
         }
 
-        const fileInfo = await FileSystem.getInfoAsync(uri);
-        if (!('exists' in fileInfo) || !fileInfo.exists) {
-          throw new Error('Recording file does not exist');
-        }
-
-        const base64Audio = await FileSystem.readAsStringAsync(uri, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-
-        const mimeType = 'audio/m4a';
-        const currentWord = quizList[currentIndex].word;
-        const result = await AiService.checkPronunciationAccuracy(
-          currentWord,
-          `data:${mimeType};base64,${base64Audio}`
-        );
-
-        setPronunciationResult({
-          accuracy: result.data.pronunciation_accuracy,
-          realTranscript: result.data.real_transcript,
-          matchedTranscript: result.data.matched_transcripts,
-          ipaTranscript: result.data.ipa_transcript,
-          isLetterCorrect: result.data.is_letter_correct_all_words,
-          userIpa: result.data.real_transcripts_ipa,
-        });
-
-        const isCorrect = result.data.pronunciation_accuracy >= 70;
-        setUserAnswer(result.data.real_transcript);
-        checkAnswer(result.data.real_transcript);
-        setIsCorrect(isCorrect);
-
-        // Play sound based on pronunciation accuracy
-        playSound(isCorrect);
-
+        setUserAudioUri(uri);
       } catch (error: any) {
-        console.error('Recording error:', error);
-        Alert.alert('Recording Error', error.message || 'Failed to process recording');
+        console.error('Recording stop error:', error);
+        Alert.alert('Recording Error', error.message || 'Failed to stop recording');
       } finally {
-        setIsProcessing(false);
         audioRecorder.current = null;
+        // Reset audio mode after recording to ensure playback uses speaker at full volume on iOS
+        Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+          shouldDuckAndroid: true,
+          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+          staysActiveInBackground: false,
+          playThroughEarpieceAndroid: false,
+        }).catch(err => console.log('Error resetting audio mode:', err));
       }
     } else {
+      setUserAudioUri(null); // Clear previous recording when starting new
       try {
         const { status } = await Audio.requestPermissionsAsync();
         if (status !== 'granted') {
@@ -408,8 +500,10 @@ export const PracticeScreen: React.FC = () => {
         await Audio.setAudioModeAsync({
           allowsRecordingIOS: true,
           playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
+          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
           shouldDuckAndroid: true,
+          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+          staysActiveInBackground: false,
           playThroughEarpieceAndroid: false,
         });
 
@@ -493,7 +587,7 @@ export const PracticeScreen: React.FC = () => {
   }, []);
 
   const renderSetup = () => (
-    <View style={styles.centerContent}>
+    <View style={{ flex: 1 }}>
       {/* Header with Back Button */}
       <View style={styles.setupHeader}>
         <TouchableOpacity style={styles.backButton} onPress={handleBackToHome}>
@@ -503,61 +597,69 @@ export const PracticeScreen: React.FC = () => {
         <View style={{ width: 44 }} />
       </View>
 
-      <Text style={styles.subtitle}>{PRACTICE_TEXTS.subtitle}</Text>
-
-      <View style={styles.card}>
-        <Text style={styles.label}>{PRACTICE_TEXTS.howManyWords}</Text>
-        <View style={styles.countRow}>
-          {PRACTICE_CONFIG.questionCountOptions.map(num => (
-            <TouchableOpacity
-              key={num}
-              style={[styles.countBtn, questionCount === num && styles.countBtnActive]}
-              onPress={() => setQuestionCount(num)}
-            >
-              <Text style={[styles.countText, questionCount === num && styles.countTextActive]}>
-                {num}
-              </Text>
-            </TouchableOpacity>
-          ))}
+      <View style={styles.centerContent}>
+        <View style={styles.setupImageContainer}>
+          <Image
+            source={require('../../assets/practice.png')}
+            style={styles.setupImage}
+            resizeMode="contain"
+          />
         </View>
-      </View>
 
-      <TouchableOpacity style={styles.primaryButton} onPress={startPractice} disabled={loading}>
-        <Text style={styles.primaryButtonText}>
-          {loading ? PRACTICE_TEXTS.preparing : PRACTICE_TEXTS.startNow}
-        </Text>
-      </TouchableOpacity>
-
-      {practiceStats && (
-        <View style={styles.statsContainer}>
-          {practiceStats.lastPracticeTime && (
-            <View style={styles.lastPracticeInfo}>
-              <Text style={styles.lastPracticeText}>
-                {PRACTICE_TEXTS.lastPractice} {formatTimeAgo(practiceStats.lastPracticeTime)}
-              </Text>
-              {practiceStats.longestStreak > 0 && practiceStats.longestStreak > practiceStats.currentStreak && (
-                <Text style={styles.bestStreakText}>
-                  {PRACTICE_TEXTS.bestStreak} {practiceStats.longestStreak} days
+        {practiceStats && (
+          <View style={styles.statsContainer}>
+            {practiceStats.lastPracticeTime && (
+              <View style={styles.lastPracticeInfo}>
+                <Text style={styles.lastPracticeText}>
+                  {PRACTICE_TEXTS.lastPractice} {formatTimeAgo(practiceStats.lastPracticeTime)}
                 </Text>
-              )}
-            </View>
-          )}
-          <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{practiceStats.currentStreak}</Text>
-              <Text style={styles.statLabel}>{PRACTICE_TEXTS.dayStreak}</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{practiceStats.totalSessions}</Text>
-              <Text style={styles.statLabel}>{PRACTICE_TEXTS.sessions}</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{practiceStats.totalWordsPracticed}</Text>
-              <Text style={styles.statLabel}>{PRACTICE_TEXTS.words}</Text>
+                {practiceStats.longestStreak > 0 && practiceStats.longestStreak > practiceStats.currentStreak && (
+                  <Text style={styles.bestStreakText}>
+                    {PRACTICE_TEXTS.bestStreak} {practiceStats.longestStreak} days
+                  </Text>
+                )}
+              </View>
+            )}
+            <View style={styles.statsRow}>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{practiceStats.currentStreak}</Text>
+                <Text style={styles.statLabel}>{PRACTICE_TEXTS.dayStreak}</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{practiceStats.totalSessions}</Text>
+                <Text style={styles.statLabel}>{PRACTICE_TEXTS.sessions}</Text>
+              </View>
+              <View style={styles.statCard}>
+                <Text style={styles.statValue}>{practiceStats.totalWordsPracticed}</Text>
+                <Text style={styles.statLabel}>{PRACTICE_TEXTS.words}</Text>
+              </View>
             </View>
           </View>
+        )}
+
+        <View style={styles.card}>
+          <Text style={styles.label}>{PRACTICE_TEXTS.howManyWords}</Text>
+          <View style={styles.countRow}>
+            {PRACTICE_CONFIG.questionCountOptions.map(num => (
+              <TouchableOpacity
+                key={num}
+                style={[styles.countBtn, questionCount === num && styles.countBtnActive]}
+                onPress={() => setQuestionCount(num)}
+              >
+                <Text style={[styles.countText, questionCount === num && styles.countTextActive]}>
+                  {num}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
-      )}
+
+        <TouchableOpacity style={styles.primaryButton} onPress={startPractice} disabled={loading}>
+          <Text style={styles.primaryButtonText}>
+            {loading ? PRACTICE_TEXTS.preparing : PRACTICE_TEXTS.startNow}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
@@ -811,8 +913,19 @@ export const PracticeScreen: React.FC = () => {
                   </Text>
                 </TouchableOpacity>
                 <Text style={styles.speechStatus}>
-                  {isRecording ? PRACTICE_TEXTS.listening : (isProcessing ? PRACTICE_TEXTS.thinking : 'Tap to Speak')}
+                  {isRecording ? PRACTICE_TEXTS.listening : (isProcessing ? PRACTICE_TEXTS.thinking : (userAudioUri ? 'Ready to check' : 'Tap to Speak'))}
                 </Text>
+
+                {userAudioUri && !isRecording && (
+                  <TouchableOpacity
+                    style={[styles.playbackButton, playingUserAudio && styles.playbackButtonActive]}
+                    onPress={handlePlayUserAudio}
+                    disabled={playingUserAudio}
+                  >
+                    <Text style={styles.playbackEmoji}>{playingUserAudio ? '🔊' : '👂'}</Text>
+                    <Text style={styles.playbackText}>{playingUserAudio ? 'Playing...' : 'Review'}</Text>
+                  </TouchableOpacity>
+                )}
               </View>
 
               <TextInput
@@ -832,11 +945,15 @@ export const PracticeScreen: React.FC = () => {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={[styles.checkButton]}
-                  onPress={() => userAnswer && checkAnswer()}
-                  disabled={!userAnswer}
+                  style={[styles.checkButton, (userAnswer.trim() || userAudioUri) && styles.checkButtonActive]}
+                  onPress={() => (userAnswer.trim() || userAudioUri) && checkAnswer()}
+                  disabled={(!userAnswer.trim() && !userAudioUri) || isProcessing}
                 >
-                  <Text style={styles.checkButtonText}>{PRACTICE_TEXTS.verify}</Text>
+                  {isProcessing ? (
+                    <ActivityIndicator color={colors.white} size="small" />
+                  ) : (
+                    <Text style={styles.checkButtonText}>{PRACTICE_TEXTS.submit}</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>
@@ -887,33 +1004,48 @@ export const PracticeScreen: React.FC = () => {
                   {/* IPA Comparison - Horizontal */}
                   <View style={styles.ipaRow}>
                     <View style={styles.ipaItem}>
-                      <Text style={styles.ipaItemLabel}>IPA chuẩn</Text>
+                      <Text style={styles.ipaItemLabel}>Correct IPA</Text>
                       <Text style={styles.ipaItemValue}>{pronunciationResult.userIpa || 'N/A'}</Text>
                     </View>
                     <View style={styles.ipaDividerVertical} />
                     <View style={styles.ipaItem}>
-                      <Text style={styles.ipaItemLabel}>IPA của bạn</Text>
-                      <Text style={[
-                        styles.ipaItemValue,
-                        { color: pronunciationResult.accuracy >= 80 ? colors.success : colors.error }
-                      ]}>
-                        {pronunciationResult.ipaTranscript || '...'}
-                      </Text>
+                      <Text style={styles.ipaItemLabel}>Your IPA</Text>
+                      <View style={styles.ipaValueWrapper}>
+                        <Text style={[
+                          styles.ipaItemValue,
+                          { color: pronunciationResult.accuracy >= 80 ? colors.success : colors.error }
+                        ]}>
+                          {pronunciationResult.ipaTranscript || '...'}
+                        </Text>
+                        <TouchableOpacity
+                          style={[styles.miniPlayBtn, playingUserAudio && styles.miniPlayBtnActive]}
+                          onPress={handlePlayUserAudio}
+                          disabled={playingUserAudio}
+                        >
+                          <Text style={styles.miniPlayEmoji}>{playingUserAudio ? '⏳' : '�'}</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
+                    <View style={styles.ipaDividerVertical} />
+                    <TouchableOpacity style={styles.miniRetryBtn} onPress={handleRetry}>
+                      <Text style={styles.miniRetryEmoji}>🔄</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
               )}
 
+
               {/* Next Button */}
-              <TouchableOpacity style={[styles.nextButton, shadows.strong]} onPress={handleNext}>
+              <TouchableOpacity style={[styles.nextButton, shadows.strong, { marginTop: spacing.md }]} onPress={handleNext}>
                 <Text style={styles.nextButtonText}>
                   {currentIndex === quizList.length - 1 ? PRACTICE_TEXTS.finishTest : PRACTICE_TEXTS.continue}
                 </Text>
               </TouchableOpacity>
             </View>
-          )}
-        </ScrollView>
-      </View>
+          )
+          }
+        </ScrollView >
+      </View >
     );
   }
 
@@ -968,11 +1100,10 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   innerContainer: { flex: 1 },
   centerContent: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md
+    paddingBottom: spacing.md
   },
 
   title: {
@@ -991,17 +1122,11 @@ const styles = StyleSheet.create({
 
   card: {
     width: '100%',
-    backgroundColor: colors.cardSurface,
-    borderRadius: borderRadius.clayCard,
     padding: spacing.lg,
     marginBottom: spacing.lg,
-    borderWidth: 0,
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-    ...shadows.clayMedium,
   },
   label: {
-    fontSize: typography.sizes.sm,
+    fontSize: typography.sizes.lg,
     fontWeight: typography.weights.semibold,
     color: colors.textPrimary,
     marginBottom: spacing.sm
@@ -1009,7 +1134,8 @@ const styles = StyleSheet.create({
   countRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: spacing.xs
+    gap: spacing.lg,
+    marginTop: 8
   },
   countBtn: {
     flex: 1,
@@ -1456,7 +1582,7 @@ const styles = StyleSheet.create({
   statsContainer: {
     width: '100%',
     marginBottom: spacing.xs,
-    marginTop: spacing.sm
+    marginTop: 0,
   },
   statsRow: {
     flexDirection: 'row',
@@ -1486,6 +1612,16 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginBottom: 2,
   },
+  setupImageContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 0,
+    marginBottom: spacing.sm,
+  },
+  setupImage: {
+    width: SCREEN_WIDTH * 0.7,
+    height: SCREEN_WIDTH * 0.6,
+  },
   statLabel: {
     fontSize: typography.sizes.sm,
     color: colors.textSecondary,
@@ -1493,17 +1629,8 @@ const styles = StyleSheet.create({
   },
 
   lastPracticeInfo: {
-    backgroundColor: colors.cardSurface,
-    borderRadius: borderRadius.clayCard,
-    padding: spacing.sm,
     alignItems: 'center',
     marginBottom: spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-    borderBottomWidth: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    ...shadows.claySoft,
   },
   lastPracticeText: {
     fontSize: typography.sizes.sm,
@@ -1894,8 +2021,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '100%',
     paddingHorizontal: spacing.lg,
-    marginTop: spacing.xl,
-    marginBottom: spacing.xxl,
+    marginBottom: 0,
   },
   setupHeaderTitle: {
     fontSize: typography.sizes.xl,
@@ -1905,14 +2031,9 @@ const styles = StyleSheet.create({
   backButton: {
     width: 44,
     height: 44,
-    borderRadius: borderRadius.button,
-    backgroundColor: colors.cardSurface,
-    justifyContent: 'center',
+    display: 'flex',
+    justifyContent: 'flex-start',
     alignItems: 'center',
-    borderWidth: 0,
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-    ...shadows.claySoft,
   },
   backIcon: {
     fontSize: 24,
@@ -1954,5 +2075,101 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     color: 'rgba(0,0,0,0.7)',
     fontWeight: typography.weights.medium,
+  },
+
+  // Result Actions (Retry/Listen back)
+  actionRowResult: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    width: '100%',
+    marginBottom: spacing.sm,
+  },
+  smallActionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.cardSurface,
+    paddingVertical: 12,
+    borderRadius: borderRadius.clayInput,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.claySoft,
+  },
+  smallActionButtonActive: {
+    backgroundColor: '#F0F7FF',
+  },
+  smallActionEmoji: {
+    fontSize: 16,
+    marginRight: 6,
+  },
+  smallActionText: {
+    fontSize: 13,
+    fontWeight: typography.weights.bold,
+    color: colors.textSecondary,
+  },
+
+  // Compact IPA row actions
+  ipaValueWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  miniPlayBtn: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.cardSurface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.claySoft,
+  },
+  miniPlayBtnActive: {
+    backgroundColor: '#D1FAE5',
+    ...shadows.clayPressed,
+  },
+  miniPlayEmoji: {
+    fontSize: 12,
+  },
+  miniRetryBtn: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  miniRetryEmoji: {
+    fontSize: 20,
+  },
+
+  // Playback Button in Input Area
+  playbackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.cardSurface,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: borderRadius.pill,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    marginTop: spacing.xs,
+    ...shadows.claySoft,
+  },
+  playbackButtonActive: {
+    backgroundColor: '#F0F7FF',
+    ...shadows.clayPressed,
+  },
+  playbackEmoji: {
+    fontSize: 14,
+    marginRight: 4,
+  },
+  playbackText: {
+    fontSize: 12,
+    fontWeight: typography.weights.bold,
+    color: colors.primary,
+  },
+  checkButtonActive: {
+    backgroundColor: colors.primary,
   },
 });
