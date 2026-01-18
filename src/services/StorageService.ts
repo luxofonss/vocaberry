@@ -1,6 +1,6 @@
 // Storage Service - Proxying calls to DatabaseService for relational storage
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Word } from '../types';
+import { Word, Conversation } from '../types';
 import DatabaseService from './DatabaseService';
 
 const STORAGE_KEYS = {
@@ -532,5 +532,61 @@ export const StorageService = {
           });
 
           return sorted.slice(0, limit);
+     },
+
+     /**
+      * Conversations support
+      */
+     getPracticingConversations: async (): Promise<Conversation[]> => {
+          return await DatabaseService.getAllConversations();
+     },
+
+     addPracticingConversation: async (conversation: Conversation): Promise<Conversation[]> => {
+          try {
+               const existing = await DatabaseService.getAllConversations();
+               if (!existing.some(c => c.id === conversation.id)) {
+                    const newPracticing = {
+                         ...conversation,
+                         practiceCount: 0,
+                         totalScore: 0, // Sum of average session scores
+                         lastPracticedAt: new Date().toISOString(),
+                    };
+                    await DatabaseService.saveConversation(newPracticing);
+               }
+               return await DatabaseService.getAllConversations();
+          } catch (e) {
+               console.error('[StorageService] Failed to add practicing conversation', e);
+               return [];
+          }
+     },
+
+     removePracticingConversation: async (id: string): Promise<Conversation[]> => {
+          try {
+               await DatabaseService.deleteConversation(id);
+               return await DatabaseService.getAllConversations();
+          } catch (e) {
+               console.error('[StorageService] Failed to remove practicing conversation', e);
+               return [];
+          }
+     },
+
+     incrementConversationPractice: async (id: string, sessionAverageScore: number) => {
+          try {
+               const conversations = await DatabaseService.getAllConversations();
+               const conversation = conversations.find(c => c.id === id);
+               if (conversation) {
+                    conversation.practiceCount = (conversation.practiceCount || 0) + 1;
+                    conversation.lastPracticedAt = new Date().toISOString();
+                    // totalScore stores the sum of session average scores
+                    conversation.totalScore = (conversation.totalScore || 0) + sessionAverageScore;
+                    await DatabaseService.saveConversation(conversation);
+               }
+               // Also update global stats (optional, but keep consistent)
+               await StorageService.updatePracticeStats(1, 'sentence');
+               return await DatabaseService.getAllConversations();
+          } catch (e) {
+               console.error('[StorageService] Failed to increment conversation practice', e);
+               return [];
+          }
      }
 };

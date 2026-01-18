@@ -98,11 +98,13 @@ export type WordStatus = 'PROCESSING' | 'COMPLETED';
 export type RootStackParamList = {
      Welcome: undefined;
      Home: undefined;
+     Discover: undefined;
+     ConversationDetail: { conversationId: string };
      WordDetail: { wordId: string };
      Review: undefined;
      Practice: { topic?: string }; // Topic-specific practice
      Settings: undefined;
-     SentencePractice: { sentenceId?: string, sentencesLimit?: number }; // Practice mode for sentences
+     SentencePractice: { sentenceId?: string, sentencesLimit?: number, customText?: string }; // Practice mode for sentences
 };
 
 export interface Sentence {
@@ -115,4 +117,25 @@ export interface Sentence {
      localCreatedAt?: string;
 }
 
-export type TabType = 'home' | 'topics' | 'practice' | 'add' | 'search';
+export type TabType = 'home' | 'discover' | 'practice' | 'add' | 'search';
+
+export interface ConversationMessage {
+     id: string;
+     role: 'user' | 'assistant' | 'other';
+     text: string;
+     translation?: string;
+     audioUrl?: string;
+}
+
+export interface Conversation {
+     id: string;
+     title: string;
+     description?: string;
+     category: string;
+     difficulty: 'beginner' | 'intermediate' | 'advanced';
+     messages: ConversationMessage[];
+     isFavorite?: boolean;
+     practiceCount: number;
+     lastPracticedAt?: string;
+     totalScore?: number;
+}

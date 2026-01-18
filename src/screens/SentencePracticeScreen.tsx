@@ -75,9 +75,17 @@ export const SentencePracticeScreen: React.FC = () => {
           const loadData = async () => {
                try {
                     let allSentences: Sentence[] = [];
-                    const { sentenceId, sentencesLimit } = route.params || {};
+                    const { sentenceId, sentencesLimit, customText } = route.params || {};
 
-                    if (sentencesLimit) {
+                    if (customText) {
+                         // Mode: practice a specific custom text
+                         allSentences = [{
+                              id: 'temp',
+                              text: customText,
+                              practiceCount: 0,
+                              createdAt: new Date().toISOString()
+                         }];
+                    } else if (sentencesLimit) {
                          // Mode: practice weakest sentences
                          allSentences = await StorageService.getLowestScoreSentences(sentencesLimit);
                     } else {
@@ -93,7 +101,7 @@ export const SentencePracticeScreen: React.FC = () => {
 
                     setSentences(allSentences);
 
-                    if (sentenceId && !sentencesLimit) {
+                    if (sentenceId && !sentencesLimit && !customText) {
                          const idx = allSentences.findIndex(s => s.id === sentenceId);
                          if (idx !== -1) setCurrentIndex(idx);
                     }
@@ -201,7 +209,9 @@ export const SentencePracticeScreen: React.FC = () => {
                });
 
                // Save progress
-               await StorageService.incrementSentencePractice(currentSentence.id, data.pronunciation_accuracy);
+               if (currentSentence.id !== 'temp') {
+                    await StorageService.incrementSentencePractice(currentSentence.id, data.pronunciation_accuracy);
+               }
 
                // Play sound based on accuracy (threshold 80%)
                playSound(data.pronunciation_accuracy >= 80);

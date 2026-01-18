@@ -4,10 +4,11 @@ import { Word } from '../types';
 const STORAGE_KEYS = {
      WORDS: 'vocaberry_words_v1',
      SENTENCES: 'vocaberry_sentences_v1',
+     CONVERSATIONS: 'vocaberry_conversations_v1',
 };
 
 /**
- * DatabaseService - Low-level storage implementation for Words and Sentences
+ * DatabaseService - Low-level storage implementation for Words, Sentences and Conversations
  */
 
 const getAllWords = async (): Promise<Word[]> => {
@@ -100,10 +101,55 @@ const deleteSentence = async (id: string): Promise<void> => {
      }
 };
 
+const getAllConversations = async (): Promise<any[]> => {
+     try {
+          const data = await AsyncStorage.getItem(STORAGE_KEYS.CONVERSATIONS);
+          const conversations = data ? JSON.parse(data) : [];
+          return conversations.sort((a: any, b: any) => {
+               const dateA = a.lastPracticedAt || '';
+               const dateB = b.lastPracticedAt || '';
+               return dateB.localeCompare(dateA);
+          });
+     } catch (e) {
+          console.error('[DatabaseService] Failed to get all conversations', e);
+          return [];
+     }
+};
+
+const saveConversation = async (conversation: any): Promise<void> => {
+     try {
+          const conversations = await getAllConversations();
+          const existingIndex = conversations.findIndex((c) => c.id === conversation.id);
+
+          if (existingIndex >= 0) {
+               conversations[existingIndex] = conversation;
+          } else {
+               conversations.unshift(conversation);
+          }
+
+          await AsyncStorage.setItem(STORAGE_KEYS.CONVERSATIONS, JSON.stringify(conversations));
+     } catch (e) {
+          console.error('[DatabaseService] Failed to save conversation', e);
+          throw e;
+     }
+};
+
+const deleteConversation = async (id: string): Promise<void> => {
+     try {
+          const conversations = await getAllConversations();
+          const filtered = conversations.filter((c) => c.id !== id);
+          await AsyncStorage.setItem(STORAGE_KEYS.CONVERSATIONS, JSON.stringify(filtered));
+     } catch (e) {
+          console.error('[DatabaseService] Failed to delete conversation', e);
+          throw e;
+     }
+};
+
 const clearAllData = async (): Promise<void> => {
      try {
           await AsyncStorage.removeItem(STORAGE_KEYS.WORDS);
           await AsyncStorage.removeItem(STORAGE_KEYS.SENTENCES);
+          await AsyncStorage.removeItem(STORAGE_KEYS.CONVERSATIONS);
      } catch (e) {
           console.error('[DatabaseService] Failed to clear all data', e);
           throw e;
@@ -117,6 +163,9 @@ export const DatabaseService = {
      getAllSentences,
      saveSentence,
      deleteSentence,
+     getAllConversations,
+     saveConversation,
+     deleteConversation,
      clearAllData,
 };
 

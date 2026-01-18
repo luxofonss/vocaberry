@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Modal,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
@@ -26,10 +27,10 @@ interface WordPreviewModalProps {
   wordData: Word | null;
   isNew: boolean;
   isLoading?: boolean;
-  loadingStatus?: string;
+  statusText?: string;
   onClose: () => void;
-  onSave: (word: Word) => void;
-  onGoToDetail: (wordId: string) => void;
+  onSave?: (word: Word) => void;
+  onGoToDetail?: (wordId: string) => void;
 }
 
 export const WordPreviewModal: React.FC<WordPreviewModalProps> = ({
@@ -37,7 +38,7 @@ export const WordPreviewModal: React.FC<WordPreviewModalProps> = ({
   wordData,
   isNew,
   isLoading = false,
-  loadingStatus = "Looking up...",
+  statusText = "Looking up...",
   onClose,
   onSave,
   onGoToDetail
@@ -141,111 +142,113 @@ export const WordPreviewModal: React.FC<WordPreviewModalProps> = ({
       visible={visible}
       onRequestClose={onClose}
     >
-      <TouchableOpacity
-        style={styles.overlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={(e) => e.stopPropagation()}
-          style={styles.modalContent}
-        >
-          {isLoading ? (
-            <View style={styles.loadingWrapper}>
-              <View style={styles.loaderCircle}>
-                <ActivityIndicator size="large" color={colors.primary} />
-              </View>
-              <Text style={styles.loadingTitle}>{WORD_PREVIEW_TEXTS.thinking}</Text>
-              <Text style={styles.loadingSub}>{loadingStatus}</Text>
-              <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-                <Text style={styles.cancelText}>{WORD_PREVIEW_TEXTS.cancel}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : currentWordData ? (
-            <>
-              {/* Header Image - Uses priority logic: customImageUrl > imageUrl */}
-              {/* Requirements: 8.1, 8.2 */}
-              <View style={styles.imageWrapper}>
-                {hasValidImage ? (
-                  <TouchableOpacity
-                    activeOpacity={0.9}
-                    onPress={() => setImageViewerVisible(true)}
-                  >
-                    <Image
-                      source={{ uri: displayImageUrl }}
-                      style={styles.image}
-                      resizeMode="cover"
-                    />
-                  </TouchableOpacity>
-                ) : (
-                  <SkeletonLoader width="100%" height="100%" borderRadius={0} />
-                )}
-                <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                  <Text style={styles.closeText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-
-              {/* Body */}
-              <View style={styles.body}>
-                <View style={styles.headerRow}>
-                  <View>
-                    <Text style={styles.wordTitle}>{currentWordData.word}</Text>
-                    <View style={styles.subMeta}>
-                      <Text style={styles.phoneticText}>{currentWordData.phonetic || DEFAULTS.phonetic}</Text>
-                    </View>
+      <TouchableWithoutFeedback onPress={onClose}>
+        <View style={styles.overlay}>
+          <TouchableWithoutFeedback>
+            <View style={styles.modalContent}>
+              {isLoading ? (
+                <View style={styles.loadingWrapper}>
+                  <View style={styles.loaderCircle}>
+                    <ActivityIndicator size="large" color={colors.primary} />
                   </View>
-                  <SpeakButton audioUrl={currentWordData.audioUrl} text={currentWordData.word} size="medium" isLoading={isImageLoading} />
+                  <Text style={styles.loadingTitle}>{WORD_PREVIEW_TEXTS.thinking}</Text>
+                  <Text style={styles.loadingSub}>{statusText}</Text>
+                  <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
+                    <Text style={styles.cancelText}>{WORD_PREVIEW_TEXTS.cancel}</Text>
+                  </TouchableOpacity>
                 </View>
+              ) : currentWordData ? (
+                <>
+                  {/* Header Image - Uses priority logic: customImageUrl > imageUrl */}
+                  {/* Requirements: 8.1, 8.2 */}
+                  <View style={styles.imageWrapper}>
+                    {hasValidImage ? (
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={() => setImageViewerVisible(true)}
+                      >
+                        <Image
+                          source={{ uri: displayImageUrl }}
+                          style={styles.image}
+                          resizeMode="cover"
+                        />
+                      </TouchableOpacity>
+                    ) : (
+                      <SkeletonLoader width="100%" height="100%" borderRadius={0} />
+                    )}
+                    <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                      <Text style={styles.closeText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
 
-                <View style={styles.divider} />
-
-                {/* Scrollable Definition List */}
-                <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
-                  {currentWordData.meanings.slice(0, UI_LIMITS.maxMeaningsPreview).map((meaning, index) => (
-                    <View key={index} style={styles.meaningRow}>
-                      <View style={styles.posBadge}>
-                        <Text style={styles.posText}>{meaning.partOfSpeech || 'def'}</Text>
+                  {/* Body */}
+                  <View style={styles.body}>
+                    <View style={styles.headerRow}>
+                      <View>
+                        <Text style={styles.wordTitle}>{currentWordData.word}</Text>
+                        <View style={styles.subMeta}>
+                          <Text style={styles.phoneticText}>{currentWordData.phonetic || DEFAULTS.phonetic}</Text>
+                        </View>
                       </View>
-                      <Text style={styles.definitionText}>
-                        {meaning.definition}
-                      </Text>
+                      <SpeakButton audioUrl={currentWordData.audioUrl} text={currentWordData.word} size="medium" isLoading={isImageLoading} />
                     </View>
-                  ))}
-                  {currentWordData.meanings.length > UI_LIMITS.maxMeaningsPreview && (
-                    <Text style={styles.moreText}>
-                      {WORD_PREVIEW_TEXTS.moreDefinitions.replace('{count}', String(currentWordData.meanings.length - UI_LIMITS.maxMeaningsPreview))}
-                    </Text>
-                  )}
-                </ScrollView>
 
-                <View style={styles.footerSpacing} />
+                    <View style={styles.divider} />
 
-                {/* Action Button */}
-                {isNew ? (
-                  <TouchableOpacity
-                    style={styles.saveButton}
-                    onPress={() => onSave(currentWordData)}
-                  >
-                    <Text style={styles.buttonIcon}>➕</Text>
-                    <Text style={styles.buttonText}>{WORD_PREVIEW_TEXTS.addToLibrary}</Text>
-                  </TouchableOpacity>
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.saveButton, styles.viewButton]}
-                    onPress={() => {
-                      onClose();
-                      onGoToDetail(currentWordData.id);
-                    }}
-                  >
-                    <Text style={[styles.buttonText, styles.viewButtonText]}>{WORD_PREVIEW_TEXTS.viewFullDetails}</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            </>
-          ) : null}
-        </TouchableOpacity>
-      </TouchableOpacity>
+                    {/* Scrollable Definition List */}
+                    <ScrollView style={styles.scrollArea} showsVerticalScrollIndicator={false}>
+                      {(currentWordData.meanings || []).slice(0, UI_LIMITS.maxMeaningsPreview).map((meaning, index) => (
+                        <View key={index} style={styles.meaningRow}>
+                          <View style={styles.posBadge}>
+                            <Text style={styles.posText}>{meaning.partOfSpeech || 'def'}</Text>
+                          </View>
+                          <Text style={styles.definitionText}>
+                            {meaning.definition}
+                          </Text>
+                        </View>
+                      ))}
+                      {(currentWordData.meanings || []).length > UI_LIMITS.maxMeaningsPreview && (
+                        <Text style={styles.moreText}>
+                          {WORD_PREVIEW_TEXTS.moreDefinitions.replace('{count}', String(currentWordData.meanings.length - UI_LIMITS.maxMeaningsPreview))}
+                        </Text>
+                      )}
+                    </ScrollView>
+
+                    <View style={styles.footerSpacing} />
+
+                    {/* Action Button */}
+                    {isNew ? (
+                      onSave && (
+                        <TouchableOpacity
+                          style={styles.saveButton}
+                          onPress={() => currentWordData && onSave(currentWordData)}
+                        >
+                          <Text style={styles.buttonIcon}>➕</Text>
+                          <Text style={styles.buttonText}>{WORD_PREVIEW_TEXTS.addToLibrary}</Text>
+                        </TouchableOpacity>
+                      )
+                    ) : (
+                      onGoToDetail && (
+                        <TouchableOpacity
+                          style={[styles.saveButton, styles.viewButton]}
+                          onPress={() => {
+                            if (currentWordData) {
+                              onClose();
+                              onGoToDetail(currentWordData.id);
+                            }
+                          }}
+                        >
+                          <Text style={[styles.buttonText, styles.viewButtonText]}>{WORD_PREVIEW_TEXTS.viewFullDetails}</Text>
+                        </TouchableOpacity>
+                      )
+                    )}
+                  </View>
+                </>
+              ) : null}
+            </View>
+          </TouchableWithoutFeedback>
+        </View>
+      </TouchableWithoutFeedback>
 
       {currentWordData && (
         <ImageViewerModal
@@ -351,8 +354,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   scrollArea: {
-    maxHeight: 200,
-    marginBottom: 16,
+    maxHeight: 300,
+    marginBottom: 8,
   },
   meaningRow: {
     marginBottom: 12,

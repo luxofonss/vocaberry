@@ -76,7 +76,7 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
               ]}>
                 <Ionicons
                   name={activeTab === 'home' ? 'home' : 'home-outline'}
-                  size={24}
+                  size={28}
                   color={activeTab === 'home' ? colors.primary : colors.textSecondary}
                 />
               </View>
@@ -93,28 +93,28 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
               ]}>
                 <Ionicons
                   name={activeTab === 'practice' ? 'school' : 'school-outline'}
-                  size={24}
+                  size={28}
                   color={activeTab === 'practice' ? colors.primary : colors.textSecondary}
                 />
               </View>
             </TouchableOpacity>
 
             {/* SPACER for Floating Button */}
-            <View style={{ width: 60 }} />
+            <View style={{ width: 90 }} />
 
-            {/* Topics Tab */}
+            {/* Discover Tab */}
             <TouchableOpacity
               style={styles.tabItem}
-              onPress={() => onTabChange('topics')}
+              onPress={() => onTabChange('discover')}
             >
               <View style={[
                 styles.iconContainer,
-                activeTab === 'topics' ? styles.iconEmbossed : styles.iconDebossed
+                activeTab === 'discover' ? styles.iconEmbossed : styles.iconDebossed
               ]}>
                 <Ionicons
-                  name={activeTab === 'topics' ? 'folder' : 'folder-outline'}
-                  size={24}
-                  color={activeTab === 'topics' ? colors.primary : colors.textSecondary}
+                  name={activeTab === 'discover' ? 'compass' : 'compass-outline'}
+                  size={28}
+                  color={activeTab === 'discover' ? colors.primary : colors.textSecondary}
                 />
               </View>
             </TouchableOpacity>
@@ -130,7 +130,7 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
               ]}>
                 <Ionicons
                   name="search-outline"
-                  size={24}
+                  size={28}
                   color={colors.textSecondary}
                 />
               </View>

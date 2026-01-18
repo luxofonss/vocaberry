@@ -5,7 +5,21 @@ import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 
 export const SpeechService = {
      // Speak a word or sentence (TTS fallback)
-     speak(text: string, options?: { rate?: number; pitch?: number; volume?: number }): void {
+     async speak(text: string, options?: { rate?: number; pitch?: number; volume?: number }): Promise<void> {
+          try {
+               await Audio.setAudioModeAsync({
+                    allowsRecordingIOS: false,
+                    playsInSilentModeIOS: true,
+                    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+                    shouldDuckAndroid: true,
+                    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+                    staysActiveInBackground: false,
+                    playThroughEarpieceAndroid: false,
+               });
+          } catch (e) {
+               console.log('Failed to set audio mode for speech:', e);
+          }
+
           Speech.speak(text, {
                language: 'en-US',
                rate: options?.rate ?? 0.9,

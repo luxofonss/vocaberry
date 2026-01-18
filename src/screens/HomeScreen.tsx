@@ -4,7 +4,6 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   RefreshControl,
   FlatList,
   Animated,
@@ -12,6 +11,7 @@ import {
   TextInput,
   ScrollView,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -21,7 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import { gradients } from '../theme/styles';
-import { Word, RootStackParamList, TabType, Sentence } from '../types';
+import { Word, RootStackParamList, TabType, Sentence, Conversation } from '../types';
 import { StorageService } from '../services/StorageService';
 import { DictionaryService } from '../services/DictionaryService';
 import {
@@ -29,20 +29,16 @@ import {
   QuickAddModal,
   SearchModal,
   FilterChip,
-  CategoryFilter
 } from '../components';
 import { EventBus } from '../services/EventBus';
 import { PracticeScreen } from './PracticeScreen';
+import { DiscoverScreen } from './DiscoverScreen';
 import { BottomTabBar } from '../components/BottomTabBar';
 import { UI_LIMITS, ANIMATION } from '../constants';
-import { getNotificationByTime, getGreetingText, getUserInitial } from '../utils';
+import { getNotificationByTime, getUserInitial } from '../utils';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 
-/**
- * Main Application Hub
- * Manages Home (Grid), Topics (Inventory), and Practice views.
- */
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const insets = useSafeAreaInsets();
@@ -56,6 +52,7 @@ export const HomeScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [homeSubTab, setHomeSubTab] = useState<string>('words');
   const [sentences, setSentences] = useState<Sentence[]>([]);
+  const [practicingConversations, setPracticingConversations] = useState<Conversation[]>([]);
   const [newSentence, setNewSentence] = useState('');
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [isSearchVisible, setSearchVisible] = useState(false);
@@ -153,6 +150,9 @@ export const HomeScreen: React.FC = () => {
 
       const allSentences = await StorageService.getSentences();
       setSentences(allSentences);
+
+      const practicing = await StorageService.getPracticingConversations();
+      setPracticingConversations(practicing);
     } catch (error) {
       console.error('[HomeScreen] Failed to load data:', error);
     } finally {
@@ -248,7 +248,7 @@ export const HomeScreen: React.FC = () => {
   }, [words]);
 
   const filteredWords = useMemo(() => {
-    if (!selectedCategory || selectedCategory === 'All Words') {
+    if (!selectedCategory || selectedCategory === 'All Words' || selectedCategory === 'All') {
       return words;
     }
     return words.filter(w => {
@@ -326,8 +326,8 @@ export const HomeScreen: React.FC = () => {
 
   const renderTopicBlock = useCallback(({ item }: { item: { title: string, data: Word[] } }) => {
     const isExpanded = expandedTopics[item.title];
-    const displayData = isExpanded ? item.data : item.data.slice(0, UI_LIMITS.topicExpandLimit);
-    const hasMore = item.data.length > UI_LIMITS.topicExpandLimit;
+    const displayData = isExpanded ? (item.data || []) : (item.data || []).slice(0, UI_LIMITS.topicExpandLimit);
+    const hasMore = (item.data || []).length > UI_LIMITS.topicExpandLimit;
 
     return (
       <View style={styles.topicSection}>
@@ -388,6 +388,8 @@ export const HomeScreen: React.FC = () => {
   const renderContent = useCallback(() => {
     if (activeTab === 'practice') return <PracticeScreen onQuizStateChange={setIsPracticeQuizActive} />;
 
+    if (activeTab === 'discover') return <DiscoverScreen />;
+
     if (activeTab === 'home') {
       return (
         <View style={styles.contentContainer}>
@@ -397,7 +399,8 @@ export const HomeScreen: React.FC = () => {
           <View style={styles.subTabRow}>
             {[
               { id: 'words', label: 'Words' },
-              { id: 'sentences', label: 'Sentences' }
+              { id: 'sentences', label: 'Pron.' },
+              { id: 'conversations', label: 'Convo' }
             ].map(tab => (
               <TouchableOpacity
                 key={tab.id}
@@ -554,32 +557,92 @@ export const HomeScreen: React.FC = () => {
               )}
             </ScrollView>
           )}
+
+          {homeSubTab === 'conversations' && (
+            <ScrollView
+              style={styles.sentencesScrollView}
+              contentContainerStyle={styles.sentencesContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
+              }
+            >
+              <View style={styles.recentListHeader}>
+                <View style={styles.recentListTitleRow}>
+                  <Text style={styles.recentListTitle}>PRACTICING CONVERSATIONS</Text>
+                  <View style={styles.sentenceCountBadge}>
+                    <Text style={styles.sentenceCountBadgeText}>{practicingConversations.length}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {practicingConversations.length === 0 ? (
+                <View style={styles.emptySentences}>
+                  <Text style={styles.emptyEmoji}>💬</Text>
+                  <Text style={styles.emptyText}>No practicing conversations.</Text>
+                  <TouchableOpacity
+                    onPress={() => setActiveTab('discover')}
+                    style={{ marginTop: 12 }}
+                  >
+                    <Text style={{ color: colors.primary, fontWeight: '700' }}>Discover more →</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                practicingConversations.map((conv) => {
+                  const avgScore = conv.practiceCount > 0
+                    ? Math.round((conv.totalScore || 0) / conv.practiceCount)
+                    : 0;
+
+                  return (
+                    <TouchableOpacity
+                      key={conv.id}
+                      style={[styles.sentenceCard, shadows.claySoft]}
+                      onPress={() => navigation.navigate('ConversationDetail', { conversationId: conv.id })}
+                    >
+                      <View style={styles.sentenceCardHeader}>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.sentenceText} numberOfLines={1}>{conv.title}</Text>
+                          <Text style={{ fontSize: 12, color: colors.textLight, marginTop: 2 }}>{conv.category} • {conv.difficulty}</Text>
+                        </View>
+                        <TouchableOpacity
+                          onPress={async () => {
+                            const updated = await StorageService.removePracticingConversation(conv.id);
+                            setPracticingConversations(updated);
+                          }}
+                          style={styles.actionBtn}
+                        >
+                          <Ionicons name="trash-outline" size={18} color={colors.textLight} />
+                        </TouchableOpacity>
+                      </View>
+                      <View style={styles.sentenceCardFooter}>
+                        <View style={styles.practiceBadgesRow}>
+                          <View style={styles.practiceBadge}>
+                            <Text style={styles.practiceBadgeText}>{conv.practiceCount || 0} sessions</Text>
+                          </View>
+                          {avgScore > 0 && (
+                            <View style={[styles.practiceBadge, { backgroundColor: '#F0FDF4' }]}>
+                              <Text style={[styles.practiceBadgeText, { color: '#16A34A' }]}>Score: {avgScore}%</Text>
+                            </View>
+                          )}
+                        </View>
+                        {conv.lastPracticedAt && (
+                          <Text style={styles.lastPracticedText}>
+                            {new Date(conv.lastPracticedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          </Text>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </ScrollView>
+          )}
         </View>
       );
     }
 
-    // Topics / Inventory Tab
-    return (
-      <FlatList
-        key="topics-list"
-        data={inventoryData}
-        renderItem={renderTopicBlock}
-        keyExtractor={(item) => item.title}
-        ListHeaderComponent={() => (
-          <>
-            {renderHeader()}
-            {renderFilterToolbar()}
-          </>
-        )}
-        ListEmptyComponent={renderEmpty}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
-        }
-      />
-    );
-  }, [activeTab, filteredWords, navigation, renderHeader, renderEmpty, refreshing, handleRefresh, inventoryData, renderTopicBlock, renderFilterToolbar, homeSubTab, availableCategories, selectedCategory, sentences, newSentence, handleSaveSentence, handleDeleteSentence, showAddSentence]);
+    return null;
+  }, [activeTab, filteredWords, navigation, renderHeader, renderEmpty, refreshing, handleRefresh, inventoryData, renderTopicBlock, renderFilterToolbar, homeSubTab, availableCategories, selectedCategory, sentences, newSentence, handleSaveSentence, handleDeleteSentence, showAddSentence, insets.top]);
 
   return (
     <LinearGradient
@@ -681,7 +744,6 @@ const styles = StyleSheet.create({
 
   header: {
     paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing.lg,
     paddingBottom: spacing.xs
   },
   headerTop: {
@@ -924,40 +986,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screenPadding,
     paddingBottom: 120,
   },
-  sentenceInputCard: {
-    backgroundColor: '#F8FAFF',
-    borderRadius: 24,
-    padding: spacing.lg,
-    minHeight: 120,
-    marginBottom: spacing.lg,
-  },
-  sentenceInput: {
-    fontSize: 18,
-    color: colors.textPrimary,
-    lineHeight: 26,
-    textAlignVertical: 'top',
-  },
-  savePracticeBtn: {
-    borderRadius: 32,
-    overflow: 'hidden',
-    marginBottom: spacing.xl,
-  },
-  gradientBtn: {
-    paddingVertical: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  savePracticeText: {
-    color: colors.white,
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  sentenceInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    marginBottom: spacing.lg,
-  },
   sentenceInputCardFlexible: {
     flex: 1,
     backgroundColor: '#F8FAFF',
@@ -1011,6 +1039,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: colors.textLight,
     letterSpacing: 0.5,
+  },
+  sentenceInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.lg,
   },
   sentenceCountBadge: {
     backgroundColor: '#EDE9FE',
@@ -1072,29 +1106,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 40,
   },
-
-  practiceAllBtn: {
-    backgroundColor: colors.white,
-    paddingVertical: 14,
-    borderRadius: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: spacing.xl,
-    gap: spacing.sm,
-    borderWidth: 1,
-    borderColor: 'rgba(124, 58, 237, 0.1)',
-  },
-  practiceAllText: {
-    color: colors.primary,
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  sentenceActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
   actionBtn: {
     padding: 4,
   },
@@ -1126,13 +1137,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-  wordsFlatList: {
-    flex: 1,
-  },
   categoryChipTextActive: {
     color: colors.white,
   },
   categoryChipTextInactive: {
     color: '#4B5563',
+  },
+  wordsFlatList: {
+    flex: 1,
   },
 });

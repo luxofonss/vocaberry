@@ -18,7 +18,7 @@ import {
   ActivityIndicator,
   FlatList,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -53,6 +53,7 @@ interface PracticeScreenProps {
 
 export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChange }) => {
   const navigation = useNavigation<NavigationProp>();
+  const insets = useSafeAreaInsets();
 
   // -- Setup State --
   const [questionCount, setQuestionCount] = useState<number>(PRACTICE_CONFIG.defaultQuestionCount);
@@ -638,8 +639,14 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
     <View style={{ flex: 1 }}>
       {/* Header with Back Button */}
       <View style={styles.setupHeader}>
-        <Text style={styles.setupHeaderTitle}>{PRACTICE_TEXTS.title}</Text>
-        <View style={{ width: 44 }} />
+        <View style={styles.headerTop}>
+          <View style={styles.greetingContainer}>
+            <Text style={styles.setupHeaderTitle}>
+              Practice Time <Text style={styles.wavingEmoji}>🎯</Text>
+            </Text>
+            <Text style={styles.subGreeting}>Ready to level up your skills?</Text>
+          </View>
+        </View>
       </View>
 
       <View style={styles.centerContent}>
@@ -1216,7 +1223,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
       end={gradients.backgroundMain.end}
       style={styles.container}
     >
-      <View style={styles.innerContainer}>
+      <SafeAreaView style={styles.innerContainer} edges={['bottom', 'left', 'right']}>
         {renderSetup()}
 
         <ImageViewerModal
@@ -1225,7 +1232,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
           onClose={() => setImageViewerVisible(false)}
           allowEdit={false}
         />
-      </View>
+      </SafeAreaView>
     </LinearGradient>
   );
 };
@@ -1862,15 +1869,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
     paddingHorizontal: spacing.sm,
   },
-  reviewTopSummary: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  reviewSummaryImage: {
-    width: 140,
-    height: 140,
-  },
   reviewStatsColumn: {
     flex: 1.3,
     gap: spacing.xs,
@@ -2191,17 +2189,34 @@ const styles = StyleSheet.create({
 
   // -- Setup Header --
   setupHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: 0, // Removed extra padding since it's inside SafeAreaView
+    paddingBottom: spacing.xs,
     width: '100%',
-    paddingHorizontal: spacing.lg,
-    marginBottom: 0,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: spacing.xxs,
+  },
+  greetingContainer: {
+    // Removed flex: 1 to prevent collapsing without fixed height
+    marginRight: spacing.md,
   },
   setupHeaderTitle: {
-    fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.bold,
-    color: colors.primary,
+    fontSize: typography.sizes.xxl,
+    fontWeight: typography.weights.extraBold,
+    color: colors.textPrimary,
+    letterSpacing: -0.5,
+  },
+  wavingEmoji: {
+    fontSize: typography.sizes.xxl,
+  },
+  subGreeting: {
+    fontSize: typography.sizes.base,
+    color: colors.textSecondary,
+    marginTop: 2,
   },
   backButton: {
     width: 44,

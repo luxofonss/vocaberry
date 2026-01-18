@@ -6,3 +6,5 @@ export { WordDetailScreen } from './WordDetailScreen';
 export { ReviewScreen } from './ReviewScreen';
 export { SettingsScreen } from './SettingsScreen';
 export { SentencePracticeScreen } from './SentencePracticeScreen';
+export { DiscoverScreen } from './DiscoverScreen';
+export { ConversationDetailScreen } from './ConversationDetailScreen';
