@@ -77,6 +77,8 @@ export const PracticeScreen: React.FC = () => {
     word: Word;
     status: 'correct' | 'incorrect' | 'skipped';
     userAnswer?: string;
+    inputMethod?: 'text' | 'audio' | 'both' | 'skipped';
+    audioAccuracy?: number;
   }>>([]);
   const [showReview, setShowReview] = useState(false);
 
@@ -863,6 +865,9 @@ export const PracticeScreen: React.FC = () => {
         ? getFeedbackData(pronunciationResult.accuracy, true)
         : getFeedbackData(isCorrect ? 1 : 0, false))
       : null;
+
+    const currentResult = isAnswered ? quizResults.find(r => r.word.id === currentWord.id) : null;
+    const isSkipped = currentResult?.status === 'skipped';
 
     return (
       <View style={{ flex: 1 }}>

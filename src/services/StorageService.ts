@@ -452,4 +452,38 @@ export const StorageService = {
                console.error('[StorageService] Failed to update practice stats', e);
           }
      },
+
+     /**
+      * Sentences support
+      */
+     getSentences: async () => {
+          return await DatabaseService.getAllSentences();
+     },
+
+     addSentence: async (text: string) => {
+          const newSentence = {
+               id: Date.now().toString(),
+               text,
+               practiceCount: 0,
+               createdAt: new Date().toISOString(),
+               localCreatedAt: new Date().toISOString(),
+          };
+          await DatabaseService.saveSentence(newSentence);
+          return await DatabaseService.getAllSentences();
+     },
+
+     deleteSentence: async (id: string) => {
+          await DatabaseService.deleteSentence(id);
+          return await DatabaseService.getAllSentences();
+     },
+
+     incrementSentencePractice: async (id: string) => {
+          const sentences = await DatabaseService.getAllSentences();
+          const sentence = sentences.find(s => s.id === id);
+          if (sentence) {
+               sentence.practiceCount = (sentence.practiceCount || 0) + 1;
+               await DatabaseService.saveSentence(sentence);
+          }
+          return await DatabaseService.getAllSentences();
+     }
 };

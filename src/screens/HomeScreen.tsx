@@ -1,4 +1,4 @@
-// HomeScreen - Optimized Core View with Claymorphism Design
+// HomeScreen - Optimized Core View with Claymorphism Design (Fixed Styles)
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   View,
@@ -9,7 +9,11 @@ import {
   FlatList,
   Animated,
   Pressable,
+  TextInput,
+  ScrollView,
+  Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,7 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import { gradients } from '../theme/styles';
-import { Word, RootStackParamList, TabType } from '../types';
+import { Word, RootStackParamList, TabType, Sentence } from '../types';
 import { StorageService } from '../services/StorageService';
 import { DictionaryService } from '../services/DictionaryService';
 import {
@@ -49,11 +53,14 @@ export const HomeScreen: React.FC = () => {
   const [wordsForReview, setWordsForReview] = useState(0);
   const [leastViewedCount, setLeastViewedCount] = useState(0);
   const [activeTab, setActiveTab] = useState<TabType>('home');
+  const [homeSubTab, setHomeSubTab] = useState<string>('words');
+  const [sentences, setSentences] = useState<Sentence[]>([]);
+  const [newSentence, setNewSentence] = useState('');
   const [quickAddVisible, setQuickAddVisible] = useState(false);
   const [isSearchVisible, setSearchVisible] = useState(false);
   const [sortBy, setSortBy] = useState<'alphabet' | 'newest' | 'views'>('newest');
   const [expandedTopics, setExpandedTopics] = useState<Record<string, boolean>>({});
-  const [selectedCategory, setSelectedCategory] = useState<string>('All Words');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [userName, setUserName] = useState<string | null>(null);
   const [leastViewedWords, setLeastViewedWords] = useState<Word[]>([]);
   const [showNotification, setShowNotification] = useState(false);
@@ -61,12 +68,10 @@ export const HomeScreen: React.FC = () => {
   const notificationAnim = useRef(new Animated.Value(-100)).current;
 
   // -- Effects --
-  // Chạy 1 lần duy nhất khi khởi động App - Force seed mock data
   useEffect(() => {
     const initData = async () => {
       const allWords = await StorageService.getWords();
       if (allWords.length === 0) {
-        // Nếu chưa có data, seed mock data
         await StorageService.forceSeedMockData();
         loadData();
       }
@@ -74,7 +79,6 @@ export const HomeScreen: React.FC = () => {
     initData();
   }, []);
 
-  // Listen for image update event to update word list UI instantly
   useEffect(() => {
     const cb = ({ wordId, word: updated }: { wordId: string; word: Word }) => {
       setWords((prev) => prev.map(w => w.id === wordId ? updated : w));
@@ -83,7 +87,6 @@ export const HomeScreen: React.FC = () => {
     return () => EventBus.off('wordImageUpdated', cb);
   }, []);
 
-  // Listen for switch to home tab event from PracticeScreen
   useEffect(() => {
     const handleSwitchToHome = () => {
       setActiveTab('home');
@@ -92,7 +95,6 @@ export const HomeScreen: React.FC = () => {
     return () => EventBus.off('switchToHomeTab', handleSwitchToHome);
   }, []);
 
-  // Tự động load lại dữ liệu mỗi khi màn hình được Focus (quay lại từ màn hình khác)
   useFocusEffect(
     useCallback(() => {
       loadData();
@@ -104,7 +106,6 @@ export const HomeScreen: React.FC = () => {
       const allWords = await StorageService.getWords();
       setWords(allWords);
 
-      // Check and resume polling for any words still processing
       DictionaryService.checkAndResumePolling(allWords);
 
       const reviewList = await StorageService.getWordsForReview();
@@ -139,6 +140,9 @@ export const HomeScreen: React.FC = () => {
 
       const name = await StorageService.getUserName();
       setUserName(name);
+
+      const allSentences = await StorageService.getSentences();
+      setSentences(allSentences);
     } catch (error) {
       console.error('[HomeScreen] Failed to load data:', error);
     } finally {
@@ -156,6 +160,36 @@ export const HomeScreen: React.FC = () => {
     setQuickAddVisible(false);
     const updatedWords = await StorageService.addWord(newWord);
     setWords(updatedWords);
+  }, []);
+
+  const handleSaveSentence = useCallback(async () => {
+    if (!newSentence.trim()) return;
+    try {
+      const updatedSentences = await StorageService.addSentence(newSentence.trim());
+      setSentences(updatedSentences);
+      setNewSentence('');
+      Alert.alert('Saved', 'Sentence saved to your collection!');
+    } catch (e) {
+      console.error('Failed to save sentence', e);
+    }
+  }, [newSentence]);
+
+  const handleDeleteSentence = useCallback(async (id: string) => {
+    Alert.alert(
+      'Delete Sentence',
+      'Are you sure you want to delete this sentence?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            const updated = await StorageService.deleteSentence(id);
+            setSentences(updated);
+          }
+        },
+      ]
+    );
   }, []);
 
   const toggleTopicExpand = useCallback((topic: string) => {
@@ -189,23 +223,25 @@ export const HomeScreen: React.FC = () => {
   }, [notificationAnim]);
 
   // -- Computed Data --
-  // Get available categories from words
   const availableCategories = useMemo(() => {
-    const categorySet = new Set<string>(['All Words']);
+    const categorySet = new Set<string>();
     words.forEach(w => {
-      const wordTopics = w.topics || ['Uncategorized'];
-      wordTopics.forEach(t => categorySet.add(t));
+      const wordTopics = w.topics || [];
+      wordTopics.forEach(t => {
+        if (t) {
+          categorySet.add(t);
+        }
+      });
     });
-    return Array.from(categorySet).sort();
+    return ['All', ...Array.from(categorySet).sort()];
   }, [words]);
 
-  // Filter words by selected category
   const filteredWords = useMemo(() => {
-    if (selectedCategory === 'All Words') {
+    if (!selectedCategory || selectedCategory === 'All Words') {
       return words;
     }
     return words.filter(w => {
-      const wordTopics = w.topics || ['Uncategorized'];
+      const wordTopics = w.topics || [];
       return wordTopics.includes(selectedCategory);
     });
   }, [words, selectedCategory]);
@@ -213,10 +249,12 @@ export const HomeScreen: React.FC = () => {
   const inventoryData = useMemo(() => {
     const groups: Record<string, Word[]> = {};
     words.forEach(w => {
-      const wordTopics = w.topics || ['Uncategorized'];
+      const wordTopics = w.topics || [];
       wordTopics.forEach(t => {
-        if (!groups[t]) groups[t] = [];
-        groups[t].push(w);
+        if (t && t !== 'Uncategorized') {
+          if (!groups[t]) groups[t] = [];
+          groups[t].push(w);
+        }
       });
     });
 
@@ -238,11 +276,9 @@ export const HomeScreen: React.FC = () => {
   }, [words, sortBy]);
 
   // -- Render Components --
-
   const renderHeader = useCallback(() => {
     const greetingName = userName || 'there';
     const avatarInitial = getUserInitial(userName);
-    const hasNotifications = false; // TODO: Add notification logic
 
     return (
       <View style={styles.header}>
@@ -263,7 +299,6 @@ export const HomeScreen: React.FC = () => {
             >
               <Text style={styles.avatarText}>{avatarInitial}</Text>
             </Pressable>
-            {hasNotifications && <View style={styles.notificationDot} />}
           </View>
         </View>
       </View>
@@ -344,26 +379,155 @@ export const HomeScreen: React.FC = () => {
 
     if (activeTab === 'home') {
       return (
-        <FlatList
-          key="home-grid"
-          data={filteredWords}
-          renderItem={({ item }) => (
-            <WordCard
-              word={item} variant="compact"
-              onPress={() => navigation.navigate('WordDetail', { wordId: item.id })}
-            />
+        <View style={styles.contentContainer}>
+          {renderHeader()}
+
+          {/* Sub Tab Selector */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.subTabScrollView}
+            contentContainerStyle={styles.subTabContainer}
+          >
+            {[
+              { id: 'words', label: 'Words' },
+              { id: 'sentences', label: 'Sentences' }
+            ].map(tab => (
+              <TouchableOpacity
+                key={tab.id}
+                activeOpacity={0.7}
+                style={[styles.subTabButton, homeSubTab === tab.id && styles.subTabButtonActive]}
+                onPress={() => setHomeSubTab(tab.id)}
+              >
+                <Text style={[styles.subTabText, homeSubTab === tab.id && styles.subTabTextActive]}>{tab.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {homeSubTab === 'words' && (
+            <View style={styles.contentContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.categoryChipsScroll}
+              >
+                {availableCategories.map(cat => {
+                  const isActive = selectedCategory === cat || (!selectedCategory && cat === 'All');
+                  const emoji = cat === 'All' ? '🌟' :
+                    cat === 'Uncategorized' ? '📦' :
+                      cat === 'Food' ? '🍔' :
+                        cat === 'Nature' ? '🌿' :
+                          cat === 'Work' ? '💼' : '🏷️';
+
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[
+                        styles.categoryChip,
+                        isActive ? styles.categoryChipActive : styles.categoryChipInactive
+                      ]}
+                      onPress={() => setSelectedCategory(cat === 'All' ? '' : cat)}
+                    >
+                      <Text style={[
+                        styles.categoryChipText,
+                        isActive ? styles.categoryChipTextActive : styles.categoryChipTextInactive
+                      ]}>
+                        {emoji} {cat}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <FlatList
+                key="home-grid"
+                data={filteredWords}
+                renderItem={({ item }) => (
+                  <WordCard
+                    word={item} variant="compact"
+                    onPress={() => navigation.navigate('WordDetail', { wordId: item.id })}
+                  />
+                )}
+                keyExtractor={(item) => item.id}
+                numColumns={3}
+                columnWrapperStyle={styles.columnWrapper}
+                ListHeaderComponent={<View style={styles.listHeaderSpacer} />}
+                ListEmptyComponent={renderEmpty}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={false}
+                refreshControl={
+                  <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
+                }
+              />
+            </View>
           )}
-          keyExtractor={(item) => item.id}
-          numColumns={3}
-          columnWrapperStyle={styles.columnWrapper}
-          ListHeaderComponent={renderHeader}
-          ListEmptyComponent={renderEmpty}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
-          }
-        />
+
+          {homeSubTab === 'sentences' && (
+            <ScrollView
+              style={styles.sentencesScrollView}
+              contentContainerStyle={styles.sentencesContent}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
+              }
+            >
+              <View style={[styles.sentenceInputCard, shadows.claySoft]}>
+                <TextInput
+                  style={styles.sentenceInput}
+                  placeholder="Type a new sentence here..."
+                  placeholderTextColor={colors.textLight}
+                  multiline
+                  value={newSentence}
+                  onChangeText={setNewSentence}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.savePracticeBtn, shadows.clayStrong]}
+                onPress={handleSaveSentence}
+              >
+                <LinearGradient
+                  colors={[colors.primary, '#8B5CF6']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.gradientBtn}
+                >
+                  <Text style={styles.savePracticeText}>Save & Practice</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <View style={styles.recentListHeader}>
+                <Text style={styles.recentListTitle}>RECENT LIST</Text>
+                <View style={styles.sentenceCountBadge}>
+                  <Text style={styles.sentenceCountBadgeText}>{sentences.length} Sentences</Text>
+                </View>
+              </View>
+
+              {sentences.length === 0 ? (
+                <View style={styles.emptySentences}>
+                  <Text style={styles.emptyEmoji}>✍️</Text>
+                  <Text style={styles.emptyText}>No sentences yet.</Text>
+                </View>
+              ) : (
+                sentences.map((sent) => (
+                  <View key={sent.id} style={[styles.sentenceCard, shadows.claySoft]}>
+                    <View style={styles.sentenceCardHeader}>
+                      <Text style={styles.sentenceText}>{sent.text}</Text>
+                      <TouchableOpacity onPress={() => handleDeleteSentence(sent.id)}>
+                        <Ionicons name="trash-outline" size={18} color={colors.textLight} />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.sentenceCardFooter}>
+                      <View style={styles.practiceBadge}>
+                        <Text style={styles.practiceBadgeText}>{sent.practiceCount || 0} practices</Text>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          )}
+        </View>
       );
     }
 
@@ -388,8 +552,7 @@ export const HomeScreen: React.FC = () => {
         }
       />
     );
-  }, [activeTab, filteredWords, navigation, renderHeader, renderEmpty, refreshing, handleRefresh, inventoryData, renderTopicBlock, renderFilterToolbar]);
-
+  }, [activeTab, filteredWords, navigation, renderHeader, renderEmpty, refreshing, handleRefresh, inventoryData, renderTopicBlock, renderFilterToolbar, homeSubTab, availableCategories, selectedCategory, sentences, newSentence, handleSaveSentence, handleDeleteSentence]);
 
   return (
     <LinearGradient
@@ -433,7 +596,7 @@ export const HomeScreen: React.FC = () => {
           </Animated.View>
         )}
 
-        <View style={{ flex: 1 }}>
+        <View style={styles.mainContent}>
           {renderContent()}
         </View>
 
@@ -466,19 +629,60 @@ export const HomeScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  safeArea: { flex: 1 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { color: colors.textSecondary, fontSize: typography.sizes.base },
+  container: {
+    flex: 1
+  },
+  safeArea: {
+    flex: 1
+  },
+  mainContent: {
+    flex: 1,
+  },
+  contentContainer: {
+    display: 'flex',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  loadingText: {
+    color: colors.textSecondary,
+    fontSize: typography.sizes.base
+  },
 
-  header: { paddingHorizontal: spacing.screenPadding, paddingTop: spacing.lg, paddingBottom: spacing.sm },
-  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing.md },
-  greetingContainer: { flex: 1, marginRight: spacing.md },
-  greeting: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.extraBold, color: colors.textPrimary, letterSpacing: -0.5 },
-  wavingEmoji: { fontSize: typography.sizes.xxl },
-  subGreeting: { fontSize: typography.sizes.base, color: colors.textSecondary, marginTop: 8 },
-  avatarContainer: { position: 'relative' },
-  // Avatar with claySoft shadow and subtle gradient styling
+  header: {
+    paddingHorizontal: spacing.screenPadding,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xs
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: spacing.xxs
+  },
+  greetingContainer: {
+    flex: 1,
+    marginRight: spacing.md
+  },
+  greeting: {
+    fontSize: typography.sizes.xxl,
+    fontWeight: typography.weights.extraBold,
+    color: colors.textPrimary,
+    letterSpacing: -0.5
+  },
+  wavingEmoji: {
+    fontSize: typography.sizes.xxl
+  },
+  subGreeting: {
+    fontSize: typography.sizes.base,
+    color: colors.textSecondary,
+    marginTop: 2
+  },
+  avatarContainer: {
+    position: 'relative'
+  },
   avatar: {
     width: 44,
     height: 44,
@@ -486,52 +690,83 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cardSurface,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 0,
     borderTopWidth: 1,
     borderTopColor: colors.shadowInnerLight,
     ...shadows.claySoft,
   },
-  // Avatar pressed state - compressed clay effect (squish animation per rules.md)
   avatarPressed: {
     transform: [{ scale: 0.92 }],
     ...shadows.clayPressed,
   },
-  avatarText: { color: colors.primary, fontWeight: typography.weights.bold, fontSize: typography.sizes.lg },
-  notificationDot: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: colors.accentRed, // #EF4444 per rules.md
-    borderWidth: 2,
-    borderColor: colors.white,
+  avatarText: {
+    color: colors.primary,
+    fontWeight: typography.weights.bold,
+    fontSize: typography.sizes.lg
   },
 
-  categoryFiltersContainer: {
-    flexDirection: 'row',
-    gap: spacing.sm,
+  listContent: {
+    paddingBottom: 120
+  },
+  listHeaderSpacer: {
+    height: 0,
+  },
+  columnWrapper: {
     paddingHorizontal: spacing.screenPadding,
-    marginBottom: spacing.xl,
-    marginTop: spacing.sm,
+    gap: spacing.itemGap,
+    marginBottom: spacing.md
   },
 
-  listContent: { paddingBottom: 120 },
-  columnWrapper: { paddingHorizontal: spacing.screenPadding, gap: spacing.itemGap, marginBottom: spacing.md },
+  emptyContainer: {
+    alignItems: 'center',
+    marginTop: 60
+  },
+  emptyEmoji: {
+    fontSize: typography.sizes.hero,
+    marginBottom: spacing.lg
+  },
+  emptyText: {
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.bold,
+    color: colors.textSecondary
+  },
+  emptySubText: {
+    marginTop: spacing.sm,
+    color: colors.textSecondary,
+    fontSize: typography.sizes.base
+  },
 
-  emptyContainer: { alignItems: 'center', marginTop: 60 },
-  emptyEmoji: { fontSize: typography.sizes.hero, marginBottom: spacing.lg },
-  emptyText: { fontSize: typography.sizes.lg, fontWeight: typography.weights.bold, color: colors.textSecondary },
-  emptySubText: { marginTop: spacing.sm, color: colors.textSecondary, fontSize: typography.sizes.base },
+  topicSection: {
+    marginBottom: spacing.xxxl
+  },
+  topicHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.screenPadding
+  },
+  topicBlockTitle: {
+    fontSize: typography.sizes.lg,
+    fontWeight: typography.weights.bold,
+    color: colors.textPrimary
+  },
+  topicCount: {
+    color: colors.textSecondary,
+    fontWeight: typography.weights.regular,
+    fontSize: typography.sizes.base
+  },
+  expandText: {
+    color: colors.primary,
+    fontWeight: typography.weights.semibold,
+    fontSize: typography.sizes.sm
+  },
 
-  topicSection: { marginBottom: spacing.xxxl },
-  topicHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.lg, paddingHorizontal: spacing.screenPadding },
-  topicBlockTitle: { fontSize: typography.sizes.lg, fontWeight: typography.weights.bold, color: colors.textPrimary },
-  topicCount: { color: colors.textSecondary, fontWeight: typography.weights.regular, fontSize: typography.sizes.base },
-  expandText: { color: colors.primary, fontWeight: typography.weights.semibold, fontSize: typography.sizes.sm },
-
-  topicGridContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.itemGap, paddingHorizontal: spacing.screenPadding },
+  topicGridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.itemGap,
+    paddingHorizontal: spacing.screenPadding
+  },
 
   seeMoreBtn: {
     marginTop: spacing.lg,
@@ -540,28 +775,42 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.clayCard,
-    borderWidth: 0,
     ...shadows.claySoft
   },
-  // See more button pressed state - compressed clay effect (squish animation per rules.md)
   seeMoreBtnPressed: {
     transform: [{ scale: 0.92 }],
     ...shadows.clayPressed,
   },
-  seeMoreText: { color: colors.textSecondary, fontSize: typography.sizes.sm, fontWeight: typography.weights.semibold },
+  seeMoreText: {
+    color: colors.textSecondary,
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.semibold
+  },
 
-  filterToolbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing.screenPadding, marginBottom: spacing.xxl, marginTop: spacing.sm },
-  filterLabel: { color: colors.textSecondary, marginRight: spacing.md, fontSize: typography.sizes.sm },
-  filterOptions: { flexDirection: 'row', gap: spacing.sm },
+  filterToolbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: spacing.screenPadding,
+    marginBottom: spacing.xxl,
+    marginTop: spacing.sm
+  },
+  filterLabel: {
+    color: colors.textSecondary,
+    marginRight: spacing.md,
+    fontSize: typography.sizes.sm
+  },
+  filterOptions: {
+    flexDirection: 'row',
+    gap: spacing.sm
+  },
 
-  // Notification Styles with claymorphism
+  // Notification Styles
   notificationContainer: {
     paddingHorizontal: spacing.screenPadding,
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,
     zIndex: 1000,
   },
-  // Notification content with clayStrong shadow and gradient
   notificationContent: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -569,7 +818,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderRadius: borderRadius.clayCard,
     padding: spacing.puffyMd,
-    borderWidth: 0,
     borderTopWidth: 1,
     borderTopColor: colors.shadowInnerLight,
     ...shadows.clayStrong,
@@ -600,7 +848,7 @@ const styles = StyleSheet.create({
   notificationClose: {
     width: 28,
     height: 28,
-    borderRadius: 20, // Minimum 20px per rules.md
+    borderRadius: 20,
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -610,5 +858,163 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.bold,
+  },
+
+  // Sub Tab Styles
+  subTabScrollView: {
+    flexGrow: 0,
+    marginBottom: 8,
+  },
+  subTabContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: spacing.screenPadding,
+    gap: spacing.lg,
+    paddingBottom: 2,
+  },
+  subTabButton: {
+    paddingVertical: 6,
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
+  },
+  subTabButtonActive: {
+    borderBottomColor: colors.primary,
+  },
+  subTabText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.textSecondary,
+  },
+  subTabTextActive: {
+    color: colors.primary,
+  },
+
+  // Sentences Styles
+  sentencesScrollView: {
+    flex: 1,
+  },
+  sentencesContent: {
+    paddingHorizontal: spacing.screenPadding,
+    paddingBottom: 120,
+  },
+  sentenceInputCard: {
+    backgroundColor: '#F8FAFF',
+    borderRadius: 24,
+    padding: spacing.lg,
+    minHeight: 120,
+    marginBottom: spacing.lg,
+  },
+  sentenceInput: {
+    fontSize: 18,
+    color: colors.textPrimary,
+    lineHeight: 26,
+    textAlignVertical: 'top',
+  },
+  savePracticeBtn: {
+    borderRadius: 32,
+    overflow: 'hidden',
+    marginBottom: spacing.xl,
+  },
+  gradientBtn: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  savePracticeText: {
+    color: colors.white,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  recentListHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing.md,
+  },
+  recentListTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.textLight,
+    letterSpacing: 0.5,
+  },
+  sentenceCountBadge: {
+    backgroundColor: '#EDE9FE',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  sentenceCountBadgeText: {
+    color: '#8B5CF6',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  sentenceCard: {
+    backgroundColor: colors.white,
+    borderRadius: 20,
+    padding: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  sentenceCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  sentenceText: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.textPrimary,
+    lineHeight: 24,
+    fontWeight: '500',
+  },
+  sentenceCardFooter: {
+    flexDirection: 'row',
+  },
+  practiceBadge: {
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  practiceBadgeText: {
+    color: '#10B981',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  emptySentences: {
+    alignItems: 'center',
+    marginTop: 40,
+  },
+
+  // Words Subtab Categories
+  categoryChipsScroll: {
+    paddingHorizontal: spacing.screenPadding,
+    gap: spacing.sm,
+    paddingTop: 0,
+    paddingBottom: 0,
+    marginBottom: 8,
+  },
+  categoryChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...shadows.subtle,
+  },
+  categoryChipActive: {
+    backgroundColor: colors.primary,
+  },
+  categoryChipInactive: {
+    backgroundColor: colors.white,
+  },
+  categoryChipText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  categoryChipTextActive: {
+    color: colors.white,
+  },
+  categoryChipTextInactive: {
+    color: '#4B5563',
   },
 });

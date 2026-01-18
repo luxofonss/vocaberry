@@ -104,4 +104,12 @@ export type RootStackParamList = {
      Settings: undefined;
 };
 
+export interface Sentence {
+     id: string;
+     text: string;
+     practiceCount: number;
+     createdAt: string;
+     localCreatedAt?: string;
+}
+
 export type TabType = 'home' | 'topics' | 'practice' | 'add' | 'search';
