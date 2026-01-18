@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 
@@ -45,6 +45,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
  */
 export const HomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const insets = useSafeAreaInsets();
 
   // -- State --
   const [words, setWords] = useState<Word[]>([]);
@@ -66,7 +67,9 @@ export const HomeScreen: React.FC = () => {
   const [showNotification, setShowNotification] = useState(false);
   const [notificationData, setNotificationData] = useState<{ emoji: string; title: string; message: string } | null>(null);
   const [showAddSentence, setShowAddSentence] = useState(false);
-  const notificationAnim = useRef(new Animated.Value(-100)).current;
+  const [isPracticeQuizActive, setIsPracticeQuizActive] = useState(false);
+  const notificationAnim = useRef(new Animated.Value(-150)).current;
+  const autoDismissTimer = useRef<NodeJS.Timeout | null>(null);
 
   // -- Effects --
   useEffect(() => {
@@ -134,9 +137,15 @@ export const HomeScreen: React.FC = () => {
           tension: ANIMATION.spring.tension,
           friction: ANIMATION.spring.friction,
         }).start();
+
+        // Auto-dismiss after 15s
+        if (autoDismissTimer.current) clearTimeout(autoDismissTimer.current);
+        autoDismissTimer.current = setTimeout(() => {
+          handleNotificationDismiss();
+        }, 15000);
       } else {
         setShowNotification(false);
-        notificationAnim.setValue(-100);
+        notificationAnim.setValue(-150);
       }
 
       const name = await StorageService.getUserName();
@@ -169,7 +178,6 @@ export const HomeScreen: React.FC = () => {
       const updatedSentences = await StorageService.addSentence(newSentence.trim());
       setSentences(updatedSentences);
       setNewSentence('');
-      Alert.alert('Saved', 'Sentence saved to your collection!');
     } catch (e) {
       console.error('Failed to save sentence', e);
     }
@@ -198,8 +206,9 @@ export const HomeScreen: React.FC = () => {
   }, []);
 
   const handleNotificationPress = useCallback(() => {
+    if (autoDismissTimer.current) clearTimeout(autoDismissTimer.current);
     Animated.timing(notificationAnim, {
-      toValue: -100,
+      toValue: -150,
       duration: ANIMATION.slow,
       useNativeDriver: true,
     }).start(() => {
@@ -214,8 +223,9 @@ export const HomeScreen: React.FC = () => {
   }, [notificationAnim, leastViewedWords]);
 
   const handleNotificationDismiss = useCallback(() => {
+    if (autoDismissTimer.current) clearTimeout(autoDismissTimer.current);
     Animated.timing(notificationAnim, {
-      toValue: -100,
+      toValue: -150,
       duration: ANIMATION.slow,
       useNativeDriver: true,
     }).start(() => {
@@ -376,7 +386,7 @@ export const HomeScreen: React.FC = () => {
 
   // -- Tab Content --
   const renderContent = useCallback(() => {
-    if (activeTab === 'practice') return <PracticeScreen />;
+    if (activeTab === 'practice') return <PracticeScreen onQuizStateChange={setIsPracticeQuizActive} />;
 
     if (activeTab === 'home') {
       return (
@@ -529,13 +539,13 @@ export const HomeScreen: React.FC = () => {
                         </View>
                         {sent.totalScore !== undefined && sent.totalScore > 0 && (
                           <View style={[styles.practiceBadge, { backgroundColor: '#FFF7ED' }]}>
-                            <Text style={[styles.practiceBadgeText, { color: '#EA580C' }]}>⭐️ {sent.totalScore} pts</Text>
+                            <Text style={[styles.practiceBadgeText, { color: '#EA580C' }]}>⭐️ {sent.totalScore}</Text>
                           </View>
                         )}
                       </View>
                       {sent.lastPracticedAt && (
                         <Text style={styles.lastPracticedText}>
-                          Last: {new Date(sent.lastPracticedAt).toLocaleDateString()}
+                          {new Date(sent.lastPracticedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                         </Text>
                       )}
                     </View>
@@ -584,6 +594,7 @@ export const HomeScreen: React.FC = () => {
             style={[
               styles.notificationContainer,
               {
+                paddingTop: insets.top + spacing.xs,
                 transform: [{ translateY: notificationAnim }]
               }
             ]}
@@ -617,7 +628,7 @@ export const HomeScreen: React.FC = () => {
           {renderContent()}
         </View>
 
-        {activeTab !== 'practice' && (
+        {(activeTab !== 'practice' || !isPracticeQuizActive) && (
           <BottomTabBar
             activeTab={activeTab}
             wordCount={words.length}
@@ -824,9 +835,11 @@ const styles = StyleSheet.create({
   // Notification Styles
   notificationContainer: {
     paddingHorizontal: spacing.screenPadding,
-    paddingTop: spacing.sm,
-    paddingBottom: spacing.sm,
     zIndex: 1000,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
   },
   notificationContent: {
     flexDirection: 'row',
@@ -1012,27 +1025,28 @@ const styles = StyleSheet.create({
   },
   sentenceCard: {
     backgroundColor: colors.white,
-    borderRadius: 20,
-    padding: spacing.lg,
-    marginBottom: spacing.md,
+    borderRadius: 16,
+    padding: spacing.md,
+    marginBottom: spacing.sm,
   },
   sentenceCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     gap: spacing.sm,
-    marginBottom: spacing.md,
+    marginBottom: spacing.xs,
   },
   sentenceText: {
     flex: 1,
-    fontSize: 16,
+    fontSize: 15,
     color: colors.textPrimary,
-    lineHeight: 24,
-    fontWeight: '500',
+    lineHeight: 22,
+    fontWeight: '600',
   },
   sentenceCardFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 4,
   },
   practiceBadgesRow: {
     flexDirection: 'row',

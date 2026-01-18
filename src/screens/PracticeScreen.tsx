@@ -22,6 +22,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 
 import { Audio, AVPlaybackStatus, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -46,7 +47,11 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-export const PracticeScreen: React.FC = () => {
+interface PracticeScreenProps {
+  onQuizStateChange?: (isVisible: boolean) => void;
+}
+
+export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChange }) => {
   const navigation = useNavigation<NavigationProp>();
 
   // -- Setup State --
@@ -57,7 +62,9 @@ export const PracticeScreen: React.FC = () => {
     currentStreak: number;
     longestStreak: number;
     totalWordsPracticed: number;
+    totalSentencesPracticed: number;
     lastPracticeTime: number | null;
+    lastSentencePracticeTime: number | null;
   } | null>(null);
 
   // -- Quiz Session --
@@ -121,7 +128,14 @@ export const PracticeScreen: React.FC = () => {
       setPracticeStats(stats);
     };
     loadStats();
-  }, []);
+  }, [isQuizVisible]);
+
+  // -- Toggle TabBar visibility based on quiz state --
+  useEffect(() => {
+    if (onQuizStateChange) {
+      onQuizStateChange(isQuizVisible);
+    }
+  }, [isQuizVisible, onQuizStateChange]);
 
   // -- Load Sound Effects --
   useEffect(() => {
@@ -151,6 +165,13 @@ export const PracticeScreen: React.FC = () => {
       // Cleanup sounds on unmount
       successSound.current?.unloadAsync();
       errorSound.current?.unloadAsync();
+      if (audioRecorder.current) {
+        audioRecorder.current.stopAndUnloadAsync().catch(() => { });
+        audioRecorder.current = null;
+      }
+      if (userAudioSound.current) {
+        userAudioSound.current.unloadAsync().catch(() => { });
+      }
     };
   }, []);
 
@@ -190,11 +211,6 @@ export const PracticeScreen: React.FC = () => {
     pulseAnim.setValue(1);
   }, [pulseAnim]);
 
-  // -- Logic Handlers --
-  const handleBackToHome = useCallback(() => {
-    EventBus.emit('switchToHomeTab');
-  }, []);
-
   const startPractice = useCallback(async () => {
     setLoading(true);
     try {
@@ -214,6 +230,23 @@ export const PracticeScreen: React.FC = () => {
       setLoading(false);
     }
   }, [questionCount]);
+
+  const startPronunciationPractice = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Check if we have sentences
+      const sentences = await StorageService.getSentences();
+      if (sentences.length === 0) {
+        Alert.alert('No Sentences', 'Add some sentences to your collection first!');
+        return;
+      }
+
+      // Navigate to SentencePractice screen with limit
+      navigation.navigate('SentencePractice', { sentencesLimit: questionCount });
+    } finally {
+      setLoading(false);
+    }
+  }, [questionCount, navigation]);
 
   const resetQuestion = useCallback(() => {
     setUserAnswer('');
@@ -511,6 +544,16 @@ export const PracticeScreen: React.FC = () => {
           playThroughEarpieceAndroid: false,
         });
 
+        // CLEANUP previous recorder if any
+        if (audioRecorder.current) {
+          try {
+            await audioRecorder.current.stopAndUnloadAsync();
+          } catch (e) {
+            // ignore
+          }
+          audioRecorder.current = null;
+        }
+
         audioRecorder.current = new Audio.Recording();
 
         const recordingOptions: any = {
@@ -571,7 +614,7 @@ export const PracticeScreen: React.FC = () => {
     } else {
       setCurrentIndex(c => c + 1);
       setShowReview(true); // Go straight to review instead of intermediate summary
-      StorageService.updatePracticeStats(quizList.length).then(() => {
+      StorageService.updatePracticeStats(quizList.length, 'word').then(() => {
         StorageService.getPracticeStats().then(setPracticeStats);
       });
     }
@@ -595,9 +638,6 @@ export const PracticeScreen: React.FC = () => {
     <View style={{ flex: 1 }}>
       {/* Header with Back Button */}
       <View style={styles.setupHeader}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBackToHome}>
-          <Text style={styles.backIcon}>←</Text>
-        </TouchableOpacity>
         <Text style={styles.setupHeaderTitle}>{PRACTICE_TEXTS.title}</Text>
         <View style={{ width: 44 }} />
       </View>
@@ -613,10 +653,10 @@ export const PracticeScreen: React.FC = () => {
 
         {practiceStats && (
           <View style={styles.statsContainer}>
-            {practiceStats.lastPracticeTime && (
+            {(practiceStats.lastPracticeTime || practiceStats.lastSentencePracticeTime) && (
               <View style={styles.lastPracticeInfo}>
                 <Text style={styles.lastPracticeText}>
-                  {PRACTICE_TEXTS.lastPractice} {formatTimeAgo(practiceStats.lastPracticeTime)}
+                  {PRACTICE_TEXTS.lastPractice} {formatTimeAgo(Math.max(practiceStats.lastPracticeTime || 0, practiceStats.lastSentencePracticeTime || 0))}
                 </Text>
                 {practiceStats.longestStreak > 0 && practiceStats.longestStreak > practiceStats.currentStreak && (
                   <Text style={styles.bestStreakText}>
@@ -627,23 +667,26 @@ export const PracticeScreen: React.FC = () => {
             )}
             <View style={styles.statsRow}>
               <View style={styles.statCard}>
+                <Text style={styles.statLabel}>🔥</Text>
                 <Text style={styles.statValue}>{practiceStats.currentStreak}</Text>
                 <Text style={styles.statLabel}>{PRACTICE_TEXTS.dayStreak}</Text>
               </View>
               <View style={styles.statCard}>
-                <Text style={styles.statValue}>{practiceStats.totalSessions}</Text>
-                <Text style={styles.statLabel}>{PRACTICE_TEXTS.sessions}</Text>
+                <Text style={styles.statLabel}>📚</Text>
+                <Text style={styles.statValue}>{practiceStats.totalWordsPracticed}</Text>
+                <Text style={styles.statLabel}>Words</Text>
               </View>
               <View style={styles.statCard}>
-                <Text style={styles.statValue}>{practiceStats.totalWordsPracticed}</Text>
-                <Text style={styles.statLabel}>{PRACTICE_TEXTS.words}</Text>
+                <Text style={styles.statLabel}>🎙️</Text>
+                <Text style={styles.statValue}>{practiceStats.totalSentencesPracticed || 0}</Text>
+                <Text style={styles.statLabel}>Pronun.</Text>
               </View>
             </View>
           </View>
         )}
 
         <View style={styles.card}>
-          <Text style={styles.label}>{PRACTICE_TEXTS.howManyWords}</Text>
+          <Text style={styles.label}>How many items?</Text>
           <View style={styles.countRow}>
             {PRACTICE_CONFIG.questionCountOptions.map(num => (
               <TouchableOpacity
@@ -659,11 +702,29 @@ export const PracticeScreen: React.FC = () => {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.primaryButton} onPress={startPractice} disabled={loading}>
-          <Text style={styles.primaryButtonText}>
-            {loading ? PRACTICE_TEXTS.preparing : PRACTICE_TEXTS.startNow}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.startButtonsRow}>
+          <TouchableOpacity
+            style={[styles.modeButton, { backgroundColor: colors.primary }]}
+            onPress={startPractice}
+            disabled={loading}
+          >
+            <Ionicons name="book" size={24} color={colors.white} />
+            <Text style={styles.modeButtonText}>
+              {loading ? '...' : 'Vocabulary'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.modeButton, { backgroundColor: colors.secondary || '#7C3AED' }]}
+            onPress={startPronunciationPractice}
+            disabled={loading}
+          >
+            <Ionicons name="mic" size={24} color={colors.white} />
+            <Text style={styles.modeButtonText}>
+              {loading ? '...' : 'Pronunciation'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
@@ -1172,10 +1233,35 @@ export const PracticeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   innerContainer: { flex: 1 },
+  startButtonsRow: {
+    flexDirection: 'row',
+    width: '100%',
+    gap: spacing.xl,
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.sm,
+  },
+  modeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.md,
+    borderRadius: borderRadius.clayCard,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.4)',
+    ...shadows.clayMedium,
+  },
+  modeButtonText: {
+    color: colors.white,
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
   centerContent: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: spacing.md,
     paddingBottom: spacing.md
   },
 
@@ -1199,10 +1285,9 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   label: {
-    fontSize: typography.sizes.lg,
+    fontSize: typography.sizes.md,
     fontWeight: typography.weights.semibold,
-    color: colors.textPrimary,
-    marginBottom: spacing.sm
+    color: colors.textSecondary,
   },
   countRow: {
     flexDirection: 'row',
@@ -1660,14 +1745,14 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: spacing.xs,
+    gap: spacing.lg,
     marginBottom: spacing.xs,
   },
 
   statCard: {
     flex: 1,
     backgroundColor: colors.cardSurface,
-    borderRadius: borderRadius.clayCard,
+    borderRadius: borderRadius.xxxl,
     padding: spacing.sm,
     alignItems: 'center',
     borderWidth: 0,
@@ -2108,7 +2193,7 @@ const styles = StyleSheet.create({
   setupHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     width: '100%',
     paddingHorizontal: spacing.lg,
     marginBottom: 0,

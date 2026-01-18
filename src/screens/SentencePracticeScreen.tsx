@@ -26,6 +26,7 @@ import { gradients } from '../theme/styles';
 import { Sentence, RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
 import { AiService } from '../services/AiService';
+import { SpeechService } from '../services/SpeechService';
 import { ANIMATION } from '../constants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -48,6 +49,9 @@ export const SentencePracticeScreen: React.FC = () => {
      const [isProcessing, setIsProcessing] = useState(false);
      const [userAudioUri, setUserAudioUri] = useState<string | null>(null);
      const [playingUserAudio, setPlayingUserAudio] = useState(false);
+     const [isPlayingNative, setIsPlayingNative] = useState(false);
+
+     const currentSentence = sentences[currentIndex];
 
      // Result state
      const [result, setResult] = useState<{
@@ -61,6 +65,8 @@ export const SentencePracticeScreen: React.FC = () => {
      // Refs
      const audioRecorder = useRef<Audio.Recording | null>(null);
      const userAudioSound = useRef<Audio.Sound | null>(null);
+     const successSound = useRef<Audio.Sound | null>(null);
+     const errorSound = useRef<Audio.Sound | null>(null);
      const pulseAnim = useRef(new Animated.Value(1)).current;
      const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -68,7 +74,17 @@ export const SentencePracticeScreen: React.FC = () => {
      useEffect(() => {
           const loadData = async () => {
                try {
-                    const allSentences = await StorageService.getSentences();
+                    let allSentences: Sentence[] = [];
+                    const { sentenceId, sentencesLimit } = route.params || {};
+
+                    if (sentencesLimit) {
+                         // Mode: practice weakest sentences
+                         allSentences = await StorageService.getLowestScoreSentences(sentencesLimit);
+                    } else {
+                         // Mode: practice all or specific
+                         allSentences = await StorageService.getSentences();
+                    }
+
                     if (allSentences.length === 0) {
                          Alert.alert('No Sentences', 'Please add some sentences first!');
                          navigation.goBack();
@@ -77,7 +93,7 @@ export const SentencePracticeScreen: React.FC = () => {
 
                     setSentences(allSentences);
 
-                    if (sentenceId) {
+                    if (sentenceId && !sentencesLimit) {
                          const idx = allSentences.findIndex(s => s.id === sentenceId);
                          if (idx !== -1) setCurrentIndex(idx);
                     }
@@ -93,7 +109,46 @@ export const SentencePracticeScreen: React.FC = () => {
                }
           };
           loadData();
-     }, [sentenceId]);
+     }, [route.params]); // Changed dependency to handle param updates
+
+     // -- Load Sound Effects --
+     useEffect(() => {
+          const loadSounds = async () => {
+               try {
+                    const { sound: success } = await Audio.Sound.createAsync(
+                         { uri: 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3' },
+                         { shouldPlay: false, volume: 1.0 }
+                    );
+                    successSound.current = success;
+
+                    const { sound: error } = await Audio.Sound.createAsync(
+                         { uri: 'https://assets.mixkit.co/active_storage/sfx/2001/2001-preview.mp3' },
+                         { shouldPlay: false, volume: 1.0 }
+                    );
+                    errorSound.current = error;
+               } catch (error) {
+                    console.log('Failed to load sound effects:', error);
+               }
+          };
+          loadSounds();
+
+          return () => {
+               successSound.current?.unloadAsync();
+               errorSound.current?.unloadAsync();
+          };
+     }, []);
+
+     useEffect(() => {
+          return () => {
+               if (audioRecorder.current) {
+                    audioRecorder.current.stopAndUnloadAsync().catch(() => { });
+                    audioRecorder.current = null;
+               }
+               if (userAudioSound.current) {
+                    userAudioSound.current.unloadAsync().catch(() => { });
+               }
+          };
+     }, []);
 
      // -- Animations --
      const startPulse = useCallback(() => {
@@ -109,6 +164,18 @@ export const SentencePracticeScreen: React.FC = () => {
           pulseAnim.stopAnimation();
           pulseAnim.setValue(1);
      }, [pulseAnim]);
+
+     // -- Play Sound Effect --
+     const playSound = useCallback(async (isCorrect: boolean) => {
+          try {
+               const sound = isCorrect ? successSound.current : errorSound.current;
+               if (sound) {
+                    await sound.replayAsync();
+               }
+          } catch (e) {
+               console.log('Error playing sound:', e);
+          }
+     }, []);
 
      // -- Analysis Logic --
      const analyzeSpeech = useCallback(async (uri: string) => {
@@ -128,13 +195,16 @@ export const SentencePracticeScreen: React.FC = () => {
                setResult({
                     accuracy: data.pronunciation_accuracy,
                     realTranscript: data.real_transcript,
-                    ipaTranscript: data.ipa_transcript,
+                    ipaTranscript: data.real_transcripts_ipa, // Chuẩn IPA
                     isLetterCorrect: data.is_letter_correct_all_words,
-                    userIpa: data.real_transcripts_ipa,
+                    userIpa: data.ipa_transcript, // IPA người dùng nói
                });
 
                // Save progress
                await StorageService.incrementSentencePractice(currentSentence.id, data.pronunciation_accuracy);
+
+               // Play sound based on accuracy (threshold 80%)
+               playSound(data.pronunciation_accuracy >= 80);
           } catch (error) {
                console.error('Submit error:', error);
                Alert.alert('Analysis Failed', 'Sorry, we couldn\'t analyze your speech. Please try again.');
@@ -191,6 +261,16 @@ export const SentencePracticeScreen: React.FC = () => {
                          staysActiveInBackground: false,
                          playThroughEarpieceAndroid: false,
                     });
+
+                    // CLEANUP previous recorder if any
+                    if (audioRecorder.current) {
+                         try {
+                              await audioRecorder.current.stopAndUnloadAsync();
+                         } catch (e) {
+                              // ignore
+                         }
+                         audioRecorder.current = null;
+                    }
 
                     audioRecorder.current = new Audio.Recording();
                     const recordingOptions: any = {
@@ -259,6 +339,27 @@ export const SentencePracticeScreen: React.FC = () => {
                ]);
           }
      }, [currentIndex, sentences, navigation]);
+
+     const handlePlayNative = useCallback(async () => {
+          console.log('[SentencePracticeScreen] 🔊 handlePlayNative triggered');
+          if (!currentSentence) {
+               console.warn('[SentencePracticeScreen] No current sentence found');
+               return;
+          }
+          console.log(`[SentencePracticeScreen] Speaking: "${currentSentence.text}"`);
+          setIsPlayingNative(true);
+          try {
+               await SpeechService.playNativeAudio(currentSentence.text);
+               console.log('[SentencePracticeScreen] playNativeAudio finished successfully');
+          } catch (e) {
+               console.error('[SentencePracticeScreen] Native play error:', e);
+               // Fallback to basic TTS
+               console.log('[SentencePracticeScreen] Attempting fallback to speakSentence...');
+               SpeechService.speakSentence(currentSentence.text);
+          } finally {
+               setIsPlayingNative(false);
+          }
+     }, [sentences, currentIndex]);
      // -- Render Helpers --
      const renderWordWithFeedback = (text: string, isCorrectStr: string) => {
           return text.split('').map((char, index) => {
@@ -295,8 +396,6 @@ export const SentencePracticeScreen: React.FC = () => {
           );
      }
 
-     const currentSentence = sentences[currentIndex];
-
      return (
           <LinearGradient
                colors={gradients.backgroundMain.colors as [string, string, ...string[]]}
@@ -316,13 +415,20 @@ export const SentencePracticeScreen: React.FC = () => {
 
                     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                          <Animated.View style={[styles.mainCard, shadows.claySoft, { opacity: fadeAnim }]}>
-                              <View style={styles.cardHeader}>
-                                   <View style={styles.quoteIconContainer}>
-                                        <Ionicons name="chatbubble-ellipses-outline" size={24} color={colors.primaryLight} />
-                                   </View>
+                              <View style={styles.sentenceHeader}>
+                                   <Text style={styles.sentenceText}>{currentSentence.text}</Text>
+                                   <TouchableOpacity
+                                        onPress={handlePlayNative}
+                                        disabled={isPlayingNative}
+                                        style={styles.playNativeBtn}
+                                   >
+                                        <Ionicons
+                                             name={isPlayingNative ? "volume-high" : "volume-medium-outline"}
+                                             size={28}
+                                             color={colors.primary}
+                                        />
+                                   </TouchableOpacity>
                               </View>
-
-                              <Text style={styles.sentenceText}>{currentSentence.text}</Text>
 
                               <View style={styles.divider} />
 
@@ -481,6 +587,16 @@ const styles = StyleSheet.create({
           justifyContent: 'space-between',
           alignItems: 'flex-start',
           marginBottom: spacing.md,
+     },
+     sentenceHeader: {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: spacing.sm,
+     },
+     playNativeBtn: {
+          padding: 4,
+          marginTop: 2,
      },
      listenCardBtn: {
           flexDirection: 'row',

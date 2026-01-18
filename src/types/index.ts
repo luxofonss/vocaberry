@@ -102,7 +102,7 @@ export type RootStackParamList = {
      Review: undefined;
      Practice: { topic?: string }; // Topic-specific practice
      Settings: undefined;
-     SentencePractice: { sentenceId?: string }; // Practice mode for sentences
+     SentencePractice: { sentenceId?: string, sentencesLimit?: number }; // Practice mode for sentences
 };
 
 export interface Sentence {

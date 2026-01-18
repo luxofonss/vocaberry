@@ -371,11 +371,23 @@ export const StorageService = {
           currentStreak: number;
           longestStreak: number;
           totalWordsPracticed: number;
+          totalSentencesPracticed: number;
           lastPracticeTime: number | null;
+          lastSentencePracticeTime: number | null;
      }> => {
           try {
                const statsJson = await AsyncStorage.getItem(STORAGE_KEYS.PRACTICE_STATS);
                const lastPractice = await StorageService.getLastPracticeTime();
+
+               // Get sentences to check last practice
+               const sentences = await DatabaseService.getAllSentences();
+               let lastSentenceTime: number | null = null;
+               sentences.forEach(s => {
+                    if (s.lastPracticedAt) {
+                         const t = new Date(s.lastPracticedAt).getTime();
+                         if (!lastSentenceTime || t > lastSentenceTime) lastSentenceTime = t;
+                    }
+               });
 
                if (!statsJson) {
                     return {
@@ -383,14 +395,21 @@ export const StorageService = {
                          currentStreak: 0,
                          longestStreak: 0,
                          totalWordsPracticed: 0,
+                         totalSentencesPracticed: 0,
                          lastPracticeTime: lastPractice,
+                         lastSentencePracticeTime: lastSentenceTime,
                     };
                }
 
                const stats = JSON.parse(statsJson);
                return {
-                    ...stats,
+                    totalSessions: stats.totalSessions || 0,
+                    currentStreak: stats.currentStreak || 0,
+                    longestStreak: stats.longestStreak || 0,
+                    totalWordsPracticed: stats.totalWordsPracticed || 0,
+                    totalSentencesPracticed: stats.totalSentencesPracticed || 0,
                     lastPracticeTime: lastPractice,
+                    lastSentencePracticeTime: lastSentenceTime,
                };
           } catch (e) {
                console.error('[StorageService] Failed to get practice stats', e);
@@ -399,7 +418,9 @@ export const StorageService = {
                     currentStreak: 0,
                     longestStreak: 0,
                     totalWordsPracticed: 0,
+                    totalSentencesPracticed: 0,
                     lastPracticeTime: null,
+                    lastSentencePracticeTime: null,
                };
           }
      },
@@ -408,11 +429,13 @@ export const StorageService = {
       * Updates practice statistics after a practice session.
       * @param wordsPracticed - Number of words practiced in this session
       */
-     updatePracticeStats: async (wordsPracticed: number): Promise<void> => {
+     updatePracticeStats: async (count: number, type: 'word' | 'sentence' = 'word'): Promise<void> => {
           try {
                const stats = await StorageService.getPracticeStats();
                const now = Date.now();
-               const lastPractice = stats.lastPracticeTime;
+
+               // Combine last practice times for streak
+               const lastPractice = Math.max(stats.lastPracticeTime || 0, stats.lastSentencePracticeTime || 0) || null;
 
                // Calculate streak
                let currentStreak = stats.currentStreak;
@@ -425,29 +448,28 @@ export const StorageService = {
                     const daysDiff = Math.floor((today.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24));
 
                     if (daysDiff === 0) {
-                         // Same day, keep streak
                          currentStreak = stats.currentStreak;
                     } else if (daysDiff === 1) {
-                         // Consecutive day, increment streak
                          currentStreak = stats.currentStreak + 1;
                     } else {
-                         // Streak broken, reset to 1
                          currentStreak = 1;
                     }
                } else {
-                    // First practice
                     currentStreak = 1;
                }
 
                const updatedStats = {
+                    ...stats,
                     totalSessions: stats.totalSessions + 1,
                     currentStreak: currentStreak,
                     longestStreak: Math.max(stats.longestStreak, currentStreak),
-                    totalWordsPracticed: stats.totalWordsPracticed + wordsPracticed,
-                    lastPracticeTime: now,
+                    totalWordsPracticed: stats.totalWordsPracticed + (type === 'word' ? count : 0),
+                    totalSentencesPracticed: stats.totalSentencesPracticed + (type === 'sentence' ? count : 0),
+                    lastPracticeTime: type === 'word' ? now : stats.lastPracticeTime,
                };
 
                await AsyncStorage.setItem(STORAGE_KEYS.PRACTICE_STATS, JSON.stringify(updatedStats));
+               if (type === 'word') await StorageService.saveLastPracticeTime();
           } catch (e) {
                console.error('[StorageService] Failed to update practice stats', e);
           }
@@ -485,9 +507,30 @@ export const StorageService = {
           if (sentence) {
                sentence.practiceCount = (sentence.practiceCount || 0) + 1;
                sentence.lastPracticedAt = new Date().toISOString();
+               // totalScore acts as sum of scores, average would be totalScore / practiceCount
                sentence.totalScore = (sentence.totalScore || 0) + score;
                await DatabaseService.saveSentence(sentence);
           }
+          // Also update global stats
+          await StorageService.updatePracticeStats(1, 'sentence');
           return await DatabaseService.getAllSentences();
+     },
+
+     /**
+      * Gets sentences with lowest average score for targeted pronunciation practice
+      */
+     getLowestScoreSentences: async (limit: number) => {
+          const sentences = await DatabaseService.getAllSentences();
+          if (sentences.length === 0) return [];
+
+          // Sort by average score: totalScore / practiceCount
+          // If practiceCount is 0, treat as score 0 (lowest)
+          const sorted = sentences.sort((a, b) => {
+               const scoreA = a.practiceCount ? (a.totalScore || 0) / a.practiceCount : 0;
+               const scoreB = b.practiceCount ? (b.totalScore || 0) / b.practiceCount : 0;
+               return scoreA - scoreB;
+          });
+
+          return sorted.slice(0, limit);
      }
 };
