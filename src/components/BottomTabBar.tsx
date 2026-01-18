@@ -219,12 +219,13 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: 500,
     alignItems: 'center',
     justifyContent: 'center',
   },
   // Embossed active state (Raised Clay)
   iconEmbossed: {
+    borderRadius: 600,
     backgroundColor: '#F0F5FF', // Very light blue/white mix
     ...Platform.select({
       ios: {
@@ -240,6 +241,7 @@ const styles = StyleSheet.create({
   },
   // Debossed inactive state (Pressed/Flat Clay) - Subtler
   iconDebossed: {
+    borderRadius: 600,
     backgroundColor: 'transparent',
     // No bold borders for inactive, just clean
   },
@@ -256,7 +258,7 @@ const styles = StyleSheet.create({
   addBtnOuter: {
     width: 64,
     height: 64,
-    borderRadius: 64,
+    borderRadius: 600,
     backgroundColor: colors.background, // Match bar bg parent for cutout effect illusion
     padding: 6, // Border thickness imitation
     alignItems: 'center',
