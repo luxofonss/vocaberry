@@ -406,6 +406,8 @@ export const PracticeScreen: React.FC = () => {
       word: currentWord,
       status: isSkipped ? 'skipped' : (finalCorrect ? 'correct' : 'incorrect'),
       userAnswer: isSkipped ? undefined : (normalizedInput || userAnswer),
+      inputMethod: isSkipped ? 'skipped' : (userAudioUri ? (normalizedInput.length > 0 ? 'both' : 'audio') : 'text'),
+      audioAccuracy: pronunciationResult?.accuracy,
     }]);
 
     StorageService.markAsReviewed(currentWord.id, finalCorrect);
@@ -566,6 +568,7 @@ export const PracticeScreen: React.FC = () => {
       resetQuestion();
     } else {
       setCurrentIndex(c => c + 1);
+      setShowReview(true); // Go straight to review instead of intermediate summary
       StorageService.updatePracticeStats(quizList.length).then(() => {
         StorageService.getPracticeStats().then(setPracticeStats);
       });
@@ -663,119 +666,145 @@ export const PracticeScreen: React.FC = () => {
     </View>
   );
 
-  const renderReviewScreen = () => (
-    <View style={{ flex: 1 }}>
-      <View style={styles.modalHeader}>
-        <TouchableOpacity onPress={() => setShowReview(false)} style={styles.closeBtn}>
-          <Text style={styles.closeText}>←</Text>
-        </TouchableOpacity>
-        <Text style={styles.progressText}>{PRACTICE_TEXTS.reviewResults}</Text>
-        <View style={{ width: 40 }} />
-      </View>
+  const renderReviewScreen = () => {
+    const isFinished = currentIndex >= quizList.length;
+    const finalScore = quizResults.filter(r => r.status === 'correct').length;
+    const totalCount = quizList.length;
+    const performanceRatio = totalCount > 0 ? finalScore / totalCount : 0;
 
-      <ScrollView contentContainerStyle={styles.reviewContent} showsVerticalScrollIndicator={false}>
-        <View style={styles.reviewSummary}>
-          <View style={styles.reviewStatsRow}>
-            <View style={[styles.reviewStatItem, styles.reviewStatCorrect]}>
-              <Text style={styles.reviewStatNumber}>{quizResults.filter(r => r.status === 'correct').length}</Text>
-              <Text style={styles.reviewStatLabel}>✓ {PRACTICE_TEXTS.correct}</Text>
+    return (
+      <View style={{ flex: 1 }}>
+        <View style={styles.modalHeader}>
+          <TouchableOpacity
+            onPress={() => {
+              setShowReview(false);
+              if (isFinished) setIsQuizVisible(false);
+            }}
+            style={styles.closeBtn}
+          >
+            <Text style={styles.closeText}>←</Text>
+          </TouchableOpacity>
+          <Text style={styles.progressText}>{PRACTICE_TEXTS.reviewResults}</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <ScrollView contentContainerStyle={styles.reviewContent} showsVerticalScrollIndicator={false}>
+
+          <View style={styles.reviewHeaderRow}>
+            <View style={styles.reviewTopSummary}>
+              <Image
+                source={performanceRatio > 0.8 ? require('../../assets/aplus.png') : require('../../assets/bad.png')}
+                style={styles.reviewSummaryImage}
+                resizeMode="contain"
+              />
             </View>
-            <View style={[styles.reviewStatItem, styles.reviewStatIncorrect]}>
-              <Text style={styles.reviewStatNumber}>{quizResults.filter(r => r.status === 'incorrect').length}</Text>
-              <Text style={styles.reviewStatLabel}>✗ {PRACTICE_TEXTS.incorrect}</Text>
-            </View>
-            <View style={[styles.reviewStatItem, styles.reviewStatSkipped]}>
-              <Text style={styles.reviewStatNumber}>{quizResults.filter(r => r.status === 'skipped').length}</Text>
-              <Text style={styles.reviewStatLabel}>⏭ {PRACTICE_TEXTS.skipped}</Text>
+
+            <View style={styles.reviewStatsColumn}>
+              <View style={[styles.reviewStatRow, styles.reviewStatCorrect]}>
+                <View style={styles.reviewStatInfo}>
+                  <Text style={[styles.reviewStatIcon, { color: '#059669' }]}>✓</Text>
+                  <Text style={styles.reviewStatLabelBold}>{PRACTICE_TEXTS.correct}</Text>
+                </View>
+                <Text style={[styles.reviewStatNumberBold, { color: '#059669' }]}>{finalScore}</Text>
+              </View>
+
+              <View style={[styles.reviewStatRow, styles.reviewStatIncorrect]}>
+                <View style={styles.reviewStatInfo}>
+                  <Text style={[styles.reviewStatIcon, { color: '#DC2626' }]}>✗</Text>
+                  <Text style={styles.reviewStatLabelBold}>{PRACTICE_TEXTS.incorrect}</Text>
+                </View>
+                <Text style={[styles.reviewStatNumberBold, { color: '#DC2626' }]}>{quizResults.filter(r => r.status === 'incorrect').length}</Text>
+              </View>
+
+              <View style={[styles.reviewStatRow, styles.reviewStatSkipped]}>
+                <View style={styles.reviewStatInfo}>
+                  <Text style={[styles.reviewStatIcon, { color: '#4B5563' }]}>⏭</Text>
+                  <Text style={styles.reviewStatLabelBold}>{PRACTICE_TEXTS.skipped}</Text>
+                </View>
+                <Text style={[styles.reviewStatNumberBold, { color: '#4B5563' }]}>{quizResults.filter(r => r.status === 'skipped').length}</Text>
+              </View>
             </View>
           </View>
-        </View>
 
-        <View style={styles.reviewList}>
-          {quizResults.map((result, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.reviewItem,
-                result.status === 'correct' && styles.reviewItemCorrect,
-                result.status === 'incorrect' && styles.reviewItemIncorrect,
-              ]}
-              onPress={() => {
-                requestAnimationFrame(() => {
-                  navigation.navigate('WordDetail', { wordId: result.word.id });
-                });
-              }}
-              activeOpacity={0.7}
-            >
-              <View style={styles.reviewItemContent}>
-                <View style={styles.reviewItemRow}>
-                  <Text style={styles.reviewItemLabel}>Correct:</Text>
-                  <Text style={styles.reviewItemWord}>{result.word.word}</Text>
+          <View style={styles.reviewList}>
+            {quizResults.map((result, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.reviewItem,
+                  result.status === 'correct' && styles.reviewItemCorrect,
+                  result.status === 'incorrect' && styles.reviewItemIncorrect,
+                ]}
+                onPress={() => {
+                  requestAnimationFrame(() => {
+                    navigation.navigate('WordDetail', { wordId: result.word.id });
+                  });
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={styles.reviewItemContent}>
+                  <View style={styles.reviewItemRow}>
+                    <Text style={styles.reviewItemLabel}>Correct:</Text>
+                    <Text style={styles.reviewItemWord}>{result.word.word}</Text>
+                  </View>
+
+                  {result.status !== 'skipped' && (
+                    <>
+                      <View style={styles.reviewItemRow}>
+                        <Text style={styles.reviewItemLabel}>Method:</Text>
+                        <Text style={styles.reviewItemMethodText}>
+                          {result.inputMethod === 'both' ? '⌨️ + 🎙️' : (result.inputMethod === 'audio' ? '🎙️' : '⌨️')}
+                          {result.inputMethod !== 'text' && result.audioAccuracy !== undefined && ` (${result.audioAccuracy}%)`}
+                        </Text>
+                      </View>
+                      <View style={styles.reviewItemRow}>
+                        <Text style={styles.reviewItemLabel}>You:</Text>
+                        <Text style={[
+                          styles.reviewItemUserAnswer,
+                          result.status === 'correct' ? styles.answerCorrect : styles.answerIncorrect
+                        ]}>
+                          {result.userAnswer || '—'}
+                        </Text>
+                      </View>
+                    </>
+                  )}
+
+                  {result.status === 'skipped' && (
+                    <Text style={styles.reviewItemSkippedText}>Skipped</Text>
+                  )}
                 </View>
 
-                {result.status !== 'skipped' && (
-                  <View style={styles.reviewItemRow}>
-                    <Text style={styles.reviewItemLabel}>You:</Text>
-                    <Text style={[
-                      styles.reviewItemUserAnswer,
-                      result.status === 'correct' ? styles.answerCorrect : styles.answerIncorrect
-                    ]}>
-                      {result.userAnswer || '—'}
-                    </Text>
-                  </View>
-                )}
+                <View style={[
+                  styles.reviewItemIconContainer,
+                  result.status === 'correct' && styles.iconContainerCorrect,
+                  result.status === 'incorrect' && styles.iconContainerIncorrect,
+                  result.status === 'skipped' && styles.iconContainerSkipped,
+                ]}>
+                  <Text style={styles.reviewItemIcon}>
+                    {result.status === 'correct' ? '✓' : result.status === 'incorrect' ? '✗' : '⏭'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
 
-                {result.status === 'skipped' && (
-                  <Text style={styles.reviewItemSkippedText}>Skipped</Text>
-                )}
-              </View>
-
-              <View style={[
-                styles.reviewItemIconContainer,
-                result.status === 'correct' && styles.iconContainerCorrect,
-                result.status === 'incorrect' && styles.iconContainerIncorrect,
-                result.status === 'skipped' && styles.iconContainerSkipped,
-              ]}>
-                <Text style={styles.reviewItemIcon}>
-                  {result.status === 'correct' ? '✓' : result.status === 'incorrect' ? '✗' : '⏭'}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <TouchableOpacity
-          style={styles.reviewDoneButton}
-          onPress={() => {
-            setShowReview(false);
-            setIsQuizVisible(false);
-          }}
-        >
-          <Text style={styles.primaryButtonText}>{PRACTICE_TEXTS.done}</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </View>
-  );
+          <TouchableOpacity
+            style={styles.reviewDoneButton}
+            onPress={() => {
+              setShowReview(false);
+              setIsQuizVisible(false);
+            }}
+          >
+            <Text style={styles.primaryButtonText}>{PRACTICE_TEXTS.done}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </View>
+    );
+  };
 
   const renderQuizContent = () => {
     if (currentIndex >= quizList.length) {
-      return (
-        <View style={styles.summaryContainer}>
-          <Text style={styles.summaryEmoji}>{score === quizList.length ? '🏆' : '👍'}</Text>
-          <Text style={styles.title}>{PRACTICE_TEXTS.practiceComplete}</Text>
-          <Text style={styles.subtitle}>
-            {PRACTICE_TEXTS.scoreText.replace('{score}', String(score)).replace('{total}', String(quizList.length))}
-          </Text>
-
-          <TouchableOpacity style={styles.primaryButton} onPress={() => setShowReview(true)}>
-            <Text style={styles.primaryButtonText}>{PRACTICE_TEXTS.reviewResultsBtn}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity style={styles.secondaryButtonOutline} onPress={() => setIsQuizVisible(false)}>
-            <Text style={styles.secondaryButtonOutlineText}>{PRACTICE_TEXTS.close}</Text>
-          </TouchableOpacity>
-        </View>
-      );
+      return null;
     }
 
     const currentWord = quizList[currentIndex];
@@ -971,9 +1000,48 @@ export const PracticeScreen: React.FC = () => {
                 <Text style={styles.phoneticText}>{currentWord.phonetic || DEFAULTS.phonetic}</Text>
               </View>
 
+              {/* Text Feedback */}
+              {userAnswer.trim().length > 0 && !isSkipped && (
+                <View style={[styles.feedbackCard, shadows.subtle, { backgroundColor: '#F8FAFF' }]}>
+                  <View style={styles.feedbackHeader}>
+                    <View style={styles.feedbackTitleRow}>
+                      <Text style={styles.feedbackIconTiny}>⌨️</Text>
+                      <Text style={styles.feedbackTitleTiny}>Text Answer</Text>
+                    </View>
+                    <View style={[
+                      styles.tinyStatusBadge,
+                      userAnswer.toLowerCase().trim() === currentWord.word.toLowerCase().trim() ? styles.badgeSuccess : styles.badgeError
+                    ]}>
+                      <Text style={styles.tinyStatusText}>
+                        {userAnswer.toLowerCase().trim() === currentWord.word.toLowerCase().trim() ? 'Correct' : 'Incorrect'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.userAnswerContent}>
+                    <Text style={styles.userAnswerLabel}>Your Input:</Text>
+                    <Text style={styles.userAnswerValue}>{userAnswer}</Text>
+                  </View>
+                </View>
+              )}
+
               {/* Pronunciation Feedback - Compact Version */}
               {pronunciationResult && (
                 <View style={[styles.pronunciationFeedback, shadows.subtle]}>
+                  <View style={styles.feedbackHeader}>
+                    <View style={styles.feedbackTitleRow}>
+                      <Text style={styles.feedbackIconTiny}>🎙️</Text>
+                      <Text style={styles.feedbackTitleTiny}>Pronunciation</Text>
+                    </View>
+                    <View style={[
+                      styles.tinyStatusBadge,
+                      pronunciationResult.accuracy >= 70 ? styles.badgeSuccess : styles.badgeError
+                    ]}>
+                      <Text style={styles.tinyStatusText}>
+                        {pronunciationResult.accuracy >= 70 ? 'Good' : 'Needs Work'}
+                      </Text>
+                    </View>
+                  </View>
+
                   {/* Score Badge */}
                   <View style={styles.scoreRow}>
                     <View style={[
@@ -1022,7 +1090,7 @@ export const PracticeScreen: React.FC = () => {
                           onPress={handlePlayUserAudio}
                           disabled={playingUserAudio}
                         >
-                          <Text style={styles.miniPlayEmoji}>{playingUserAudio ? '⏳' : '�'}</Text>
+                          <Text style={styles.miniPlayEmoji}>{playingUserAudio ? '⏳' : '🔊'}</Text>
                         </TouchableOpacity>
                       </View>
                     </View>
@@ -1047,7 +1115,7 @@ export const PracticeScreen: React.FC = () => {
         </ScrollView >
       </View >
     );
-  }
+  };
 
   if (isQuizVisible) {
     return (
@@ -1697,48 +1765,65 @@ const styles = StyleSheet.create({
     paddingBottom: 120,
     flexGrow: 1,
   },
-
-  reviewSummary: {
-    backgroundColor: colors.cardSurface,
-    borderRadius: borderRadius.clayCard,
-    padding: spacing.lg,
-    marginBottom: spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-    ...shadows.clayMedium,
-  },
-  reviewStatsRow: {
+  reviewHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
+    alignItems: 'center',
+    gap: spacing.md,
+    marginBottom: spacing.lg,
+    paddingHorizontal: spacing.sm,
   },
-
-  reviewStatItem: {
+  reviewTopSummary: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.sm,
-    borderRadius: borderRadius.lg,
+    justifyContent: 'center',
+  },
+  reviewSummaryImage: {
+    width: 140,
+    height: 140,
+  },
+  reviewStatsColumn: {
+    flex: 1.3,
+    gap: spacing.xs,
+  },
+  reviewStatRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.md,
+    borderLeftWidth: 4,
+    ...shadows.subtle,
+  },
+  reviewStatInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  reviewStatIcon: {
+    fontSize: 16,
+    fontWeight: '900',
   },
   reviewStatCorrect: {
-    backgroundColor: 'rgba(52, 211, 153, 0.15)',
+    backgroundColor: '#ECFDF5',
+    borderLeftColor: '#10B981',
   },
   reviewStatIncorrect: {
-    backgroundColor: 'rgba(248, 113, 113, 0.15)',
+    backgroundColor: '#FEF2F2',
+    borderLeftColor: '#EF4444',
   },
   reviewStatSkipped: {
-    backgroundColor: 'rgba(156, 163, 175, 0.15)',
+    backgroundColor: '#F9FAFB',
+    borderLeftColor: '#9CA3AF',
   },
-  reviewStatNumber: {
-    fontSize: typography.sizes.xl,
-    fontWeight: typography.weights.extraBold,
+  reviewStatLabelBold: {
+    fontSize: 13,
+    fontWeight: '700',
     color: colors.textPrimary,
   },
-  reviewStatLabel: {
-    fontSize: typography.sizes.xs,
-    color: colors.textSecondary,
-    fontWeight: typography.weights.semibold,
-    marginTop: 2,
+  reviewStatNumberBold: {
+    fontSize: 18,
+    fontWeight: '900',
   },
   reviewList: {
     gap: spacing.sm,
@@ -2171,5 +2256,90 @@ const styles = StyleSheet.create({
   },
   checkButtonActive: {
     backgroundColor: colors.primary,
+  },
+  summaryResultImage: {
+    width: 200,
+    height: 200,
+    marginBottom: spacing.lg,
+  },
+  feedbackHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: spacing.sm,
+    paddingBottom: spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  feedbackTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  feedbackIconTiny: {
+    fontSize: 14,
+  },
+  feedbackTitleTiny: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tinyStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  badgeSuccess: {
+    backgroundColor: '#D1FAE5',
+  },
+  badgeError: {
+    backgroundColor: '#FEE2E2',
+  },
+  tinyStatusText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: colors.textPrimary,
+  },
+  userAnswerContent: {
+    alignItems: 'center',
+    width: '100%',
+  },
+  userAnswerLabel: {
+    fontSize: 10,
+    color: colors.textLight,
+    marginBottom: 2,
+    fontWeight: '600',
+  },
+  userAnswerValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: colors.primary,
+  },
+  reviewItemMethodText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: '700',
+  },
+  reviewTopSummary: {
+    alignItems: 'center',
+  },
+  reviewSummaryImage: {
+    width: 160,
+    height: 160,
+    marginBottom: spacing.md,
+  },
+  reviewSummaryText: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  reviewSummaryScoreText: {
+    fontSize: 16,
+    color: colors.textSecondary,
+    fontWeight: '600',
   },
 });
