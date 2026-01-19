@@ -21,7 +21,7 @@ import { Word, RootStackParamList, Meaning } from '../types';
 import { StorageService } from '../services/StorageService';
 import { DatabaseService } from '../services/DatabaseService';
 import { DictionaryService } from '../services/DictionaryService';
-import { SpeakButton, ClickableText, WordPreviewModal, ImageSearchModal, ImageViewerModal, AddMeaningModal, SkeletonLoader } from '../components';
+import { SpeakButton, ClickableText, WordPreviewModal, ImageSearchModal, ImageViewerModal, SkeletonLoader } from '../components';
 import * as ImagePicker from 'expo-image-picker';
 import { EventBus } from '../services/EventBus';
 import { Ionicons } from '@expo/vector-icons';
@@ -86,9 +86,6 @@ export const WordDetailScreen: React.FC = () => {
   const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
   const [viewingImageType, setViewingImageType] = useState<'main' | 'meaning' | null>(null);
   const [viewingMeaningId, setViewingMeaningId] = useState<string | undefined>(undefined);
-
-  // Add Meaning Modal State
-  const [addMeaningVisible, setAddMeaningVisible] = useState(false);
 
   useEffect(() => {
     loadWord();
@@ -380,19 +377,11 @@ export const WordDetailScreen: React.FC = () => {
     navigation.push('WordDetail', { wordId: id });
   }, [navigation]);
 
-  const handleAddMeaning = useCallback(async (newMeaning: Meaning) => {
+  const handlePracticePronunciation = useCallback(() => {
     if (!word) return;
-
-    const updatedMeanings = [...word.meanings, newMeaning];
-    const updatedWord: Word = {
-      ...word,
-      meanings: updatedMeanings,
-    };
-
-    await StorageService.addWord(updatedWord);
-    setWord(updatedWord);
-    setCurrentIndex(0);
-  }, [word]);
+    // Navigate to SentencePractice screen with current word for pronunciation practice
+    navigation.navigate('SentencePractice', { customText: word.word });
+  }, [word, navigation]);
 
   // --- RENDERING ---
 
@@ -596,10 +585,10 @@ export const WordDetailScreen: React.FC = () => {
             <Ionicons name="trash-outline" size={24} color="#DC2626" />
           </TouchableOpacity>
           <TouchableOpacity
-            style={styles.addMeaningButton}
-            onPress={() => setAddMeaningVisible(true)}
+            style={styles.micButton}
+            onPress={handlePracticePronunciation}
           >
-            <Ionicons name="add-outline" size={20} color={colors.primary} />
+            <Ionicons name="mic-outline" size={24} color={colors.white} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.secondaryButton} onPress={handleDone}>
             <Text style={styles.secondaryButtonText}>{DETAIL_TEXTS.done}</Text>
@@ -639,12 +628,7 @@ export const WordDetailScreen: React.FC = () => {
         initialQuery={word?.word || ''}
       />
 
-      <AddMeaningModal
-        visible={addMeaningVisible}
-        word={word}
-        onClose={() => setAddMeaningVisible(false)}
-        onSave={handleAddMeaning}
-      />
+
     </SafeAreaView>
   );
 };
@@ -698,13 +682,8 @@ const styles = StyleSheet.create({
   slideHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs },
   // Claymorphism type tag - soft clay badge
   typeTag: {
-    backgroundColor: colors.cardSurface,
     paddingHorizontal: spacing.md,
     paddingVertical: 5,
-    borderRadius: borderRadius.clayBadge,
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-    ...shadows.subtle,
   },
   typeText: { fontSize: typography.sizes.xs, fontWeight: typography.weights.extraBold, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.4 },
   phoneticContainer: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
@@ -714,22 +693,15 @@ const styles = StyleSheet.create({
   definitionText: { fontSize: typography.sizes.lg, color: colors.textPrimary, lineHeight: 28, fontWeight: typography.weights.semibold, marginBottom: spacing.md },
   // Claymorphism example card - floating 3D clay tile
   exampleCard: {
-    backgroundColor: colors.cardSurface,
-    borderRadius: borderRadius.clayCard,
     padding: 4,
-    borderWidth: 0,
     overflow: 'hidden',
     marginTop: spacing.xs,
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-    ...shadows.clayMedium,
   },
   exampleImageWrapper: {
     width: '100%',
     height: 150,
-    borderRadius: borderRadius.lg,
     overflow: 'hidden',
-    backgroundColor: colors.backgroundSoft,
+    borderRadius: borderRadius.xs,
     borderTopWidth: 1,
     borderTopColor: colors.shadowInnerDark,
     borderBottomWidth: 1,
@@ -767,18 +739,18 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255, 200, 200, 0.6)',
     ...shadows.claySoft,
   },
-  // Claymorphism add meaning button - soft clay with primary tint
-  addMeaningButton: {
+  // Claymorphism microphone button - vibrant primary with gradient feel
+  micButton: {
     width: 48,
     height: 48,
     borderRadius: borderRadius.clayInput,
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.secondary || '#7C3AED',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 0,
     borderTopWidth: 1,
-    borderTopColor: colors.primaryLighter,
-    ...shadows.claySoft,
+    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    ...shadows.clayPrimary,
   },
   // Claymorphism secondary button - soft clay with inner shadow
   secondaryButton: {

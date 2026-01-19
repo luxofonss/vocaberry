@@ -19,7 +19,7 @@ export const ClickableText: React.FC<ClickableTextProps> = ({ text, onWordPress,
   // Determine if we should use a specific clickable color or inherit
   // If the passed style has white color (e.g. user bubble), we should probably use white or a lighter tint
   const isWhiteText = style?.color === '#ffffff' || style?.color === 'white' || style?.color === colors.white;
-  const activeClickableColor = isWhiteText ? colors.white : colors.primary;
+  const activeClickableColor = isWhiteText ? colors.white : colors.textPrimary;
 
   return (
     <Text style={[styles.baseText, style]} numberOfLines={numberOfLines}>
