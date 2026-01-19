@@ -279,7 +279,7 @@ export const ConversationDetailScreen: React.FC = () => {
 
                // Validate response data
                if (!response || !response.data) {
-                    throw new Error('Không nhận được dữ liệu từ API');
+                    throw new Error('Something went wrong, please try again later!');
                }
 
                const data = response.data;
@@ -288,7 +288,7 @@ export const ConversationDetailScreen: React.FC = () => {
                if (typeof data.pronunciation_accuracy === 'undefined' ||
                     typeof data.is_letter_correct_all_words === 'undefined') {
                     console.error('API Error Response:', data);
-                    throw new Error('Dữ liệu API không đầy đủ');
+                    throw new Error('Something went wrong, please try again later!');
                }
 
                setPronunciations(prev => ({

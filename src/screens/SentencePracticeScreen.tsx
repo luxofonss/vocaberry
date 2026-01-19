@@ -207,7 +207,7 @@ export const SentencePracticeScreen: React.FC = () => {
 
                // Validate response data
                if (!response || !response.data) {
-                    throw new Error('Không nhận được dữ liệu từ API');
+                    throw new Error('Something went wrong, please try again later!');
                }
 
                const data = response.data;
@@ -216,7 +216,7 @@ export const SentencePracticeScreen: React.FC = () => {
                if (typeof data.pronunciation_accuracy === 'undefined' ||
                     typeof data.is_letter_correct_all_words === 'undefined') {
                     console.error('API Error Response:', data);
-                    throw new Error('Dữ liệu API không đầy đủ');
+                    throw new Error('Something went wrong, please try again later!');
                }
 
                setResult({
@@ -628,27 +628,29 @@ export const SentencePracticeScreen: React.FC = () => {
                                    {/* Centered Mic Controls below card */}
                                    <View style={styles.controlsPlaceholder}>
                                         <View style={styles.micContainer}>
-                                             <Animated.View style={[
-                                                  styles.micPulse,
-                                                  { transform: [{ scale: pulseAnim }], opacity: isRecording ? 0.3 : 0 }
-                                             ]} />
-                                             <TouchableOpacity
-                                                  onPress={handleMicPress}
-                                                  disabled={isProcessing}
-                                                  style={[
-                                                       styles.micBtnLarge,
-                                                       isRecording ? styles.micBtnActive : styles.micBtnInactive,
-                                                       isProcessing && { opacity: 0.5 },
-                                                       shadows.clayStrong
-                                                  ]}
-                                                  activeOpacity={0.8}
-                                             >
-                                                  <Ionicons
-                                                       name={isRecording ? "stop" : "mic"}
-                                                       size={40}
-                                                       color={colors.white}
-                                                  />
-                                             </TouchableOpacity>
+                                             <View style={styles.micWrapper}>
+                                                  <Animated.View style={[
+                                                       styles.micPulse,
+                                                       { transform: [{ scale: pulseAnim }], opacity: isRecording ? 0.3 : 0 }
+                                                  ]} />
+                                                  <TouchableOpacity
+                                                       onPress={handleMicPress}
+                                                       disabled={isProcessing}
+                                                       style={[
+                                                            styles.micBtnLarge,
+                                                            isRecording ? styles.micBtnActive : styles.micBtnInactive,
+                                                            isProcessing && { opacity: 0.5 },
+                                                            shadows.clayStrong
+                                                       ]}
+                                                       activeOpacity={0.8}
+                                                  >
+                                                       <Ionicons
+                                                            name={isRecording ? "stop" : "mic"}
+                                                            size={40}
+                                                            color={colors.white}
+                                                       />
+                                                  </TouchableOpacity>
+                                             </View>
                                              <Text style={styles.micStatusTextLarge}>
                                                   {isRecording ? "Recording..." : (userAudioUri ? "Re-record" : "Tap to Speak")}
                                              </Text>
@@ -877,6 +879,12 @@ const styles = StyleSheet.create({
           paddingBottom: 40,
      },
      micContainer: {
+          alignItems: 'center',
+     },
+     micWrapper: {
+          width: 100,
+          height: 100,
+          justifyContent: 'center',
           alignItems: 'center',
      },
      micPulse: {

@@ -991,19 +991,33 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
           {!isAnswered ? (
             <View style={styles.inputArea}>
               <View style={styles.speechContainer}>
-                <TouchableOpacity
-                  style={[
-                    styles.micButtonLarge,
-                    isRecording && styles.micButtonRecording,
-                    isProcessing && styles.micButtonProcessing,
-                  ]}
-                  onPress={handleMicPress}
-                  disabled={isProcessing}
-                >
-                  <Text style={styles.micIconLarge}>
-                    {isRecording ? '⏹' : (isProcessing ? '⏳' : '🎤')}
-                  </Text>
-                </TouchableOpacity>
+                <View style={styles.micWrapper}>
+                  <Animated.View style={[
+                    styles.micPulse,
+                    { transform: [{ scale: pulseAnim }], opacity: isRecording ? 0.3 : 0 }
+                  ]} />
+                  <TouchableOpacity
+                    style={[
+                      styles.micButtonLarge,
+                      isRecording ? styles.micButtonRecording : styles.micButtonInactive,
+                      isProcessing && styles.micButtonProcessing,
+                      shadows.clayStrong
+                    ]}
+                    onPress={handleMicPress}
+                    disabled={isProcessing}
+                    activeOpacity={0.8}
+                  >
+                    {isProcessing ? (
+                      <ActivityIndicator color={colors.white} />
+                    ) : (
+                      <Ionicons
+                        name={isRecording ? "stop" : "mic"}
+                        size={36}
+                        color={colors.white}
+                      />
+                    )}
+                  </TouchableOpacity>
+                </View>
                 <Text style={styles.speechStatus}>
                   {isRecording ? PRACTICE_TEXTS.listening : (isProcessing ? PRACTICE_TEXTS.thinking : (userAudioUri ? 'Ready to check' : 'Tap to Speak'))}
                 </Text>
@@ -1532,28 +1546,44 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg
   },
 
+  micWrapper: {
+    width: 90,
+    height: 90,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing.xs,
+  },
+  micPulse: {
+    position: 'absolute',
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: colors.primary,
+  },
   micButtonLarge: {
-    backgroundColor: colors.cardSurface,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: spacing.sm,
-    borderWidth: 0,
-    borderTopWidth: 2,
-    borderTopColor: colors.shadowInnerLight,
-    ...shadows.clayMedium,
+  },
+  micButtonInactive: {
+    backgroundColor: colors.primary,
   },
   micButtonRecording: {
-    backgroundColor: '#FFF5F5',
-    borderTopColor: 'rgba(255, 200, 200, 0.6)',
+    backgroundColor: colors.error,
   },
   micButtonProcessing: {
-    backgroundColor: '#F8FAFF',
-    borderTopColor: 'rgba(200, 210, 255, 0.6)',
+    backgroundColor: colors.primary,
+    opacity: 0.6,
   },
-  micIconLarge: { fontSize: 32 },
+  micIconLarge: {
+    fontSize: 32
+  },
+  speechContainer: {
+    alignItems: 'center',
+    marginBottom: spacing.lg
+  },
   speechStatus: {
     fontWeight: typography.weights.semibold,
     color: colors.textSecondary,
