@@ -491,6 +491,7 @@ export const HomeScreen: React.FC = () => {
                     value={newSentence}
                     onChangeText={setNewSentence}
                     multiline
+                    maxLength={256}
                   />
                 </View>
                 <TouchableOpacity

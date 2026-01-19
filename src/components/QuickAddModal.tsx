@@ -541,6 +541,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                             onFocus={() => setIsHeroInputFocused(true)}
                                             onBlur={() => setIsHeroInputFocused(false)}
                                             autoFocus={true}
+                                            maxLength={50}
                                         />
                                         {/* Translate Button - Always show */}
                                         <TouchableOpacity
