@@ -249,21 +249,55 @@ export const DictionaryService = {
       */
      refreshWord: async (wordText: string): Promise<Word | null> => {
           const id = wordText.toLowerCase();
+          console.log(`[DictionaryService.refreshWord] 🔄 Starting refresh for: "${id}"`);
+
           try {
+               console.log(`[DictionaryService.refreshWord] 🌐 Calling API getWordStatus...`);
                const response = await ApiClient.getWordStatus(id);
-               if (!response.success || !response.data?.word) return null;
+
+               console.log(`[DictionaryService.refreshWord] 📡 API response:`, {
+                    success: response.success,
+                    hasData: !!response.data,
+                    hasWord: !!response.data?.word,
+                    status: response.data?.status
+               });
+
+               if (!response.success || !response.data?.word) {
+                    console.log(`[DictionaryService.refreshWord] ❌ Invalid response, returning null`);
+                    return null;
+               }
 
                const currentLocal = await StorageService.getWordById(id);
+               console.log(`[DictionaryService.refreshWord] 📊 Current local data:`, {
+                    hasLocal: !!currentLocal,
+                    localImageUrl: currentLocal?.imageUrl,
+                    localMeaningsCount: currentLocal?.meanings?.length || 0
+               });
+
                const updatedWord = DictionaryService.mergeWithLocalData(response.data.word, currentLocal);
 
+               console.log(`[DictionaryService.refreshWord] 🔀 Merged word data:`, {
+                    imageUrl: updatedWord.imageUrl,
+                    meaningsCount: updatedWord.meanings?.length || 0,
+                    isLoading: isWordLoading(updatedWord)
+               });
+
                await StorageService.addWord(updatedWord);
+               console.log(`[DictionaryService.refreshWord] 💾 Saved to storage`);
+
                EventBus.emit('wordImageUpdated', { wordId: id, word: updatedWord });
+               console.log(`[DictionaryService.refreshWord] 📢 Emitted wordImageUpdated event`);
 
                if (response.data.status === 'PROCESSING' || isWordLoading(updatedWord)) {
+                    console.log(`[DictionaryService.refreshWord] ⏳ Still processing, starting poll...`);
                     DictionaryService.pollUntilReady(id);
+               } else {
+                    console.log(`[DictionaryService.refreshWord] ✅ Word is complete!`);
                }
+
                return updatedWord;
           } catch (e) {
+               console.error(`[DictionaryService.refreshWord] ❌ Error:`, e);
                return null;
           }
      },

@@ -94,11 +94,44 @@ export const WordDetailScreen: React.FC = () => {
   // Refresh word from server when entering screen to get latest data
   useEffect(() => {
     const refreshFromServer = async () => {
-      // Only refresh if word is still processing (no imageUrl)
+      console.log('[WordDetail] 🔍 Checking if word needs refresh...', { wordId });
+
+      // Refresh if word is still processing (no imageUrl, empty imageUrl, or no meanings)
       const localWord = await StorageService.getWordById(wordId);
-      if (localWord && !localWord.imageUrl) {
-        console.log('[WordDetail] 🔄 Word is processing, refreshing from server...');
-        await DictionaryService.refreshWord(wordId);
+
+      if (!localWord) {
+        console.log('[WordDetail] ⚠️ No local word found!');
+        return;
+      }
+
+      // Check if any meaning is missing images or audio
+      const hasMissingMeaningData = localWord.meanings?.some(m =>
+        !m.exampleImageUrl ||
+        m.exampleImageUrl.trim() === '' ||
+        !m.exampleAudioUrl ||
+        m.exampleAudioUrl.trim() === ''
+      ) || false;
+
+      const needsRefresh = (
+        !localWord.imageUrl ||
+        localWord.imageUrl.trim() === '' ||
+        !localWord.meanings ||
+        localWord.meanings.length === 0 ||
+        hasMissingMeaningData
+      );
+
+      console.log('[WordDetail] 🎯 Needs refresh?', needsRefresh, {
+        missingMainImage: !localWord.imageUrl || localWord.imageUrl.trim() === '',
+        missingMeanings: !localWord.meanings || localWord.meanings.length === 0,
+        hasMissingMeaningData
+      });
+
+      if (needsRefresh) {
+        console.log('[WordDetail] 🔄 Word incomplete, calling refreshWord API...');
+        const result = await DictionaryService.refreshWord(wordId);
+        console.log('[WordDetail] ✅ refreshWord result:', result ? 'Success' : 'Failed');
+      } else {
+        console.log('[WordDetail] ✓ Word is complete, no refresh needed');
       }
     };
     refreshFromServer();
