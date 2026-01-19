@@ -738,7 +738,7 @@ const styles = StyleSheet.create({
   },
   exampleImage: { width: '100%', height: '100%' },
   exampleContent: { padding: spacing.lg, paddingTop: spacing.md },
-  exampleTextRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm },
+  exampleTextRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm, alignItems: 'center' },
   exampleText: { fontSize: typography.sizes.base, fontStyle: 'italic', color: colors.textSecondary, lineHeight: 24, flex: 1 },
 
   // Claymorphism action bar - floating 3D clay container

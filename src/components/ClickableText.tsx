@@ -57,8 +57,12 @@ export const ClickableText: React.FC<ClickableTextProps> = ({ text, onWordPress,
     setSelectedWord(null);
   };
 
+  // Extract layout styles from the passed style prop to apply to the container
+  const flattenedStyle = StyleSheet.flatten(style);
+  const containerStyle = flattenedStyle?.flex !== undefined ? { flex: flattenedStyle.flex } : undefined;
+
   return (
-    <View>
+    <View style={containerStyle}>
       <Text style={[styles.baseText, style]} numberOfLines={numberOfLines}>
         {parts.map((part, index) => {
           const isWord = !/^(\s+|[,.!?;"'])$/.test(part);
