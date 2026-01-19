@@ -615,19 +615,19 @@ export const WordDetailScreen: React.FC = () => {
       <View style={styles.actionBarSafe}>
         <View style={styles.actionBar}>
           <TouchableOpacity style={styles.squareDeleteButton} onPress={handleDelete}>
-            <Ionicons name="trash-outline" size={24} color="#DC2626" />
+            <Ionicons name="trash-outline" size={20} color="#DC2626" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.micButton}
             onPress={handlePracticePronunciation}
           >
-            <Ionicons name="mic-outline" size={24} color={colors.white} />
+            <Ionicons name="mic-outline" size={20} color={colors.white} />
           </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={handleDone}>
-            <Text style={styles.secondaryButtonText}>{DETAIL_TEXTS.done}</Text>
+          <TouchableOpacity style={styles.doneButton} onPress={handleDone}>
+            <Ionicons name="school-outline" size={20} color={colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryButton} onPress={handleGotIt}>
-            <Text style={styles.primaryButtonText}>{DETAIL_TEXTS.gotIt}</Text>
+            <Ionicons name="checkmark-outline" size={22} color={colors.white} />
           </TouchableOpacity>
         </View>
       </View>
@@ -672,19 +672,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background, zIndex: 10,
     ...shadows.clayMedium,
   },
-  navHeader: { paddingHorizontal: spacing.xl, paddingVertical: spacing.sm },
+  navHeader: { paddingLeft: spacing.xl, paddingRight: spacing.xs, paddingVertical: spacing.sm },
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   // Claymorphism back button - soft clay with inner highlight
   backButton: {
     width: 30,
     height: 30,
-    backgroundColor: colors.cardSurface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: borderRadius.clayInput,
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-    ...shadows.claySoft,
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
   },
   backIcon: { fontSize: typography.sizes.xxl, color: colors.textPrimary, fontWeight: typography.weights.semibold },
 
@@ -747,24 +743,26 @@ const styles = StyleSheet.create({
 
   // Claymorphism action bar - floating 3D clay container
   actionBarSafe: {
-    backgroundColor: colors.cardSurface,
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-    ...shadows.clayMedium,
+    // backgroundColor: colors.cardSurface,
+    // borderTopWidth: 1,
+    // borderTopColor: colors.shadowInnerLight,
+    // ...shadows.clayMedium,
   },
   actionBar: {
     flexDirection: 'row',
     paddingHorizontal: spacing.xl,
-    paddingTop: spacing.rowGap,
-    paddingBottom: Platform.OS === 'ios' ? 10 : spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: Platform.OS === 'ios' ? 10 : spacing.md,
     backgroundColor: colors.cardSurface,
     gap: spacing.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   // Claymorphism delete button - soft clay with debossed effect
   squareDeleteButton: {
     width: 48,
     height: 48,
-    borderRadius: borderRadius.clayInput,
+    borderRadius: 12,
     backgroundColor: '#FEE2E2',
     alignItems: 'center',
     justifyContent: 'center',
@@ -776,7 +774,7 @@ const styles = StyleSheet.create({
   micButton: {
     width: 48,
     height: 48,
-    borderRadius: borderRadius.clayInput,
+    borderRadius: 12,
     backgroundColor: colors.secondary || '#7C3AED',
     alignItems: 'center',
     justifyContent: 'center',
@@ -785,12 +783,12 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(255, 255, 255, 0.3)',
     ...shadows.clayPrimary,
   },
-  // Claymorphism secondary button - soft clay with inner shadow
-  secondaryButton: {
-    flex: 0.8,
+  // Claymorphism done button - square icon button with checkmark
+  doneButton: {
+    width: 48,
     height: 48,
     backgroundColor: colors.cardSurface,
-    borderRadius: borderRadius.clayInput,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 0,
@@ -798,23 +796,19 @@ const styles = StyleSheet.create({
     borderTopColor: colors.shadowInnerLight,
     ...shadows.claySoft,
   },
-  secondaryButtonText: { fontSize: typography.sizes.sm, fontWeight: typography.weights.bold, color: colors.textSecondary, letterSpacing: 0.2 },
-  // Claymorphism primary button - gradient fill with colored shadow
+  // Claymorphism primary button - square icon button with checkmark
   primaryButton: {
-    flex: 1,
+    width: 48,
     height: 48,
     backgroundColor: colors.primary,
-    borderRadius: borderRadius.clayInput,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.3)',
-    borderBottomWidth: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
     ...shadows.clayPrimary,
   },
-  primaryButtonText: { fontSize: typography.sizes.base, fontWeight: typography.weights.bold, color: colors.white, letterSpacing: 0.3 },
+  primaryButtonText: { fontSize: typography.sizes.base, fontWeight: typography.weights.bold, color: colors.white, letterSpacing: 0.2 },
 
   // Claymorphism edit image buttons - floating 3D clay circles
   editImageBtn: {

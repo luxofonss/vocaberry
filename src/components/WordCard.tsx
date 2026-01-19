@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: borderRadius.xxxl,
+    borderRadius: borderRadius.xl,
     backgroundColor: colors.cardSurface,
     overflow: 'hidden',
     position: 'relative',
