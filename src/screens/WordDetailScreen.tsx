@@ -460,7 +460,7 @@ export const WordDetailScreen: React.FC = () => {
                     style={styles.editImageBtnMini}
                     onPress={() => handleEditMeaningImage(item.id)}
                   >
-                    <Text style={styles.editIconBtn}>📷</Text>
+                    <Ionicons name="camera-outline" size={18} color="#6B7280" />
                   </TouchableOpacity>
                 </>
               )}
@@ -568,7 +568,7 @@ export const WordDetailScreen: React.FC = () => {
 
             {!loading && (
               <TouchableOpacity style={styles.editImageBtn} onPress={handleEditMainImage}>
-                <Text style={styles.editIconBtn}>📸</Text>
+                <Ionicons name="camera-outline" size={20} color="#6B7280" />
               </TouchableOpacity>
             )}
           </View>
@@ -852,9 +852,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 1,
     shadowRadius: 8,
     elevation: 3,
-  },
-  editIconBtn: {
-    fontSize: 16,
   },
 
   // Claymorphism user examples section

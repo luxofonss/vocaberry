@@ -1009,14 +1009,30 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
                 </Text>
 
                 {userAudioUri && !isRecording && (
-                  <TouchableOpacity
-                    style={[styles.playbackButton, playingUserAudio && styles.playbackButtonActive]}
-                    onPress={handlePlayUserAudio}
-                    disabled={playingUserAudio}
-                  >
-                    <Text style={styles.playbackEmoji}>{playingUserAudio ? '🔊' : '👂'}</Text>
-                    <Text style={styles.playbackText}>{playingUserAudio ? 'Playing...' : 'Review'}</Text>
-                  </TouchableOpacity>
+                  <View style={styles.audioActionsRow}>
+                    <TouchableOpacity
+                      style={styles.cancelAudioButton}
+                      onPress={() => {
+                        setUserAudioUri(null);
+                        setPronunciationResult(null);
+                        if (userAudioSound.current) {
+                          userAudioSound.current.unloadAsync().catch(() => { });
+                          userAudioSound.current = null;
+                        }
+                      }}
+                    >
+                      <Text style={styles.cancelAudioEmoji}>✕</Text>
+                      <Text style={styles.cancelAudioText}>Cancel</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.playbackButton, playingUserAudio && styles.playbackButtonActive]}
+                      onPress={handlePlayUserAudio}
+                      disabled={playingUserAudio}
+                    >
+                      <Text style={styles.playbackEmoji}>{playingUserAudio ? '🔊' : '👂'}</Text>
+                      <Text style={styles.playbackText}>{playingUserAudio ? 'Playing...' : 'Review'}</Text>
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
 
@@ -1427,7 +1443,11 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.base
   },
 
-  hintContent: { alignItems: 'center', width: '100%' },
+  hintContent: {
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: spacing.sm,
+  },
   clueLabel: {
     fontSize: typography.sizes.xs,
     fontWeight: typography.weights.extraBold,
@@ -1442,14 +1462,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 20,
     marginBottom: spacing.xs,
-    fontWeight: typography.weights.semibold
+    fontWeight: typography.weights.semibold,
+    flexWrap: 'wrap',
+    maxWidth: '100%',
   },
   clueExample: {
     fontSize: typography.sizes.sm,
     fontStyle: 'italic',
     color: colors.textSecondary,
     textAlign: 'center',
-    lineHeight: 18
+    lineHeight: 18,
+    flexWrap: 'wrap',
+    maxWidth: '100%',
   },
 
   inputArea: { width: '100%', paddingHorizontal: spacing.lg },
@@ -1808,6 +1832,7 @@ const styles = StyleSheet.create({
   meaningSlide: {
     width: SCREEN_WIDTH - (spacing.lg * 4),
     alignItems: 'center',
+    paddingHorizontal: spacing.sm,
   },
   paginationContainer: {
     flexDirection: 'row',
@@ -2348,6 +2373,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: typography.weights.bold,
     color: colors.primary,
+  },
+  audioActionsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  cancelAudioButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.cardSurface,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: borderRadius.pill,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.claySoft,
+  },
+  cancelAudioEmoji: {
+    fontSize: 14,
+    marginRight: 4,
+    color: colors.error,
+  },
+  cancelAudioText: {
+    fontSize: 12,
+    fontWeight: typography.weights.bold,
+    color: colors.error,
   },
   checkButtonActive: {
     backgroundColor: colors.primary,

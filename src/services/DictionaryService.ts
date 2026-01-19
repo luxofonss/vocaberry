@@ -80,8 +80,8 @@ export const DictionaryService = {
 
                // 3. If exists locally but still processing, start polling (Requirement 3.3)
                if (localWord && !isWordCompleted(localWord)) {
-                    console.log(`[DictionaryService] 🔄 Word exists but incomplete, starting poll...`);
-                    DictionaryService.pollUntilReady(inputWord);
+                    console.log(`[DictionaryService] 🔄 Word exists but incomplete, starting poll for: "${localWord.id}"`);
+                    DictionaryService.pollUntilReady(localWord.id);
                     return { word: localWord, isNew: false, originalText: wordText };
                }
           } catch (e) {
@@ -121,12 +121,13 @@ export const DictionaryService = {
 
                // Save to local
                await StorageService.addWord(mergedWord);
-               console.log(`[DictionaryService] 💾 Saved word to local storage`);
+               console.log(`[DictionaryService] 💾 Saved word to local storage with id: "${mergedWord.id}"`);
 
                // If still processing, start background polling
+               // IMPORTANT: Use mergedWord.id (normalized from server) not inputWord (user input)
                if (status === 'PROCESSING' || isWordLoading(mergedWord)) {
-                    console.log(`[DictionaryService] ⏳ Starting background poll...`);
-                    DictionaryService.pollUntilReady(inputWord);
+                    console.log(`[DictionaryService] ⏳ Starting background poll for normalized word: "${mergedWord.id}"`);
+                    DictionaryService.pollUntilReady(mergedWord.id);
                }
 
                return {
@@ -185,25 +186,25 @@ export const DictionaryService = {
 
      /**
       * Poll for completion until all images are ready
+      * @param wordId - Normalized word ID (already lowercased)
       */
-     pollUntilReady: async (wordText: string): Promise<void> => {
+     pollUntilReady: async (wordId: string): Promise<void> => {
           const startTime = Date.now();
           let retryCount = 0;
           const maxRetries = POLLING_CONFIG.MAX_RETRIES;
-          const id = wordText.toLowerCase();
 
-          console.log(`[DictionaryService] 🔄 Starting poll for: "${id}"`);
+          console.log(`[DictionaryService] 🔄 Starting poll for: "${wordId}"`);
 
           while (true) {
                if (Date.now() - startTime >= POLLING_CONFIG.TIMEOUT_MS) {
-                    console.log(`[DictionaryService] ⏰ Polling timeout for "${id}"`);
+                    console.log(`[DictionaryService] ⏰ Polling timeout for "${wordId}"`);
                     return;
                }
 
                await delay(POLLING_CONFIG.INTERVAL_MS);
 
                try {
-                    const response = await ApiClient.getWordStatus(id);
+                    const response = await ApiClient.getWordStatus(wordId);
                     if (!response.success || !response.data?.word) {
                          throw new Error('Invalid server response');
                     }
@@ -211,16 +212,16 @@ export const DictionaryService = {
                     const serverWord = response.data.word;
                     const status = response.data.status;
 
-                    const currentLocal = await StorageService.getWordById(id);
+                    const currentLocal = await StorageService.getWordById(wordId);
                     const updatedWord = DictionaryService.mergeWithLocalData(serverWord, currentLocal);
 
                     await StorageService.addWord(updatedWord);
 
-                    console.log(`[DictionaryService] 📡 Poll update for "${id}" (status: ${status})`);
-                    EventBus.emit('wordImageUpdated', { wordId: id, word: updatedWord });
+                    console.log(`[DictionaryService] 📡 Poll update for "${wordId}" (status: ${status})`);
+                    EventBus.emit('wordImageUpdated', { wordId: updatedWord.id, word: updatedWord });
 
                     if (status === 'COMPLETED' && !isWordLoading(updatedWord)) {
-                         console.log(`[DictionaryService] ✅ Word "${id}" processing complete`);
+                         console.log(`[DictionaryService] ✅ Word "${wordId}" processing complete`);
                          return;
                     }
                     retryCount = 0;
@@ -283,14 +284,14 @@ export const DictionaryService = {
                });
 
                await StorageService.addWord(updatedWord);
-               console.log(`[DictionaryService.refreshWord] 💾 Saved to storage`);
+               console.log(`[DictionaryService.refreshWord] 💾 Saved to storage with id: "${updatedWord.id}"`);
 
-               EventBus.emit('wordImageUpdated', { wordId: id, word: updatedWord });
-               console.log(`[DictionaryService.refreshWord] 📢 Emitted wordImageUpdated event`);
+               EventBus.emit('wordImageUpdated', { wordId: updatedWord.id, word: updatedWord });
+               console.log(`[DictionaryService.refreshWord] 📢 Emitted wordImageUpdated event for: "${updatedWord.id}"`);
 
                if (response.data.status === 'PROCESSING' || isWordLoading(updatedWord)) {
-                    console.log(`[DictionaryService.refreshWord] ⏳ Still processing, starting poll...`);
-                    DictionaryService.pollUntilReady(id);
+                    console.log(`[DictionaryService.refreshWord] ⏳ Still processing, starting poll for: "${updatedWord.id}"`);
+                    DictionaryService.pollUntilReady(updatedWord.id);
                } else {
                     console.log(`[DictionaryService.refreshWord] ✅ Word is complete!`);
                }

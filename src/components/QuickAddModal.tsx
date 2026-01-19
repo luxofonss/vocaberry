@@ -390,6 +390,12 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
 
             const fetchedWord = result.word;
 
+            console.log('[QuickAddModal] 📝 Word normalization:', {
+                userInput: word.trim(),
+                normalizedId: fetchedWord.id,
+                serverWord: fetchedWord.word
+            });
+
             // Update loading status based on whether word is still processing
             if (!fetchedWord.imageUrl || fetchedWord.imageUrl.trim() === '') {
                 setLoadingStatus("Word is processing, image will load shortly...");
