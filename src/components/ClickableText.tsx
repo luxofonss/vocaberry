@@ -41,7 +41,7 @@ export const ClickableText: React.FC<ClickableTextProps> = ({ text, onWordPress,
                     key={charIdx}
                     style={[
                       isCorrect === true && char !== ' ' && { color: '#10B981' },
-                      isCorrect === false && char !== ' ' && { color: '#EF4444', backgroundColor: '#FEE2E2' }
+                      isCorrect === false && char !== ' ' && { color: '#EF4444' }
                     ]}
                   >
                     {char}
@@ -68,7 +68,7 @@ export const ClickableText: React.FC<ClickableTextProps> = ({ text, onWordPress,
                   key={charIdx}
                   style={[
                     isCorrect === true && char !== ' ' && { color: '#10B981' },
-                    isCorrect === false && char !== ' ' && { color: '#EF4444', backgroundColor: '#FEE2E2' }
+                    isCorrect === false && char !== ' ' && { color: '#EF4444' }
                   ]}
                 >
                   {char}

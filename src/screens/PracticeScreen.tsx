@@ -386,16 +386,6 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
           setUserAnswer(result.data.real_transcript);
         }
 
-
-
-
-
-
-
-
-
-
-
       } catch (error: any) {
         console.error('Audio processing error:', error);
         Alert.alert('Processing Error', error.message || 'Failed to analyze pronunciation');

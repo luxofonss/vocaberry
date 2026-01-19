@@ -277,7 +277,20 @@ export const ConversationDetailScreen: React.FC = () => {
                     `data:audio/m4a;base64,${base64Audio}`
                );
 
+               // Validate response data
+               if (!response || !response.data) {
+                    throw new Error('Không nhận được dữ liệu từ API');
+               }
+
                const data = response.data;
+
+               // Check if required fields exist
+               if (typeof data.pronunciation_accuracy === 'undefined' ||
+                    typeof data.is_letter_correct_all_words === 'undefined') {
+                    console.error('API Error Response:', data);
+                    throw new Error('Dữ liệu API không đầy đủ');
+               }
+
                setPronunciations(prev => ({
                     ...prev,
                     [msgId]: data.is_letter_correct_all_words
@@ -291,7 +304,10 @@ export const ConversationDetailScreen: React.FC = () => {
                playFeedbackSound(data.pronunciation_accuracy >= 80);
           } catch (error) {
                console.error('Analysis error:', error);
-               Alert.alert('Analysis Failed', 'Could not analyze your pronunciation. Please try again.');
+               const errorMessage = error instanceof Error
+                    ? error.message
+                    : 'Không thể phân tích phát âm. Vui lòng thử lại.';
+               Alert.alert('Phân tích thất bại', errorMessage);
           } finally {
                setIsProcessingId(null);
           }

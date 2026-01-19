@@ -12,6 +12,8 @@ import {
      Dimensions,
      ActivityIndicator,
      ScrollView,
+     Image,
+     FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -27,7 +29,7 @@ import { Sentence, RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
 import { AiService } from '../services/AiService';
 import { SpeechService } from '../services/SpeechService';
-import { ANIMATION } from '../constants';
+import { ANIMATION, PRACTICE_TEXTS } from '../constants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -50,6 +52,10 @@ export const SentencePracticeScreen: React.FC = () => {
      const [userAudioUri, setUserAudioUri] = useState<string | null>(null);
      const [playingUserAudio, setPlayingUserAudio] = useState(false);
      const [isPlayingNative, setIsPlayingNative] = useState(false);
+
+     // Final results
+     const [results, setResults] = useState<any[]>([]);
+     const [showReview, setShowReview] = useState(false);
 
      const currentSentence = sentences[currentIndex];
 
@@ -199,13 +205,26 @@ export const SentencePracticeScreen: React.FC = () => {
                     `data:audio/m4a;base64,${base64Audio}`
                );
 
+               // Validate response data
+               if (!response || !response.data) {
+                    throw new Error('Không nhận được dữ liệu từ API');
+               }
+
                const data = response.data;
+
+               // Check if required fields exist
+               if (typeof data.pronunciation_accuracy === 'undefined' ||
+                    typeof data.is_letter_correct_all_words === 'undefined') {
+                    console.error('API Error Response:', data);
+                    throw new Error('Dữ liệu API không đầy đủ');
+               }
+
                setResult({
                     accuracy: data.pronunciation_accuracy,
-                    realTranscript: data.real_transcript,
-                    ipaTranscript: data.real_transcripts_ipa, // Chuẩn IPA
+                    realTranscript: data.real_transcript || '',
+                    ipaTranscript: data.real_transcripts_ipa || '', // Chuẩn IPA
                     isLetterCorrect: data.is_letter_correct_all_words,
-                    userIpa: data.ipa_transcript, // IPA người dùng nói
+                    userIpa: data.ipa_transcript || '', // IPA người dùng nói
                });
 
                // Save progress
@@ -214,10 +233,36 @@ export const SentencePracticeScreen: React.FC = () => {
                }
 
                // Play sound based on accuracy (threshold 80%)
+               // Save result for review
+               const newResult = {
+                    sentence: currentSentence,
+                    accuracy: data.pronunciation_accuracy,
+                    ipaTranscript: data.real_transcripts_ipa || '',
+                    userIpa: data.ipa_transcript || '',
+                    isCorrect: data.pronunciation_accuracy >= 80,
+                    isLetterCorrect: data.is_letter_correct_all_words
+               };
+
+               setResults(prev => {
+                    const next = [...prev];
+                    next[currentIndex] = newResult;
+                    return next;
+               });
+
+               // Play sound based on accuracy (threshold 80%)
                playSound(data.pronunciation_accuracy >= 80);
           } catch (error) {
-               console.error('Submit error:', error);
-               Alert.alert('Analysis Failed', 'Sorry, we couldn\'t analyze your speech. Please try again.');
+               console.error('Analysis error:', error);
+
+               // Show more specific error message
+               const errorMessage = error instanceof Error
+                    ? error.message
+                    : 'Sorry, we couldn\'t analyze your speech. Please try again.';
+
+               Alert.alert('Analysis Failed', errorMessage);
+
+               // Reset recording state so user can try again
+               setUserAudioUri(null);
           } finally {
                setIsProcessing(false);
           }
@@ -344,11 +389,9 @@ export const SentencePracticeScreen: React.FC = () => {
                setResult(null);
                setUserAudioUri(null);
           } else {
-               Alert.alert('Finish!', 'You have practiced all your sentences.', [
-                    { text: 'OK', onPress: () => navigation.goBack() }
-               ]);
+               setShowReview(true);
           }
-     }, [currentIndex, sentences, navigation]);
+     }, [currentIndex, sentences]);
 
      const handlePlayNative = useCallback(async () => {
           console.log('[SentencePracticeScreen] 🔊 handlePlayNative triggered');
@@ -398,6 +441,73 @@ export const SentencePracticeScreen: React.FC = () => {
           });
      };
 
+     const renderReviewScreen = () => {
+          const finalScore = results.filter(r => r?.isCorrect).length;
+          const totalCount = sentences.length;
+          const performanceRatio = totalCount > 0 ? finalScore / totalCount : 0;
+
+          return (
+               <View style={styles.reviewContainer}>
+                    <View style={styles.reviewHeader}>
+                         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                              <Ionicons name="arrow-back" size={28} color={colors.textPrimary} />
+                         </TouchableOpacity>
+                         <Text style={styles.reviewTitle}>{PRACTICE_TEXTS.reviewResults}</Text>
+                         <View style={{ width: 40 }} />
+                    </View>
+
+                    <ScrollView contentContainerStyle={styles.reviewContent} showsVerticalScrollIndicator={false}>
+                         <View style={styles.reviewSummaryCard}>
+                              <Image
+                                   source={performanceRatio >= 0.8 ? require('../../assets/aplus.png') : require('../../assets/bad.png')}
+                                   style={styles.reviewImage}
+                                   resizeMode="contain"
+                              />
+                              <Text style={styles.performanceTitle}>
+                                   {performanceRatio >= 0.8 ? 'Excellent!' : 'Keep Practicing!'}
+                              </Text>
+                              <Text style={styles.performanceScore}>
+                                   You Got {finalScore} out of {totalCount} Correct
+                              </Text>
+                         </View>
+
+                         <Text style={styles.detailsTitle}>Session Breakdown</Text>
+                         {results.filter(r => !!r).map((item, index) => (
+                              <View key={index} style={[styles.resultItem, item?.isCorrect ? styles.resultItemCorrect : styles.resultItemIncorrect]}>
+                                   <View style={styles.resultItemHeader}>
+                                        <View style={[styles.resultBadge, { backgroundColor: item?.isCorrect ? colors.success + '20' : colors.error + '20' }]}>
+                                             <Ionicons
+                                                  name={item?.isCorrect ? 'checkmark-circle' : 'close-circle'}
+                                                  size={20}
+                                                  color={item?.isCorrect ? colors.success : colors.error}
+                                             />
+                                             <Text style={[styles.resultBadgeText, { color: item?.isCorrect ? colors.success : colors.error }]}>
+                                                  {item?.accuracy}%
+                                             </Text>
+                                        </View>
+                                        <Text style={styles.resultItemIndex}>#{index + 1}</Text>
+                                   </View>
+                                   <Text style={styles.resultSentenceText} numberOfLines={2}>
+                                        {item?.sentence?.text}
+                                   </Text>
+                                   <View style={styles.resultIpaRow}>
+                                        <Text style={styles.resultIpaLabel}>IPA:</Text>
+                                        <Text style={styles.resultIpaValue}>{item?.ipaTranscript}</Text>
+                                   </View>
+                              </View>
+                         ))}
+
+                         <TouchableOpacity
+                              style={styles.finishBtn}
+                              onPress={() => navigation.goBack()}
+                         >
+                              <Text style={styles.finishBtnText}>{PRACTICE_TEXTS.done}</Text>
+                         </TouchableOpacity>
+                    </ScrollView>
+               </View>
+          );
+     };
+
      if (loading) {
           return (
                <View style={styles.loadingContainer}>
@@ -412,131 +522,141 @@ export const SentencePracticeScreen: React.FC = () => {
                style={styles.container}
           >
                <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-                    {/* Header */}
-                    <View style={styles.header}>
-                         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-                              <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
-                         </TouchableOpacity>
-                         <Text style={styles.headerTitle}>Practice Speaking</Text>
-                         <View style={styles.progressBadge}>
-                              <Text style={styles.progressText}>{currentIndex + 1}/{sentences.length}</Text>
-                         </View>
-                    </View>
-
-                    <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                         <Animated.View style={[styles.mainCard, shadows.claySoft, { opacity: fadeAnim }]}>
-                              <View style={styles.sentenceHeader}>
-                                   <Text style={styles.sentenceText}>{currentSentence.text}</Text>
-                                   <TouchableOpacity
-                                        onPress={handlePlayNative}
-                                        disabled={isPlayingNative}
-                                        style={styles.playNativeBtn}
-                                   >
-                                        <Ionicons
-                                             name={isPlayingNative ? "volume-high" : "volume-medium-outline"}
-                                             size={28}
-                                             color={colors.primary}
-                                        />
+                    {showReview ? (
+                         renderReviewScreen()
+                    ) : (
+                         <>
+                              {/* Header */}
+                              <View style={styles.header}>
+                                   <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                                        <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
                                    </TouchableOpacity>
+                                   <Text style={styles.headerTitle}>Practice Speaking</Text>
+                                   <View style={styles.progressBadge}>
+                                        <Text style={styles.progressText}>{currentIndex + 1}/{sentences.length}</Text>
+                                   </View>
                               </View>
 
-                              <View style={styles.divider} />
-
-                              {result ? (
-                                   <View style={styles.resultContainer}>
-                                        <View style={styles.scoreRow}>
-                                             <View style={[styles.scoreCircle, { borderColor: result.accuracy >= 80 ? colors.success : colors.warning }]}>
-                                                  <Text style={[styles.scoreValue, { color: result.accuracy >= 80 ? colors.success : colors.warning }]}>
-                                                       {result.accuracy}%
-                                                  </Text>
-                                                  <Text style={styles.scoreLabel}>Accuracy</Text>
-                                             </View>
-
-                                             <View style={styles.ipaSection}>
-                                                  <Text style={styles.ipaTitle}>IPA Transcription</Text>
-                                                  <Text style={styles.ipaValue}>{result.ipaTranscript || '—'}</Text>
-                                                  <Text style={styles.ipaUserTitle}>Your IPA</Text>
-                                                  <Text style={styles.ipaUserValue}>{result.userIpa || '—'}</Text>
-                                             </View>
+                              <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                                   <Animated.View style={[styles.mainCard, shadows.claySoft, { opacity: fadeAnim }]}>
+                                        <View style={styles.sentenceHeader}>
+                                             <Text style={styles.sentenceText}>{currentSentence.text}</Text>
+                                             <TouchableOpacity
+                                                  onPress={handlePlayNative}
+                                                  disabled={isPlayingNative}
+                                                  style={styles.playNativeBtn}
+                                             >
+                                                  <Ionicons
+                                                       name={isPlayingNative ? "volume-high" : "volume-medium-outline"}
+                                                       size={28}
+                                                       color={colors.primary}
+                                                  />
+                                             </TouchableOpacity>
                                         </View>
 
-                                        <View style={styles.feedbackSection}>
-                                             <View style={styles.feedbackHeader}>
-                                                  <Text style={styles.feedbackTitle}>Character Correction</Text>
-                                                  {userAudioUri && !isRecording && (
-                                                       <TouchableOpacity
-                                                            style={styles.listenCardBtn}
-                                                            onPress={handlePlayBack}
-                                                            disabled={playingUserAudio}
-                                                       >
-                                                            <Ionicons
-                                                                 name={playingUserAudio ? "volume-high" : "play-circle"}
-                                                                 size={22}
-                                                                 color={colors.primary}
-                                                            />
-                                                            <Text style={styles.listenSmallText}>{playingUserAudio ? "Playing..." : "Listen to me"}</Text>
+                                        <View style={styles.divider} />
+
+                                        {result ? (
+                                             <View style={styles.resultContainer}>
+                                                  <View style={styles.scoreRow}>
+                                                       <View style={[styles.scoreCircle, { borderColor: result.accuracy >= 80 ? colors.success : colors.warning }]}>
+                                                            <Text style={[styles.scoreValue, { color: result.accuracy >= 80 ? colors.success : colors.warning }]}>
+                                                                 {result.accuracy}%
+                                                            </Text>
+                                                            <Text style={styles.scoreLabel}>Accuracy</Text>
+                                                       </View>
+
+                                                       <View style={styles.ipaSection}>
+                                                            <Text style={styles.ipaTitle}>IPA Transcription</Text>
+                                                            <Text style={styles.ipaValue}>{result.ipaTranscript || '—'}</Text>
+                                                            <Text style={styles.ipaUserTitle}>Your IPA</Text>
+                                                            <Text style={styles.ipaUserValue}>{result.userIpa || '—'}</Text>
+                                                       </View>
+                                                  </View>
+
+                                                  <View style={styles.feedbackSection}>
+                                                       <View style={styles.feedbackHeader}>
+                                                            <Text style={styles.feedbackTitle}>Character Correction</Text>
+                                                            {userAudioUri && !isRecording && (
+                                                                 <TouchableOpacity
+                                                                      style={styles.listenCardBtn}
+                                                                      onPress={handlePlayBack}
+                                                                      disabled={playingUserAudio}
+                                                                 >
+                                                                      <Ionicons
+                                                                           name={playingUserAudio ? "volume-high" : "play-circle"}
+                                                                           size={22}
+                                                                           color={colors.primary}
+                                                                      />
+                                                                      <Text style={styles.listenSmallText}>{playingUserAudio ? "Playing..." : "Listen to me"}</Text>
+                                                                 </TouchableOpacity>
+                                                            )}
+                                                       </View>
+                                                       <View style={styles.charContainer}>
+                                                            {renderWordWithFeedback(currentSentence.text, result.isLetterCorrect)}
+                                                       </View>
+                                                  </View>
+
+                                                  {currentIndex < sentences.length - 1 ? (
+                                                       <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
+                                                            <Text style={styles.nextBtnText}>Next Sentence</Text>
+                                                            <Ionicons name="arrow-forward" size={20} color={colors.white} />
+                                                       </TouchableOpacity>
+                                                  ) : (
+                                                       <TouchableOpacity style={styles.finishBtn} onPress={handleNext}>
+                                                            <Text style={styles.finishBtnText}>Finish & View Results</Text>
                                                        </TouchableOpacity>
                                                   )}
                                              </View>
-                                             <View style={styles.charContainer}>
-                                                  {renderWordWithFeedback(currentSentence.text, result.isLetterCorrect)}
-                                             </View>
-                                        </View>
-
-                                        {currentIndex < sentences.length - 1 && (
-                                             <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
-                                                  <Text style={styles.nextBtnText}>Next Sentence</Text>
-                                                  <Ionicons name="arrow-forward" size={20} color={colors.white} />
-                                             </TouchableOpacity>
-                                        )}
-                                   </View>
-                              ) : (
-                                   <View style={styles.placeholderContainer}>
-                                        {isProcessing ? (
-                                             <>
-                                                  <ActivityIndicator size="large" color={colors.primary} />
-                                                  <Text style={styles.placeholderText}>Analyzing your speech...</Text>
-                                             </>
                                         ) : (
-                                             <>
-                                                  <Ionicons name="mic-outline" size={48} color={colors.textSecondary} style={{ opacity: 0.3 }} />
-                                                  <Text style={styles.placeholderText}>Tap the mic to start speaking</Text>
-                                             </>
+                                             <View style={styles.placeholderContainer}>
+                                                  {isProcessing ? (
+                                                       <>
+                                                            <ActivityIndicator size="large" color={colors.primary} />
+                                                            <Text style={styles.placeholderText}>Analyzing your speech...</Text>
+                                                       </>
+                                                  ) : (
+                                                       <>
+                                                            <Ionicons name="mic-outline" size={48} color={colors.textSecondary} style={{ opacity: 0.3 }} />
+                                                            <Text style={styles.placeholderText}>Tap the mic to start speaking</Text>
+                                                       </>
+                                                  )}
+                                             </View>
                                         )}
-                                   </View>
-                              )}
-                         </Animated.View>
+                                   </Animated.View>
 
-                         {/* Centered Mic Controls below card */}
-                         <View style={styles.controlsPlaceholder}>
-                              <View style={styles.micContainer}>
-                                   <Animated.View style={[
-                                        styles.micPulse,
-                                        { transform: [{ scale: pulseAnim }], opacity: isRecording ? 0.3 : 0 }
-                                   ]} />
-                                   <TouchableOpacity
-                                        onPress={handleMicPress}
-                                        disabled={isProcessing}
-                                        style={[
-                                             styles.micBtnLarge,
-                                             isRecording ? styles.micBtnActive : styles.micBtnInactive,
-                                             isProcessing && { opacity: 0.5 },
-                                             shadows.clayStrong
-                                        ]}
-                                        activeOpacity={0.8}
-                                   >
-                                        <Ionicons
-                                             name={isRecording ? "stop" : "mic"}
-                                             size={40}
-                                             color={colors.white}
-                                        />
-                                   </TouchableOpacity>
-                                   <Text style={styles.micStatusTextLarge}>
-                                        {isRecording ? "Recording..." : (userAudioUri ? "Re-record" : "Tap to Speak")}
-                                   </Text>
-                              </View>
-                         </View>
-                    </ScrollView>
+                                   {/* Centered Mic Controls below card */}
+                                   <View style={styles.controlsPlaceholder}>
+                                        <View style={styles.micContainer}>
+                                             <Animated.View style={[
+                                                  styles.micPulse,
+                                                  { transform: [{ scale: pulseAnim }], opacity: isRecording ? 0.3 : 0 }
+                                             ]} />
+                                             <TouchableOpacity
+                                                  onPress={handleMicPress}
+                                                  disabled={isProcessing}
+                                                  style={[
+                                                       styles.micBtnLarge,
+                                                       isRecording ? styles.micBtnActive : styles.micBtnInactive,
+                                                       isProcessing && { opacity: 0.5 },
+                                                       shadows.clayStrong
+                                                  ]}
+                                                  activeOpacity={0.8}
+                                             >
+                                                  <Ionicons
+                                                       name={isRecording ? "stop" : "mic"}
+                                                       size={40}
+                                                       color={colors.white}
+                                                  />
+                                             </TouchableOpacity>
+                                             <Text style={styles.micStatusTextLarge}>
+                                                  {isRecording ? "Recording..." : (userAudioUri ? "Re-record" : "Tap to Speak")}
+                                             </Text>
+                                        </View>
+                                   </View>
+                              </ScrollView>
+                         </>
+                    )}
                </SafeAreaView>
           </LinearGradient>
      );
@@ -734,8 +854,6 @@ const styles = StyleSheet.create({
      },
      charIncorrect: {
           color: colors.error,
-          backgroundColor: '#FEE2E2',
-          textDecorationLine: 'underline',
      },
      nextBtn: {
           flexDirection: 'row',
@@ -786,5 +904,124 @@ const styles = StyleSheet.create({
           fontSize: 14,
           fontWeight: '800',
           color: colors.textSecondary,
+     },
+     reviewContainer: {
+          flex: 1,
+     },
+     reviewHeader: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: spacing.screenPadding,
+          paddingVertical: spacing.md,
+     },
+     reviewTitle: {
+          fontSize: 20,
+          fontWeight: '800',
+          color: colors.textPrimary,
+     },
+     reviewContent: {
+          paddingHorizontal: spacing.screenPadding,
+          paddingBottom: 40,
+     },
+     reviewSummaryCard: {
+          backgroundColor: colors.white,
+          borderRadius: 24,
+          padding: spacing.xl,
+          alignItems: 'center',
+          ...shadows.claySoft,
+          marginBottom: spacing.xl,
+     },
+     reviewImage: {
+          width: 120,
+          height: 120,
+          marginBottom: spacing.md,
+     },
+     performanceTitle: {
+          fontSize: 24,
+          fontWeight: '800',
+          color: colors.textPrimary,
+          marginBottom: 4,
+     },
+     performanceScore: {
+          fontSize: 16,
+          color: colors.textSecondary,
+          fontWeight: '600',
+     },
+     detailsTitle: {
+          fontSize: 18,
+          fontWeight: '800',
+          color: colors.textPrimary,
+          marginBottom: spacing.md,
+          marginTop: spacing.md,
+     },
+     resultItem: {
+          backgroundColor: colors.white,
+          borderRadius: 20,
+          padding: spacing.lg,
+          marginBottom: spacing.md,
+          borderWidth: 1,
+     },
+     resultItemCorrect: {
+          borderColor: colors.success + '30',
+     },
+     resultItemIncorrect: {
+          borderColor: colors.error + '30',
+     },
+     resultItemHeader: {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: spacing.sm,
+     },
+     resultBadge: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: 8,
+          paddingVertical: 4,
+          borderRadius: 8,
+          gap: 4,
+     },
+     resultBadgeText: {
+          fontSize: 12,
+          fontWeight: '800',
+     },
+     resultItemIndex: {
+          fontSize: 12,
+          color: colors.textSecondary,
+          fontWeight: '700',
+     },
+     resultSentenceText: {
+          fontSize: 16,
+          fontWeight: '700',
+          color: colors.textPrimary,
+          marginBottom: spacing.sm,
+     },
+     resultIpaRow: {
+          flexDirection: 'row',
+          gap: 6,
+     },
+     resultIpaLabel: {
+          fontSize: 12,
+          color: colors.textSecondary,
+          fontWeight: '600',
+     },
+     resultIpaValue: {
+          fontSize: 12,
+          color: colors.primary,
+          fontWeight: '600',
+     },
+     finishBtn: {
+          backgroundColor: colors.primary,
+          borderRadius: 20,
+          paddingVertical: 16,
+          alignItems: 'center',
+          marginTop: spacing.xl,
+          ...shadows.clayStrong,
+     },
+     finishBtnText: {
+          color: colors.white,
+          fontSize: 18,
+          fontWeight: '800',
      },
 });
