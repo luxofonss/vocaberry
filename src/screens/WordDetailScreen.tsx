@@ -528,7 +528,7 @@ export const WordDetailScreen: React.FC = () => {
   }, [word]);
 
   // Create a reversed copy for display so newest/user-added meanings usually show first
-  const displayedMeanings = [...displayWord.meanings].reverse();
+  const displayedMeanings = displayWord.meanings;
   const currentMeaning = displayedMeanings[currentIndex];
 
   return (
