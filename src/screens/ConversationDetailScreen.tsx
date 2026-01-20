@@ -9,6 +9,7 @@ import {
      Animated,
      Alert,
      ActivityIndicator,
+     Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
@@ -26,6 +27,7 @@ import { AiService } from '../services/AiService';
 import { SpeechService } from '../services/SpeechService';
 import { DictionaryService } from '../services/DictionaryService';
 import { WordPreviewModal } from '../components/WordPreviewModal';
+import { PronunciationDetailView } from '../components/PronunciationDetailView';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 type DetailRouteProp = RouteProp<RootStackParamList, 'ConversationDetail'>;
@@ -43,8 +45,12 @@ export const ConversationDetailScreen: React.FC = () => {
      // Practice state
      const [recordingId, setRecordingId] = useState<string | null>(null);
      const [isProcessingId, setIsProcessingId] = useState<string | null>(null);
-     const [pronunciations, setPronunciations] = useState<{ [msgId: string]: string }>({});
+     const [pronunciations, setPronunciations] = useState<{ [msgId: string]: any }>({});
      const [messageAccuracies, setMessageAccuracies] = useState<{ [msgId: string]: number }>({});
+
+     // Detail modal state
+     const [detailModalVisible, setDetailModalVisible] = useState(false);
+     const [selectedPronunciation, setSelectedPronunciation] = useState<any>(null);
      const audioRecorder = useRef<Audio.Recording | null>(null);
 
      // Refs for auto-saving on unmount
@@ -268,13 +274,22 @@ export const ConversationDetailScreen: React.FC = () => {
      const analyzeSpeech = async (msgId: string, text: string, uri: string) => {
           setIsProcessingId(msgId);
           try {
+               // 1. Give the OS time to flush the file content to disk
+               await new Promise(resolve => setTimeout(resolve, 500));
+
+               // 2. Validate file health
+               const fileInfo = await FileSystem.getInfoAsync(uri);
+               if (!fileInfo.exists || fileInfo.size === 0) {
+                    throw new Error('Recording file is missing or empty. Please record again.');
+               }
+
                const base64Audio = await FileSystem.readAsStringAsync(uri, {
                     encoding: FileSystem.EncodingType.Base64,
                });
 
                const response = await AiService.checkPronunciationAccuracy(
                     text,
-                    `data:audio/m4a;base64,${base64Audio}`
+                    `data:audio/wav;base64,${base64Audio.trim()}`
                );
 
                // Validate response data
@@ -284,24 +299,31 @@ export const ConversationDetailScreen: React.FC = () => {
 
                const data = response.data;
 
-               // Check if required fields exist
-               if (typeof data.pronunciation_accuracy === 'undefined' ||
-                    typeof data.is_letter_correct_all_words === 'undefined') {
+               // Check if required fields exist (new format)
+               if (typeof data.pronScore === 'undefined' || !data.words) {
                     console.error('API Error Response:', data);
                     throw new Error('Something went wrong, please try again later!');
                }
 
+               // Store full pronunciation data for detail view
                setPronunciations(prev => ({
                     ...prev,
-                    [msgId]: data.is_letter_correct_all_words
+                    [msgId]: {
+                         recognizedText: data.recognizedText,
+                         accuracyScore: data.accuracyScore,
+                         fluencyScore: data.fluencyScore,
+                         completenessScore: data.completenessScore,
+                         pronScore: data.pronScore,
+                         words: data.words
+                    }
                }));
 
                setMessageAccuracies(prev => ({
                     ...prev,
-                    [msgId]: Math.max(prev[msgId] || 0, data.pronunciation_accuracy)
+                    [msgId]: Math.max(prev[msgId] || 0, data.pronScore)
                }));
 
-               playFeedbackSound(data.pronunciation_accuracy >= 80);
+               playFeedbackSound(data.pronScore >= 80);
           } catch (error) {
                console.error('Analysis error:', error);
                const errorMessage = error instanceof Error
@@ -357,17 +379,17 @@ export const ConversationDetailScreen: React.FC = () => {
                     audioRecorder.current = new Audio.Recording();
                     const recordingOptions: any = {
                          android: {
-                              extension: '.m4a',
-                              outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-                              audioEncoder: Audio.AndroidAudioEncoder.AAC,
-                              sampleRate: 44100,
+                              extension: '.wav',
+                              outputFormat: Audio.AndroidOutputFormat.THREE_GPP,
+                              audioEncoder: Audio.AndroidAudioEncoder.AMR_WB,
+                              sampleRate: 16000,
                               numberOfChannels: 1,
                               bitRate: 128000,
                          },
                          ios: {
-                              extension: '.m4a',
+                              extension: '.wav',
                               audioQuality: Audio.IOSAudioQuality.HIGH,
-                              sampleRate: 44100,
+                              sampleRate: 16000,
                               numberOfChannels: 1,
                               bitRate: 128000,
                               linearPCMBitDepth: 16,
@@ -468,6 +490,22 @@ export const ConversationDetailScreen: React.FC = () => {
                                                             color={msg.role === 'user' ? (recordingId === msg.id ? colors.white : colors.white) : (recordingId === msg.id ? colors.white : colors.primary)}
                                                        />
                                                   </TouchableOpacity>
+
+                                                  {pronunciations[msg.id] && (
+                                                       <TouchableOpacity
+                                                            style={styles.actionIconBtn}
+                                                            onPress={() => {
+                                                                 setSelectedPronunciation(pronunciations[msg.id]);
+                                                                 setDetailModalVisible(true);
+                                                            }}
+                                                       >
+                                                            <Ionicons
+                                                                 name="information-circle-outline"
+                                                                 size={18}
+                                                                 color={msg.role === 'user' ? colors.white : colors.primary}
+                                                            />
+                                                       </TouchableOpacity>
+                                                  )}
                                              </View>
                                         )}
                                    </View>
@@ -520,6 +558,26 @@ export const ConversationDetailScreen: React.FC = () => {
                     onSave={handleSaveNewWord}
                     onGoToDetail={handleGoToDetail}
                />
+
+               <Modal
+                    visible={detailModalVisible}
+                    animationType="slide"
+                    presentationStyle="pageSheet"
+                    onRequestClose={() => setDetailModalVisible(false)}
+               >
+                    {selectedPronunciation && (
+                         <PronunciationDetailView
+                              recognizedText={selectedPronunciation.recognizedText}
+                              accuracyScore={selectedPronunciation.accuracyScore}
+                              fluencyScore={selectedPronunciation.fluencyScore}
+                              completenessScore={selectedPronunciation.completenessScore}
+                              pronScore={selectedPronunciation.pronScore}
+                              words={selectedPronunciation.words}
+                              onClose={() => setDetailModalVisible(false)}
+                              compact={false}
+                         />
+                    )}
+               </Modal>
           </View>
      );
 };

@@ -30,6 +30,7 @@ import { StorageService } from '../services/StorageService';
 import { AiService } from '../services/AiService';
 import { SpeechService } from '../services/SpeechService';
 import { ANIMATION, PRACTICE_TEXTS } from '../constants';
+import { PronunciationDetailView } from '../components/PronunciationDetailView';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -59,13 +60,26 @@ export const SentencePracticeScreen: React.FC = () => {
 
      const currentSentence = sentences[currentIndex];
 
-     // Result state
+     // Result state - Updated for new API format
      const [result, setResult] = useState<{
-          accuracy: number;
-          realTranscript: string;
-          ipaTranscript: string;
-          isLetterCorrect: string;
-          userIpa: string;
+          recognizedText: string;
+          accuracyScore: number;
+          fluencyScore: number;
+          completenessScore: number;
+          pronScore: number;
+          words: Array<{
+               word: string;
+               accuracyScore: number;
+               errorType: string;
+               syllables: Array<{
+                    syllable: string;
+                    accuracyScore: number;
+                    phonemes: Array<{
+                         phoneme: string;
+                         accuracyScore: number;
+                    }> | null;
+               }>;
+          }>;
      } | null>(null);
 
      // Refs
@@ -202,7 +216,7 @@ export const SentencePracticeScreen: React.FC = () => {
 
                const response = await AiService.checkPronunciationAccuracy(
                     currentSentence.text,
-                    `data:audio/m4a;base64,${base64Audio}`
+                    `data:audio/wav;base64,${base64Audio.trim()}`
                );
 
                // Validate response data
@@ -212,35 +226,44 @@ export const SentencePracticeScreen: React.FC = () => {
 
                const data = response.data;
 
-               // Check if required fields exist
-               if (typeof data.pronunciation_accuracy === 'undefined' ||
-                    typeof data.is_letter_correct_all_words === 'undefined') {
+               // Check if required fields exist (new format)
+               if (typeof data.pronScore === 'undefined' || !data.words) {
                     console.error('API Error Response:', data);
                     throw new Error('Something went wrong, please try again later!');
                }
 
+               // Store full result with new format
                setResult({
-                    accuracy: data.pronunciation_accuracy,
-                    realTranscript: data.real_transcript || '',
-                    ipaTranscript: data.real_transcripts_ipa || '', // Chuẩn IPA
-                    isLetterCorrect: data.is_letter_correct_all_words,
-                    userIpa: data.ipa_transcript || '', // IPA người dùng nói
+                    recognizedText: data.recognizedText,
+                    accuracyScore: data.accuracyScore,
+                    fluencyScore: data.fluencyScore,
+                    completenessScore: data.completenessScore,
+                    pronScore: data.pronScore,
+                    words: data.words.map(w => ({
+                         word: w.word,
+                         accuracyScore: w.accuracyScore,
+                         errorType: w.errorType,
+                         syllables: w.syllables.map(s => ({
+                              syllable: s.syllable,
+                              accuracyScore: s.accuracyScore,
+                              phonemes: s.phonemes || null
+                         }))
+                    }))
                });
 
                // Save progress
                if (currentSentence.id !== 'temp') {
-                    await StorageService.incrementSentencePractice(currentSentence.id, data.pronunciation_accuracy);
+                    await StorageService.incrementSentencePractice(currentSentence.id, data.pronScore);
                }
 
-               // Play sound based on accuracy (threshold 80%)
                // Save result for review
                const newResult = {
                     sentence: currentSentence,
-                    accuracy: data.pronunciation_accuracy,
-                    ipaTranscript: data.real_transcripts_ipa || '',
-                    userIpa: data.ipa_transcript || '',
-                    isCorrect: data.pronunciation_accuracy >= 80,
-                    isLetterCorrect: data.is_letter_correct_all_words
+                    accuracy: data.pronScore,
+                    ipaTranscript: data.words.map(w => w.syllables.map(s => s.syllable).join('')).join(' '),
+                    userIpa: data.recognizedText,
+                    isCorrect: data.pronScore >= 80,
+                    words: data.words
                };
 
                setResults(prev => {
@@ -250,7 +273,7 @@ export const SentencePracticeScreen: React.FC = () => {
                });
 
                // Play sound based on accuracy (threshold 80%)
-               playSound(data.pronunciation_accuracy >= 80);
+               playSound(data.pronScore >= 80);
           } catch (error) {
                console.error('Analysis error:', error);
 
@@ -330,17 +353,17 @@ export const SentencePracticeScreen: React.FC = () => {
                     audioRecorder.current = new Audio.Recording();
                     const recordingOptions: any = {
                          android: {
-                              extension: '.m4a',
-                              outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-                              audioEncoder: Audio.AndroidAudioEncoder.AAC,
-                              sampleRate: 44100,
+                              extension: '.wav',
+                              outputFormat: Audio.AndroidOutputFormat.THREE_GPP,
+                              audioEncoder: Audio.AndroidAudioEncoder.AMR_WB,
+                              sampleRate: 16000,
                               numberOfChannels: 1,
                               bitRate: 128000,
                          },
                          ios: {
-                              extension: '.m4a',
+                              extension: '.wav',
                               audioQuality: Audio.IOSAudioQuality.HIGH,
-                              sampleRate: 44100,
+                              sampleRate: 16000,
                               numberOfChannels: 1,
                               bitRate: 128000,
                               linearPCMBitDepth: 16,
@@ -558,44 +581,30 @@ export const SentencePracticeScreen: React.FC = () => {
 
                                         {result ? (
                                              <View style={styles.resultContainer}>
-                                                  <View style={styles.scoreRow}>
-                                                       <View style={[styles.scoreCircle, { borderColor: result.accuracy >= 80 ? colors.success : colors.warning }]}>
-                                                            <Text style={[styles.scoreValue, { color: result.accuracy >= 80 ? colors.success : colors.warning }]}>
-                                                                 {result.accuracy}%
-                                                            </Text>
-                                                            <Text style={styles.scoreLabel}>Accuracy</Text>
-                                                       </View>
+                                                  <PronunciationDetailView
+                                                       recognizedText={result.recognizedText}
+                                                       accuracyScore={result.accuracyScore}
+                                                       fluencyScore={result.fluencyScore}
+                                                       completenessScore={result.completenessScore}
+                                                       pronScore={result.pronScore}
+                                                       words={result.words}
+                                                       compact={true}
+                                                  />
 
-                                                       <View style={styles.ipaSection}>
-                                                            <Text style={styles.ipaTitle}>IPA Transcription</Text>
-                                                            <Text style={styles.ipaValue}>{result.ipaTranscript || '—'}</Text>
-                                                            <Text style={styles.ipaUserTitle}>Your IPA</Text>
-                                                            <Text style={styles.ipaUserValue}>{result.userIpa || '—'}</Text>
-                                                       </View>
-                                                  </View>
-
-                                                  <View style={styles.feedbackSection}>
-                                                       <View style={styles.feedbackHeader}>
-                                                            <Text style={styles.feedbackTitle}>Character Correction</Text>
-                                                            {userAudioUri && !isRecording && (
-                                                                 <TouchableOpacity
-                                                                      style={styles.listenCardBtn}
-                                                                      onPress={handlePlayBack}
-                                                                      disabled={playingUserAudio}
-                                                                 >
-                                                                      <Ionicons
-                                                                           name={playingUserAudio ? "volume-high" : "play-circle"}
-                                                                           size={22}
-                                                                           color={colors.primary}
-                                                                      />
-                                                                      <Text style={styles.listenSmallText}>{playingUserAudio ? "Playing..." : "Listen to me"}</Text>
-                                                                 </TouchableOpacity>
-                                                            )}
-                                                       </View>
-                                                       <View style={styles.charContainer}>
-                                                            {renderWordWithFeedback(currentSentence.text, result.isLetterCorrect)}
-                                                       </View>
-                                                  </View>
+                                                  {userAudioUri && !isRecording && (
+                                                       <TouchableOpacity
+                                                            style={styles.listenBackBtn}
+                                                            onPress={handlePlayBack}
+                                                            disabled={playingUserAudio}
+                                                       >
+                                                            <Ionicons
+                                                                 name={playingUserAudio ? "volume-high" : "play-circle"}
+                                                                 size={22}
+                                                                 color={colors.primary}
+                                                            />
+                                                            <Text style={styles.listenBackText}>{playingUserAudio ? "Playing..." : "Listen to my recording"}</Text>
+                                                       </TouchableOpacity>
+                                                  )}
 
                                                   {currentIndex < sentences.length - 1 ? (
                                                        <TouchableOpacity style={styles.nextBtn} onPress={handleNext}>
@@ -658,9 +667,10 @@ export const SentencePracticeScreen: React.FC = () => {
                                    </View>
                               </ScrollView>
                          </>
-                    )}
-               </SafeAreaView>
-          </LinearGradient>
+                    )
+                    }
+               </SafeAreaView >
+          </LinearGradient >
      );
 };
 
@@ -741,6 +751,22 @@ const styles = StyleSheet.create({
      },
      listenSmallText: {
           fontSize: 12,
+          fontWeight: '700',
+          color: colors.primary,
+     },
+     listenBackBtn: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: '#F5F3FF',
+          paddingHorizontal: spacing.md,
+          paddingVertical: spacing.sm,
+          borderRadius: borderRadius.md,
+          gap: spacing.xs,
+          marginTop: spacing.lg,
+          marginBottom: spacing.md,
+     },
+     listenBackText: {
+          fontSize: 14,
           fontWeight: '700',
           color: colors.primary,
      },

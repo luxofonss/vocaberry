@@ -34,6 +34,7 @@ import { StorageService } from '../services/StorageService';
 import { SpeakButton, ImageViewerModal } from '../components';
 import { EventBus } from '../services/EventBus';
 import { AiService } from '../services/AiService';
+import { PronunciationDetailView } from '../components/PronunciationDetailView';
 import {
   ANIMATION,
   PRACTICE_CONFIG,
@@ -87,6 +88,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
     userAnswer?: string;
     inputMethod?: 'text' | 'audio' | 'both' | 'skipped';
     audioAccuracy?: number;
+    pronunciationData?: any;
   }>>([]);
   const [showReview, setShowReview] = useState(false);
 
@@ -97,13 +99,28 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
   const popupAnim = useRef(new Animated.Value(-150)).current; // Start off-screen (top)
   const audioRecorder = useRef<Audio.Recording | null>(null);
   const [pronunciationResult, setPronunciationResult] = useState<{
-    accuracy: number;
-    realTranscript: string;
-    matchedTranscript: string;
-    ipaTranscript: string;
-    isLetterCorrect: string;
-    userIpa: string;
+    recognizedText: string;
+    accuracyScore: number;
+    fluencyScore: number;
+    completenessScore: number;
+    pronScore: number;
+    words: Array<{
+      word: string;
+      accuracyScore: number;
+      errorType: string;
+      syllables: Array<{
+        syllable: string;
+        accuracyScore: number;
+        phonemes: Array<{
+          phoneme: string;
+          accuracyScore: number;
+        }> | null;
+      }>;
+    }>;
   } | null>(null);
+
+  // Detail modal state
+  const [detailModalVisible, setDetailModalVisible] = useState(false);
 
   // -- Sound Effects --
   const successSound = useRef<Audio.Sound | null>(null);
@@ -362,28 +379,47 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
           encoding: FileSystem.EncodingType.Base64,
         });
 
-        const mimeType = 'audio/m4a';
         const result = await AiService.checkPronunciationAccuracy(
           currentWord.word,
-          `data:${mimeType};base64,${base64Audio}`
+          `data:audio/wav;base64,${base64Audio.trim()}`
         );
 
-        setPronunciationResult({
-          accuracy: result.data.pronunciation_accuracy,
-          realTranscript: result.data.real_transcript,
-          matchedTranscript: result.data.matched_transcripts,
-          ipaTranscript: result.data.ipa_transcript,
-          isLetterCorrect: result.data.is_letter_correct_all_words,
-          userIpa: result.data.real_transcripts_ipa,
-        });
+        // Validate new API format
+        if (!result.data.pronScore || !result.data.words) {
+          throw new Error('Invalid API response format');
+        }
 
-        const audioCorrect = result.data.pronunciation_accuracy >= 70;
+        const audioAnalysis = {
+          recognizedText: result.data.recognizedText,
+          accuracyScore: result.data.accuracyScore,
+          fluencyScore: result.data.fluencyScore,
+          completenessScore: result.data.completenessScore,
+          pronScore: result.data.pronScore,
+          words: result.data.words.map(w => ({
+            word: w.word,
+            accuracyScore: w.accuracyScore,
+            errorType: w.errorType,
+            syllables: w.syllables.map(s => ({
+              syllable: s.syllable,
+              accuracyScore: s.accuracyScore,
+              phonemes: s.phonemes || null
+            }))
+          }))
+        };
+
+        setPronunciationResult(audioAnalysis);
+
+        const audioCorrect = result.data.pronScore >= 85;
+
+        // If user typed something, we check both. 
+        // If they ONLY spoke, we only check audio and fill in the transcribed text.
         if (normalizedInput.length > 0) {
           const textCorrect = normalizedInput === normalizedTarget;
           finalCorrect = audioCorrect && textCorrect;
         } else {
           finalCorrect = audioCorrect;
-          setUserAnswer(result.data.real_transcript);
+          // Set the transcribed text so user can see what the AI heard
+          setUserAnswer(result.data.recognizedText || '');
         }
 
       } catch (error: any) {
@@ -433,11 +469,12 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
       status: isSkipped ? 'skipped' : (finalCorrect ? 'correct' : 'incorrect'),
       userAnswer: isSkipped ? undefined : (normalizedInput || userAnswer),
       inputMethod: isSkipped ? 'skipped' : (userAudioUri ? (normalizedInput.length > 0 ? 'both' : 'audio') : 'text'),
-      audioAccuracy: pronunciationResult?.accuracy,
+      audioAccuracy: pronunciationResult?.pronScore,
+      pronunciationData: pronunciationResult,
     }]);
 
     StorageService.markAsReviewed(currentWord.id, finalCorrect);
-  }, [userAnswer, userAudioUri, quizList, currentIndex, playSound, scrollToBottom, popupAnim]);
+  }, [userAnswer, userAudioUri, quizList, currentIndex, playSound, scrollToBottom, popupAnim, pronunciationResult]);
 
   const handleRetry = useCallback(() => {
     // If last entry in quizResults is for THIS word, remove it and adjust score
@@ -549,17 +586,17 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
 
         const recordingOptions: any = {
           android: {
-            extension: '.m4a',
-            outputFormat: Audio.AndroidOutputFormat.MPEG_4,
-            audioEncoder: Audio.AndroidAudioEncoder.AAC,
-            sampleRate: 44100,
+            extension: '.wav',
+            outputFormat: Audio.AndroidOutputFormat.THREE_GPP,
+            audioEncoder: Audio.AndroidAudioEncoder.AMR_WB,
+            sampleRate: 16000,
             numberOfChannels: 1,
             bitRate: 128000,
           },
           ios: {
-            extension: '.m4a',
+            extension: '.wav',
             audioQuality: Audio.IOSAudioQuality.HIGH,
-            sampleRate: 44100,
+            sampleRate: 16000,
             numberOfChannels: 1,
             bitRate: 128000,
             linearPCMBitDepth: 16,
@@ -567,7 +604,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
             linearPCMIsFloat: false,
           },
           web: {
-            mimeType: 'audio/m4a',
+            mimeType: 'audio/wav',
             bitsPerSecond: 128000,
           },
         };
@@ -812,10 +849,23 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
                     <>
                       <View style={styles.reviewItemRow}>
                         <Text style={styles.reviewItemLabel}>Method:</Text>
-                        <Text style={styles.reviewItemMethodText}>
-                          {result.inputMethod === 'both' ? '⌨️ + 🎙️' : (result.inputMethod === 'audio' ? '🎙️' : '⌨️')}
-                          {result.inputMethod !== 'text' && result.audioAccuracy !== undefined && ` (${result.audioAccuracy}%)`}
-                        </Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+                          <Text style={styles.reviewItemMethodText}>
+                            {result.inputMethod === 'both' ? '⌨️ + 🎙️' : (result.inputMethod === 'audio' ? '🎙️' : '⌨️')}
+                            {result.inputMethod !== 'text' && result.audioAccuracy !== undefined && ` (${Math.round(result.audioAccuracy)}%)`}
+                          </Text>
+                          {result.inputMethod !== 'text' && result.pronunciationData && (
+                            <TouchableOpacity
+                              style={styles.detailButton}
+                              onPress={() => {
+                                setPronunciationResult(result.pronunciationData);
+                                setDetailModalVisible(true);
+                              }}
+                            >
+                              <Ionicons name="information-circle" size={20} color={colors.primary} />
+                            </TouchableOpacity>
+                          )}
+                        </View>
                       </View>
                       <View style={styles.reviewItemRow}>
                         <Text style={styles.reviewItemLabel}>You:</Text>
@@ -1098,8 +1148,8 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
                 <View style={[styles.feedbackCard, shadows.subtle, { backgroundColor: '#F8FAFF' }]}>
                   <View style={styles.feedbackHeader}>
                     <View style={styles.feedbackTitleRow}>
-                      <Text style={styles.feedbackIconTiny}>⌨️</Text>
-                      <Text style={styles.feedbackTitleTiny}>Text Answer</Text>
+                      <Text style={styles.feedbackIconTiny}>{userAudioUri && userAnswer.trim() === pronunciationResult?.recognizedText ? '🎙️' : '⌨️'}</Text>
+                      <Text style={styles.feedbackTitleTiny}>{userAudioUri && userAnswer.trim() === pronunciationResult?.recognizedText ? 'Recognized Text' : 'Text Answer'}</Text>
                     </View>
                     <View style={[
                       styles.tinyStatusBadge,
@@ -1111,87 +1161,44 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
                     </View>
                   </View>
                   <View style={styles.userAnswerContent}>
-                    <Text style={styles.userAnswerLabel}>Your Input:</Text>
+                    <Text style={styles.userAnswerLabel}>Input:</Text>
                     <Text style={styles.userAnswerValue}>{userAnswer}</Text>
                   </View>
                 </View>
               )}
 
-              {/* Pronunciation Feedback - Compact Version */}
+              {/* Pronunciation Feedback - Detailed Version */}
               {pronunciationResult && (
-                <View style={[styles.pronunciationFeedback, shadows.subtle]}>
-                  <View style={styles.feedbackHeader}>
-                    <View style={styles.feedbackTitleRow}>
-                      <Text style={styles.feedbackIconTiny}>🎙️</Text>
-                      <Text style={styles.feedbackTitleTiny}>Pronunciation</Text>
-                    </View>
-                    <View style={[
-                      styles.tinyStatusBadge,
-                      pronunciationResult.accuracy >= 70 ? styles.badgeSuccess : styles.badgeError
-                    ]}>
-                      <Text style={styles.tinyStatusText}>
-                        {pronunciationResult.accuracy >= 70 ? 'Good' : 'Needs Work'}
-                      </Text>
-                    </View>
-                  </View>
+                <View style={[styles.pronunciationFeedback, shadows.subtle, { padding: 0, overflow: 'hidden' }]}>
+                  <PronunciationDetailView
+                    recognizedText={pronunciationResult.recognizedText}
+                    accuracyScore={pronunciationResult.accuracyScore}
+                    fluencyScore={pronunciationResult.fluencyScore}
+                    completenessScore={pronunciationResult.completenessScore}
+                    pronScore={pronunciationResult.pronScore}
+                    words={pronunciationResult.words}
+                    compact={true}
+                  />
 
-                  {/* Score Badge */}
-                  <View style={styles.scoreRow}>
-                    <View style={[
-                      styles.scoreBadge,
-                      pronunciationResult.accuracy >= 80 ? styles.scoreExcellent :
-                        pronunciationResult.accuracy >= 50 ? styles.scoreGood :
-                          styles.scorePoor
-                    ]}>
-                      <Text style={styles.scoreValue}>{pronunciationResult.accuracy}%</Text>
-                    </View>
-                  </View>
-
-                  {/* Character-level Accuracy */}
-                  <View style={styles.charAccuracyContainer}>
-                    <View style={styles.coloredWordContainer}>
-                      {currentWord.word.split('').map((char, index) => {
-                        const status = pronunciationResult.isLetterCorrect?.[index];
-                        const color = status === '1' ? colors.success : (status === '0' ? colors.error : colors.textLight);
-                        return (
-                          <Text key={index} style={[styles.coloredChar, { color }]}>
-                            {char}
-                          </Text>
-                        );
-                      })}
-                    </View>
-                  </View>
-
-                  {/* IPA Comparison - Horizontal */}
-                  <View style={styles.ipaRow}>
-                    <View style={styles.ipaItem}>
-                      <Text style={styles.ipaItemLabel}>Correct IPA</Text>
-                      <Text style={styles.ipaItemValue}>{pronunciationResult.userIpa || 'N/A'}</Text>
-                    </View>
-                    <View style={styles.ipaDividerVertical} />
-                    <View style={styles.ipaItem}>
-                      <Text style={styles.ipaItemLabel}>Your IPA</Text>
-                      <View style={styles.ipaValueWrapper}>
-                        <Text style={[
-                          styles.ipaItemValue,
-                          { color: pronunciationResult.accuracy >= 80 ? colors.success : colors.error }
-                        ]}>
-                          {pronunciationResult.ipaTranscript || '...'}
-                        </Text>
-                        <TouchableOpacity
-                          style={[styles.miniPlayBtn, playingUserAudio && styles.miniPlayBtnActive]}
-                          onPress={handlePlayUserAudio}
-                          disabled={playingUserAudio}
-                        >
-                          <Text style={styles.miniPlayEmoji}>{playingUserAudio ? '⏳' : '🔊'}</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                    <View style={styles.ipaDividerVertical} />
-                    <TouchableOpacity style={styles.miniRetryBtn} onPress={handleRetry}>
-                      <Text style={styles.miniRetryEmoji}>🔄</Text>
+                  {userAudioUri && !isRecording && (
+                    <TouchableOpacity
+                      style={styles.listenBackBtn}
+                      onPress={handlePlayUserAudio}
+                      disabled={playingUserAudio}
+                    >
+                      <Ionicons
+                        name={playingUserAudio ? "volume-high" : "play-circle"}
+                        size={22}
+                        color={colors.primary}
+                      />
+                      <Text style={styles.listenBackText}>{playingUserAudio ? "Playing..." : "Listen to my recording"}</Text>
                     </TouchableOpacity>
-                  </View>
+                  )}
+
+                  <TouchableOpacity style={styles.miniRetryBtnCenter} onPress={handleRetry}>
+                    <Ionicons name="refresh" size={18} color={colors.textSecondary} />
+                    <Text style={styles.miniRetryText}>Try Again</Text>
+                  </TouchableOpacity>
                 </View>
               )}
 
@@ -1231,6 +1238,26 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
             onClose={() => setImageViewerVisible(false)}
             allowEdit={false}
           />
+
+          <Modal
+            visible={detailModalVisible}
+            animationType="slide"
+            presentationStyle="pageSheet"
+            onRequestClose={() => setDetailModalVisible(false)}
+          >
+            {pronunciationResult && (
+              <PronunciationDetailView
+                recognizedText={pronunciationResult.recognizedText}
+                accuracyScore={pronunciationResult.accuracyScore}
+                fluencyScore={pronunciationResult.fluencyScore}
+                completenessScore={pronunciationResult.completenessScore}
+                pronScore={pronunciationResult.pronScore}
+                words={pronunciationResult.words}
+                onClose={() => setDetailModalVisible(false)}
+                compact={false}
+              />
+            )}
+          </Modal>
         </SafeAreaView>
       </LinearGradient>
     );
@@ -2017,6 +2044,17 @@ const styles = StyleSheet.create({
     color: colors.textLight,
     fontStyle: 'italic',
   },
+  reviewItemMethodText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
+    color: colors.textPrimary,
+    flex: 1,
+  },
+  detailButton: {
+    padding: 4,
+    borderRadius: 12,
+    backgroundColor: colors.backgroundViolet,
+  },
   reviewItemIconContainer: {
     width: 32,
     height: 32,
@@ -2518,5 +2556,35 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: colors.textSecondary,
     fontWeight: '600',
+  },
+  listenBackBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(74, 144, 226, 0.08)',
+    paddingVertical: 10,
+    marginHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    gap: spacing.xs,
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  listenBackText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  miniRetryBtnCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    gap: 4,
+  },
+  miniRetryText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
   },
 });

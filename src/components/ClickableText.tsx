@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Text, StyleSheet, View, TouchableOpacity, Modal, Dimensions } from 'react-native';
 import { colors, shadows } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
+import { PronunciationFeedbackText } from './PronunciationFeedbackText';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -9,7 +10,13 @@ interface ClickableTextProps {
   text: string;
   onWordPress: (word: string) => void;
   style?: any;
-  feedback?: string; // String of '1' (correct) and '0' (incorrect)
+  feedback?: string | {
+    words: Array<{
+      word: string;
+      accuracyScore: number;
+      errorType: string;
+    }>;
+  };
   numberOfLines?: number;
 }
 
@@ -17,15 +24,6 @@ export const ClickableText: React.FC<ClickableTextProps> = ({ text, onWordPress,
   const [selectedWord, setSelectedWord] = useState<string | null>(null);
   const [popupVisible, setPopupVisible] = useState(false);
   const [popupPos, setPopupPos] = useState({ x: 0, y: 0 });
-
-  // Split text into words/punctuation
-  const parts = text.split(/(\s+|[,.!?;"'])/);
-
-  let charOffset = 0;
-
-  // Determine if we should use a specific clickable color or inherit
-  const isWhiteText = style?.color === '#ffffff' || style?.color === 'white' || style?.color === colors.white;
-  const activeClickableColor = isWhiteText ? colors.white : colors.textPrimary;
 
   const handleWordPress = (word: string, event: any) => {
     const cleanWord = word.toLowerCase().replace(/[^a-z0-9]/gi, '');
@@ -35,7 +33,6 @@ export const ClickableText: React.FC<ClickableTextProps> = ({ text, onWordPress,
     const { pageX, pageY } = event.nativeEvent;
 
     // Adjust position to be above the touch point
-    // We try to center it horizontally relative to touch
     let x = pageX - 60;
     let y = pageY - 70;
 
@@ -63,61 +60,16 @@ export const ClickableText: React.FC<ClickableTextProps> = ({ text, onWordPress,
 
   return (
     <View style={containerStyle}>
-      <Text style={[styles.baseText, style]} numberOfLines={numberOfLines}>
-        {parts.map((part, index) => {
-          const isWord = !/^(\s+|[,.!?;"'])$/.test(part);
-          const partLength = part.length;
-          const currentOffset = charOffset;
-          charOffset += partLength;
-
-          if (!isWord) {
-            return (
-              <React.Fragment key={index}>
-                {part.split('').map((char, charIdx) => {
-                  const globalIdx = currentOffset + charIdx;
-                  const isCorrect = feedback ? feedback[globalIdx] === '1' : null;
-                  return (
-                    <Text
-                      key={charIdx}
-                      style={[
-                        isCorrect === true && char !== ' ' && { color: colors.success },
-                        isCorrect === false && char !== ' ' && { color: colors.error }
-                      ]}
-                    >
-                      {char}
-                    </Text>
-                  );
-                })}
-              </React.Fragment>
-            );
-          }
-
-          return (
-            <Text
-              key={index}
-              onPress={(e) => handleWordPress(part, e)}
-              style={[styles.clickableWord, { color: activeClickableColor }]}
-            >
-              {part.split('').map((char, charIdx) => {
-                const globalIdx = currentOffset + charIdx;
-                const isCorrect = feedback ? feedback[globalIdx] === '1' : null;
-
-                return (
-                  <Text
-                    key={charIdx}
-                    style={[
-                      isCorrect === true && char !== ' ' && { color: colors.success },
-                      isCorrect === false && char !== ' ' && { color: colors.error }
-                    ]}
-                  >
-                    {char}
-                  </Text>
-                );
-              })}
-            </Text>
-          );
-        })}
-      </Text>
+      <PronunciationFeedbackText
+        text={text}
+        feedback={feedback}
+        onWordPress={(word) => {
+          // Trigger the dictionary lookup directy
+          onWordPress(word);
+        }}
+        style={style}
+        numberOfLines={numberOfLines}
+      />
 
       <Modal
         visible={popupVisible}

@@ -96,17 +96,39 @@ export const AiService = {
                requestId: string;
           };
           data: {
-               start_time: string;
-               end_time: string;
-               ipa_transcript: string;
-               is_letter_correct_all_words: string;
-               matched_transcripts: string;
-               matched_transcripts_ipa: string;
-               pair_accuracy_category: string;
-               pronunciation_accuracy: number;
-               real_transcript: string;
-               real_transcripts: string;
-               real_transcripts_ipa: string;
+               recognizedText: string;
+               accuracyScore: number;
+               fluencyScore: number;
+               completenessScore: number;
+               pronScore: number;
+               words: Array<{
+                    word: string;
+                    accuracyScore: number;
+                    errorType: string;
+                    offset: number;
+                    duration: number;
+                    syllables: Array<{
+                         syllable: string;
+                         accuracyScore: number;
+                         phonemes: Array<{
+                              phoneme: string;
+                              accuracyScore: number;
+                              nbestPhonemes: any;
+                         }> | null;
+                    }>;
+               }>;
+               // Legacy fields for backward compatibility
+               start_time?: string;
+               end_time?: string;
+               ipa_transcript?: string;
+               is_letter_correct_all_words?: string;
+               matched_transcripts?: string;
+               matched_transcripts_ipa?: string;
+               pair_accuracy_category?: string;
+               pronunciation_accuracy?: number;
+               real_transcript?: string;
+               real_transcripts?: string;
+               real_transcripts_ipa?: string;
           };
      }> => {
           try {
@@ -129,7 +151,7 @@ export const AiService = {
                }
 
                const result = await response.json();
-               console.log(result)
+               console.log('[AiService] ✅ Pronunciation Result:', JSON.stringify(result, null, 2));
                return result;
           } catch (error: any) {
                console.error('[AiService] ❌ Pronunciation check error:', error.message);

@@ -1,28 +1,28 @@
 import React from 'react';
 import { Text, StyleSheet } from 'react-native';
 import { colors } from '../theme';
+import { getPronunciationColor } from '../utils/pronunciationUtils';
 
 interface PronunciationFeedbackTextProps {
      text: string;
-     feedback?: string; // String of '1' (correct) and '0' (incorrect)
-     onWordPress?: (word: string) => void; // Optional - if provided, words become clickable
+     feedback?: string | {
+          words: Array<{
+               word: string;
+               accuracyScore: number;
+               syllables?: Array<{
+                    syllable: string;
+                    accuracyScore: number;
+               }>;
+          }>;
+     };
+     onWordPress?: (word: string) => void;
      style?: any;
      numberOfLines?: number;
 }
 
 /**
- * Normalizes text by removing punctuation and converting to lowercase
- * for comparison purposes
- */
-const normalizeText = (text: string): string => {
-     return text.toLowerCase().replace(/[,.!?;:"']/g, '');
-};
-
-/**
- * Component to display text with pronunciation feedback highlighting.
- * - Green text for correct pronunciation
- * - Red text for incorrect pronunciation (no background)
- * - Optionally supports clickable words for dictionary lookup
+ * Component hiển thị văn bản với màu sắc chi tiết đến từng chữ cái.
+ * Tự động mapping Syllables -> Characters để lấy màu chính xác nhất.
  */
 export const PronunciationFeedbackText: React.FC<PronunciationFeedbackTextProps> = ({
      text,
@@ -31,128 +31,91 @@ export const PronunciationFeedbackText: React.FC<PronunciationFeedbackTextProps>
      style,
      numberOfLines
 }) => {
-     // Split text into words/punctuation
-     const parts = text.split(/(\s+|[,.!?;:"'])/);
+     // Hàm map điểm số cho từng ký tự
+     const getCharScores = (): (number | null)[] | undefined => {
+          if (!feedback) return undefined;
 
-     let charOffset = 0;
-
-     // Determine if we should use a specific clickable color or inherit
-     const isWhiteText = style?.color === '#ffffff' || style?.color === 'white' || style?.color === colors.white;
-     const activeClickableColor = isWhiteText ? colors.white : colors.primary;
-
-     // If no feedback provided, render as normal clickable text
-     if (!feedback) {
-          if (!onWordPress) {
-               return <Text style={[styles.baseText, style]} numberOfLines={numberOfLines}>{text}</Text>;
+          // Format cũ
+          if (typeof feedback === 'string') {
+               return feedback.split('').map(char => char === '1' ? 100 : 40);
           }
 
-          // Clickable text without feedback
-          return (
-               <Text style={[styles.baseText, style]} numberOfLines={numberOfLines}>
-                    {parts.map((part, index) => {
-                         const isWord = !/^(\s+|[,.!?;:"'])$/.test(part);
+          // Format mới: Syllable mapping
+          const parts = text.split(/(\s+|[,.!?;:\"'])/);
+          const allCharScores: (number | null)[] = [];
+          let wordIndex = 0;
 
-                         if (!isWord) {
-                              return <Text key={index}>{part}</Text>;
+          for (const part of parts) {
+               const isWord = !/^(\s+|[,.!?;:\"'])$/.test(part);
+               if (isWord && feedback.words[wordIndex]) {
+                    const wordData = feedback.words[wordIndex];
+                    let charScoresForWord: number[] = new Array(part.length).fill(wordData.accuracyScore);
+
+                    if (wordData.syllables && wordData.syllables.length > 0) {
+                         let wordLower = part.toLowerCase();
+                         let currentPos = 0;
+
+                         for (const syl of wordData.syllables) {
+                              const sylText = syl.syllable.toLowerCase().replace(/[^a-z0-9]/gi, '');
+                              if (!sylText) continue;
+
+                              const foundIdx = wordLower.indexOf(sylText, currentPos);
+                              if (foundIdx !== -1) {
+                                   for (let i = 0; i < sylText.length; i++) {
+                                        if (foundIdx + i < charScoresForWord.length) {
+                                             charScoresForWord[foundIdx + i] = syl.accuracyScore;
+                                        }
+                                   }
+                                   currentPos = foundIdx + sylText.length;
+                              }
                          }
+                    }
+                    charScoresForWord.forEach(s => allCharScores.push(s));
+                    wordIndex++;
+               } else {
+                    for (let i = 0; i < part.length; i++) {
+                         allCharScores.push(null);
+                    }
+               }
+          }
+          return allCharScores;
+     };
 
-                         return (
-                              <Text
-                                   key={index}
-                                   onPress={() => onWordPress(part.toLowerCase().replace(/[^a-z0-9]/gi, ''))}
-                                   style={[styles.clickableWord, { color: activeClickableColor }]}
-                              >
-                                   {part}
-                              </Text>
-                         );
-                    })}
-               </Text>
-          );
-     }
+     const charScores = getCharScores();
+     const parts = text.split(/(\s+|[,.!?;:\"'])/);
+     let globalCharIndex = 0;
 
-     // Render with feedback highlighting
      return (
           <Text style={[styles.baseText, style]} numberOfLines={numberOfLines}>
                {parts.map((part, index) => {
-                    const isWord = !/^(\s+|[,.!?;:"'])$/.test(part);
-                    const partLength = part.length;
-                    const currentOffset = charOffset;
-                    charOffset += partLength;
+                    const isWord = !/^(\s+|[,.!?;:\"'])$/.test(part);
+                    const currentOffset = globalCharIndex;
+                    globalCharIndex += part.length;
 
-                    if (!isWord) {
-                         // Punctuation/spacing with feedback colors
+                    const renderedChars = part.split('').map((char, charIdx) => {
+                         const score = charScores ? charScores[currentOffset + charIdx] : null;
+                         const color = (score !== null && char !== ' ') ? getPronunciationColor(score) : undefined;
+
                          return (
-                              <React.Fragment key={index}>
-                                   {part.split('').map((char, charIdx) => {
-                                        const globalIdx = currentOffset + charIdx;
-                                        const isCorrect = feedback[globalIdx] === '1';
-                                        return (
-                                             <Text
-                                                  key={charIdx}
-                                                  style={[
-                                                       isCorrect && char !== ' ' && styles.correctChar,
-                                                       !isCorrect && char !== ' ' && styles.incorrectChar
-                                                  ]}
-                                             >
-                                                  {char}
-                                             </Text>
-                                        );
-                                   })}
-                              </React.Fragment>
+                              <Text key={charIdx} style={color ? { color } : undefined}>
+                                   {char}
+                              </Text>
                          );
-                    }
+                    });
 
-                    // It's a word - handle feedback highlighting and optional clickability
-                    const wordElement = (
-                         <Text key={index}>
-                              {part.split('').map((char, charIdx) => {
-                                   const globalIdx = currentOffset + charIdx;
-                                   const isCorrect = feedback[globalIdx] === '1';
-
-                                   return (
-                                        <Text
-                                             key={charIdx}
-                                             style={[
-                                                  isCorrect && char !== ' ' && styles.correctChar,
-                                                  !isCorrect && char !== ' ' && styles.incorrectChar
-                                             ]}
-                                        >
-                                             {char}
-                                        </Text>
-                                   );
-                              })}
-                         </Text>
-                    );
-
-                    // If onWordPress is provided, make the word clickable
-                    if (onWordPress) {
+                    if (isWord && onWordPress) {
                          return (
                               <Text
                                    key={index}
                                    onPress={() => onWordPress(part.toLowerCase().replace(/[^a-z0-9]/gi, ''))}
                                    style={styles.clickableWord}
                               >
-                                   {part.split('').map((char, charIdx) => {
-                                        const globalIdx = currentOffset + charIdx;
-                                        const isCorrect = feedback[globalIdx] === '1';
-
-                                        return (
-                                             <Text
-                                                  key={charIdx}
-                                                  style={[
-                                                       isCorrect && char !== ' ' && styles.correctChar,
-                                                       !isCorrect && char !== ' ' && styles.incorrectChar
-                                                  ]}
-                                             >
-                                                  {char}
-                                             </Text>
-                                        );
-                                   })}
+                                   {renderedChars}
                               </Text>
                          );
                     }
 
-                    return wordElement;
+                    return <Text key={index}>{renderedChars}</Text>;
                })}
           </Text>
      );
@@ -166,11 +129,5 @@ const styles = StyleSheet.create({
      },
      clickableWord: {
           fontWeight: '600',
-     },
-     correctChar: {
-          color: colors.success, // Green for correct
-     },
-     incorrectChar: {
-          color: colors.error, // Red for incorrect, NO background
      },
 });

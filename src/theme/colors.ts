@@ -119,4 +119,13 @@ export const colors = {
         // Border colors
         borderInput: '#E5E7EB',       // Light gray border
     },
+
+    // Pronunciation Feedback Colors
+    pronunciation: {
+        darkRed: '#991B1B',      // 0-25%
+        lightRed: '#EF4444',     // 25-50%
+        darkYellow: '#D97706',   // 50-70%
+        yellowGreen: '#84CC16',  // 70-85%
+        green: '#22C55E',        // >85%
+    },
 };
