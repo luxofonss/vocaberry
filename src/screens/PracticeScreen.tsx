@@ -44,7 +44,7 @@ import {
   MESSAGES
 } from '../constants';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -992,7 +992,12 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
             <Text style={styles.hintText}>{PRACTICE_TEXTS.showHint}</Text>
           </TouchableOpacity>
         ) : (
-          <View style={styles.hintContent}>
+          <ScrollView
+            style={{ width: '100%', maxHeight: SCREEN_HEIGHT * 0.3 }}
+            contentContainerStyle={styles.hintContent}
+            nestedScrollEnabled={true}
+            showsVerticalScrollIndicator={true}
+          >
             <Text style={styles.clueLabel}>{PRACTICE_TEXTS.definition} ({meaning.partOfSpeech || '?'})</Text>
             <Text style={styles.clueText}>{meaning.definition}</Text>
             {meaning.example && (
@@ -1000,7 +1005,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
                 "{meaning.example.replace(new RegExp(currentWord.word, 'gi'), '_____')}"
               </Text>
             )}
-          </View>
+          </ScrollView>
         )}
       </View>
     );
@@ -1149,6 +1154,11 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
                 autoCapitalize="none"
                 autoCorrect={false}
                 onSubmitEditing={() => checkAnswer()}
+                onFocus={() => {
+                  setTimeout(() => {
+                    quizScrollRef.current?.scrollToEnd({ animated: true });
+                  }, 200);
+                }}
               />
 
               <View style={styles.actionRow}>
@@ -1267,7 +1277,11 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
       >
         <SafeAreaView style={{ flex: 1 }} edges={['bottom', 'left', 'right']}>
           {showReview ? renderReviewScreen() : (
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={{ flex: 1 }}
+              keyboardVerticalOffset={10}
+            >
               {renderQuizContent()}
             </KeyboardAvoidingView>
           )}
