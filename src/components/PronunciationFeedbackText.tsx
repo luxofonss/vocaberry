@@ -15,7 +15,8 @@ interface PronunciationFeedbackTextProps {
                }>;
           }>;
      };
-     onWordPress?: (word: string) => void;
+     onWordPress?: (word: string, event?: any) => void;
+     onWordLongPress?: (word: string, event: any) => void;
      style?: any;
      numberOfLines?: number;
 }
@@ -28,6 +29,7 @@ export const PronunciationFeedbackText: React.FC<PronunciationFeedbackTextProps>
      text,
      feedback,
      onWordPress,
+     onWordLongPress,
      style,
      numberOfLines
 }) => {
@@ -103,11 +105,13 @@ export const PronunciationFeedbackText: React.FC<PronunciationFeedbackTextProps>
                          );
                     });
 
-                    if (isWord && onWordPress) {
+                    if (isWord && (onWordPress || onWordLongPress)) {
                          return (
                               <Text
                                    key={index}
-                                   onPress={() => onWordPress(part.toLowerCase().replace(/[^a-z0-9]/gi, ''))}
+                                   onPress={onWordPress ? (e) => onWordPress(part.toLowerCase().replace(/[^a-z0-9]/gi, ''), e) : undefined}
+                                   onLongPress={onWordLongPress ? (e) => onWordLongPress(part.toLowerCase().replace(/[^a-z0-9]/gi, ''), e) : undefined}
+                                   suppressHighlighting={false}
                                    style={styles.clickableWord}
                               >
                                    {renderedChars}

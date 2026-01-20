@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
-import { Text, StyleSheet, View, TouchableOpacity, Modal, Dimensions } from 'react-native';
-import { colors, shadows } from '../theme';
+import { Text, StyleSheet, View, TouchableOpacity, Modal, Dimensions, ActivityIndicator } from 'react-native';
+import { colors, shadows, borderRadius, spacing } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
 import { PronunciationFeedbackText } from './PronunciationFeedbackText';
+import { AiService } from '../services/AiService';
+import { StorageService } from '../services/StorageService';
+import { TranslateService } from '../services/TranslateService';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface ClickableTextProps {
   text: string;
@@ -15,6 +18,7 @@ interface ClickableTextProps {
       word: string;
       accuracyScore: number;
       errorType: string;
+      syllables?: Array<{ syllable: string; accuracyScore: number }>;
     }>;
   };
   numberOfLines?: number;
@@ -25,25 +29,49 @@ export const ClickableText: React.FC<ClickableTextProps> = ({ text, onWordPress,
   const [popupVisible, setPopupVisible] = useState(false);
   const [popupPos, setPopupPos] = useState({ x: 0, y: 0 });
 
+  // Translation State
+  const [translation, setTranslation] = useState<string | null>(null);
+  const [loadingTranslation, setLoadingTranslation] = useState(false);
+  const [mode, setMode] = useState<'MENU' | 'TRANSLATION'>('MENU');
+
   const handleWordPress = (word: string, event: any) => {
     const cleanWord = word.toLowerCase().replace(/[^a-z0-9]/gi, '');
     if (!cleanWord) return;
 
-    // Get touch coordinates for positioning
+    // Get touch coordinates
     const { pageX, pageY } = event.nativeEvent;
 
     // Adjust position to be above the touch point
-    let x = pageX - 60;
-    let y = pageY - 70;
+    let x = pageX - 75; // Center horizontally (assuming width ~150)
+    let y = pageY - 60; // Show above
 
-    // Basic boundary checks
+    // Boundary checks
     if (x < 10) x = 10;
-    if (x > SCREEN_WIDTH - 130) x = SCREEN_WIDTH - 130;
-    if (y < 40) y = pageY + 20; // Show below if too high
+    if (x > SCREEN_WIDTH - 160) x = SCREEN_WIDTH - 160;
+    if (y < 50) y = pageY + 30; // Show below if too close to top
 
     setSelectedWord(cleanWord);
     setPopupPos({ x, y });
+    setMode('MENU');
+    setTranslation(null);
     setPopupVisible(true);
+  };
+
+  const handleTranslate = async () => {
+    if (!selectedWord) return;
+
+    setMode('TRANSLATION');
+    setLoadingTranslation(true);
+
+    try {
+      const targetLang = await StorageService.getMotherLanguage() || 'vi'; // Default to vietnamese if not set
+      const result = await TranslateService.translate(selectedWord.trim(), 'en', targetLang);
+      setTranslation(result);
+    } catch (error) {
+      setTranslation('Error translating');
+    } finally {
+      setLoadingTranslation(false);
+    }
   };
 
   const executeLookup = () => {
@@ -54,20 +82,24 @@ export const ClickableText: React.FC<ClickableTextProps> = ({ text, onWordPress,
     setSelectedWord(null);
   };
 
-  // Extract layout styles from the passed style prop to apply to the container
-  const flattenedStyle = StyleSheet.flatten(style);
-  const containerStyle = flattenedStyle?.flex !== undefined ? { flex: flattenedStyle.flex } : undefined;
+  // Close popup
+  const closePopup = () => {
+    setPopupVisible(false);
+    setSelectedWord(null);
+    setTranslation(null);
+  };
+
+  // Helper to close and reset only visual state
+  const handleOverlayPress = () => closePopup();
 
   return (
-    <View style={containerStyle}>
+    <View style={StyleSheet.flatten(style)?.flex !== undefined ? { flex: StyleSheet.flatten(style)?.flex } : undefined}>
       <PronunciationFeedbackText
         text={text}
         feedback={feedback}
-        onWordPress={(word) => {
-          // Trigger the dictionary lookup directy
-          onWordPress(word);
-        }}
+        onWordPress={(word, event) => handleWordPress(word, event)}
         style={style}
+
         numberOfLines={numberOfLines}
       />
 
@@ -75,21 +107,41 @@ export const ClickableText: React.FC<ClickableTextProps> = ({ text, onWordPress,
         visible={popupVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setPopupVisible(false)}
+        onRequestClose={closePopup}
       >
         <TouchableOpacity
           style={styles.modalOverlay}
           activeOpacity={1}
-          onPress={() => setPopupVisible(false)}
+          onPress={handleOverlayPress}
         >
           <View style={[styles.popupContainer, { top: popupPos.y, left: popupPos.x }]}>
-            <TouchableOpacity
-              style={styles.lookupButton}
-              onPress={executeLookup}
-            >
-              <Ionicons name="search-outline" size={16} color={colors.textPrimary} />
-              <Text style={styles.lookupText}>Lookup "{selectedWord}"</Text>
-            </TouchableOpacity>
+
+            {/* MODE: MENU SELECTION */}
+            {mode === 'MENU' && (
+              <View style={styles.menuContainer}>
+                <TouchableOpacity style={styles.menuButton} onPress={handleTranslate}>
+                  <Ionicons name="language" size={18} color={colors.white} />
+                  <Text style={styles.menuText}>Trans</Text>
+                </TouchableOpacity>
+                <View style={styles.divider} />
+                <TouchableOpacity style={styles.menuButton} onPress={executeLookup}>
+                  <Ionicons name="book" size={18} color={colors.white} />
+                  <Text style={styles.menuText}>Dict</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* MODE: TRANSLATION RESULT */}
+            {mode === 'TRANSLATION' && (
+              <View style={styles.translationContainer}>
+                {loadingTranslation ? (
+                  <ActivityIndicator size="small" color={colors.white} />
+                ) : (
+                  <Text style={styles.translationText}>{translation}</Text>
+                )}
+              </View>
+            )}
+
             <View style={styles.popupTriangle} />
           </View>
         </TouchableOpacity>
@@ -99,14 +151,6 @@ export const ClickableText: React.FC<ClickableTextProps> = ({ text, onWordPress,
 };
 
 const styles = StyleSheet.create({
-  baseText: {
-    fontSize: 16,
-    color: colors.textPrimary,
-    lineHeight: 24,
-  },
-  clickableWord: {
-    fontWeight: '600',
-  },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'transparent',
@@ -114,20 +158,50 @@ const styles = StyleSheet.create({
   popupContainer: {
     position: 'absolute',
     alignItems: 'center',
-    width: 150,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.30,
+    shadowRadius: 4.65,
+    elevation: 8,
   },
-  lookupButton: {
+  menuContainer: {
+    flexDirection: 'row',
+    backgroundColor: colors.textPrimary, // Dark background
+    borderRadius: borderRadius.lg,
+    padding: 0,
+    overflow: 'hidden',
+  },
+  menuButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.warning,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    gap: 6,
-    ...shadows.clayMedium,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    gap: 4,
   },
-  lookupText: {
-    color: colors.textPrimary,
+  menuText: {
+    color: colors.white,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  divider: {
+    width: 1,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginVertical: 6,
+  },
+  translationContainer: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: borderRadius.lg,
+    minWidth: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  translationText: {
+    color: colors.white,
     fontSize: 14,
     fontWeight: '700',
   },
@@ -141,7 +215,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 8,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
-    borderTopColor: colors.warning,
+    borderTopColor: colors.textPrimary, // Matches menuContainer background
     marginTop: -1,
   },
 });
