@@ -134,18 +134,6 @@ export const PronunciationDetailView: React.FC<PronunciationDetailViewProps> = (
 
      const Content = () => (
           <>
-               {/* Phần Target Text với màu sắc từng chữ cái - YÊU CẦU CỦA USER */}
-               {targetText && (
-                    <View style={styles.targetTextCard}>
-                         <Text style={styles.cardLabel}>Văn bản mẫu (Màu theo chữ cái):</Text>
-                         <PronunciationFeedbackText
-                              text={targetText}
-                              feedback={{ words }}
-                              style={styles.targetTextDisplay}
-                         />
-                    </View>
-               )}
-
                <View style={styles.scoresRow}>
                     <ScoreCard label="Accuracy" score={accuracyScore} icon="checkmark-circle" />
                     <ScoreCard label="Fluency" score={fluencyScore} icon="speedometer" />

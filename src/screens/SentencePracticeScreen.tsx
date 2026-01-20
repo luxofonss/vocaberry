@@ -137,7 +137,9 @@ export const SentencePracticeScreen: React.FC = () => {
                }
           };
           loadData();
-     }, [route.params]); // Changed dependency to handle param updates
+     }, [route.params]);
+
+     const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
      // -- Load Sound Effects --
      useEffect(() => {
@@ -168,6 +170,7 @@ export const SentencePracticeScreen: React.FC = () => {
 
      useEffect(() => {
           return () => {
+               if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
                if (audioRecorder.current) {
                     audioRecorder.current.stopAndUnloadAsync().catch(() => { });
                     audioRecorder.current = null;
@@ -191,6 +194,10 @@ export const SentencePracticeScreen: React.FC = () => {
      const stopPulse = useCallback(() => {
           pulseAnim.stopAnimation();
           pulseAnim.setValue(1);
+          if (recordingTimerRef.current) {
+               clearTimeout(recordingTimerRef.current);
+               recordingTimerRef.current = null;
+          }
      }, [pulseAnim]);
 
      // -- Play Sound Effect --
@@ -299,10 +306,13 @@ export const SentencePracticeScreen: React.FC = () => {
                stopPulse();
                try {
                     if (!audioRecorder.current) return;
+
+                    const status = await audioRecorder.current.getStatusAsync();
                     await audioRecorder.current.stopAndUnloadAsync();
                     const uri = audioRecorder.current.getURI();
-                    setUserAudioUri(uri);
+
                     if (uri) {
+                         setUserAudioUri(uri);
                          analyzeSpeech(uri); // AUTO CALL
                     }
                } catch (error) {
@@ -374,6 +384,32 @@ export const SentencePracticeScreen: React.FC = () => {
 
                     await audioRecorder.current.prepareToRecordAsync(recordingOptions);
                     await audioRecorder.current.startAsync();
+
+                    // START AUTO-STOP TIMER
+                    const wordCount = currentSentence.text.split(' ').length;
+                    const maxDurationMs = (wordCount * 1500) + 3000;
+
+                    recordingTimerRef.current = setTimeout(async () => {
+                         if (audioRecorder.current) {
+                              try {
+                                   stopPulse();
+                                   setIsRecording(false);
+                                   await audioRecorder.current.stopAndUnloadAsync();
+                                   const uri = audioRecorder.current.getURI();
+                                   audioRecorder.current = null;
+
+                                   // Delete the file since it's invalid (too long)
+                                   if (uri) {
+                                        await FileSystem.deleteAsync(uri, { idempotent: true });
+                                   }
+
+                                   Alert.alert('Recording Canceled', 'Time limit exceeded.');
+                              } catch (err) {
+                                   console.log('Auto-stop error:', err);
+                              }
+                         }
+                    }, maxDurationMs);
+
                     setIsRecording(true);
                     startPulse();
                } catch (error) {

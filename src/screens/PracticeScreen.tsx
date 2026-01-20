@@ -155,6 +155,8 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
     }
   }, [isQuizVisible, onQuizStateChange]);
 
+  const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // -- Load Sound Effects --
   useEffect(() => {
     const loadSounds = async () => {
@@ -183,6 +185,8 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
       // Cleanup sounds on unmount
       successSound.current?.unloadAsync();
       errorSound.current?.unloadAsync();
+
+      if (recordingTimerRef.current) clearTimeout(recordingTimerRef.current);
       if (audioRecorder.current) {
         audioRecorder.current.stopAndUnloadAsync().catch(() => { });
         audioRecorder.current = null;
@@ -227,6 +231,10 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
   const stopPulse = useCallback(() => {
     pulseAnim.stopAnimation();
     pulseAnim.setValue(1);
+    if (recordingTimerRef.current) {
+      clearTimeout(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
   }, [pulseAnim]);
 
   const startPractice = useCallback(async () => {
@@ -530,11 +538,17 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
           throw new Error('No active recording');
         }
 
+
+        const status = await audioRecorder.current.getStatusAsync();
         await audioRecorder.current.stopAndUnloadAsync();
         const uri = audioRecorder.current.getURI();
 
         if (!uri) {
           throw new Error('No recording URI - recording may have failed');
+        }
+
+        if (status.durationMillis) {
+          // check logic removed - relies on auto-stop now
         }
 
         setUserAudioUri(uri);
@@ -611,6 +625,32 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
 
         await audioRecorder.current.prepareToRecordAsync(recordingOptions);
         await audioRecorder.current.startAsync();
+
+        // START AUTO-STOP TIMER
+        const currentWord = quizList[currentIndex];
+        const wordCount = currentWord.word.split(' ').length;
+        const maxDurationMs = (wordCount * 1500) + 3000;
+
+        recordingTimerRef.current = setTimeout(async () => {
+          if (audioRecorder.current) {
+            try {
+              stopPulse();
+              setIsRecording(false);
+              await audioRecorder.current.stopAndUnloadAsync();
+              const uri = audioRecorder.current.getURI();
+              audioRecorder.current = null;
+
+              // Delete the file since it's invalid (too long)
+              if (uri) {
+                await FileSystem.deleteAsync(uri, { idempotent: true });
+              }
+
+              Alert.alert('Recording Canceled', 'Time limit exceeded.');
+            } catch (err) {
+              console.log('Auto-stop error:', err);
+            }
+          }
+        }, maxDurationMs);
 
         setUserAnswer('');
         setPronunciationResult(null);
