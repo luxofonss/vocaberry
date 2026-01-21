@@ -8,3 +8,4 @@ export { SettingsScreen } from './SettingsScreen';
 export { SentencePracticeScreen } from './SentencePracticeScreen';
 export { DiscoverScreen } from './DiscoverScreen';
 export { ConversationDetailScreen } from './ConversationDetailScreen';
+export { CreateConversationScreen } from './CreateConversationScreen';

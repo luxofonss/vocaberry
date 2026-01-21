@@ -93,7 +93,16 @@ export const HomeScreen: React.FC = () => {
       setActiveTab('home');
     };
     EventBus.on('switchToHomeTab', handleSwitchToHome);
-    return () => EventBus.off('switchToHomeTab', handleSwitchToHome);
+
+    const handleConversationUpdate = () => {
+      loadData();
+    };
+    EventBus.on('conversationListUpdated', handleConversationUpdate);
+
+    return () => {
+      EventBus.off('switchToHomeTab', handleSwitchToHome);
+      EventBus.off('conversationListUpdated', handleConversationUpdate);
+    };
   }, []);
 
   useFocusEffect(
@@ -568,6 +577,7 @@ export const HomeScreen: React.FC = () => {
                 <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
               }
             >
+
               <View style={styles.recentListHeader}>
                 <View style={styles.recentListTitleRow}>
                   <Text style={styles.recentListTitle}>PRACTICING CONVERSATIONS</Text>
@@ -575,6 +585,20 @@ export const HomeScreen: React.FC = () => {
                     <Text style={styles.sentenceCountBadgeText}>{practicingConversations.length}</Text>
                   </View>
                 </View>
+
+                <TouchableOpacity
+                  style={[styles.smallCreateBtn, shadows.claySoft]}
+                  onPress={() => navigation.navigate('CreateConversation')}
+                >
+                  <LinearGradient
+                    colors={[colors.primary, '#8B5CF6']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.smallCreateGradient}
+                  >
+                    <Ionicons name="add" size={20} color={colors.white} />
+                  </LinearGradient>
+                </TouchableOpacity>
               </View>
 
               {practicingConversations.length === 0 ? (
@@ -723,6 +747,37 @@ export const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1
+  },
+  createConversationBtn: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    overflow: 'hidden',
+    alignSelf: 'center',
+    marginBottom: spacing.md,
+  },
+  smallCreateBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  smallCreateGradient: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createConversationGradient: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createConversationText: {
+    color: colors.white,
+    fontWeight: typography.weights.bold,
+    fontSize: typography.sizes.md,
   },
   safeArea: {
     flex: 1

@@ -105,6 +105,7 @@ export type RootStackParamList = {
      Practice: { topic?: string }; // Topic-specific practice
      Settings: undefined;
      SentencePractice: { sentenceId?: string, sentencesLimit?: number, customText?: string }; // Practice mode for sentences
+     CreateConversation: undefined;
 };
 
 export interface Sentence {

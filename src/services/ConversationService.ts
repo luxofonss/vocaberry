@@ -333,7 +333,12 @@ export const ConversationService = {
      },
 
      getConversationById: async (id: string): Promise<Conversation | undefined> => {
-          return MOCK_CONVERSATIONS.find(c => c.id === id);
+          const mockConv = MOCK_CONVERSATIONS.find(c => c.id === id);
+          if (mockConv) return mockConv;
+
+          // If not in mocks, check user's practicing conversations
+          const userConversations = await StorageService.getPracticingConversations();
+          return userConversations.find(c => c.id === id);
      },
 
      addConversationToPractice: async (id: string): Promise<void> => {
