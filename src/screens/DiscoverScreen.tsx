@@ -173,21 +173,55 @@ export const DiscoverScreen: React.FC = () => {
                               <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
                          }
                          ListHeaderComponent={
-                              <View style={styles.suggestedWordsSection}>
-                                   <Text style={styles.sectionTitle}>New Words for You</Text>
-                                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.wordsScroll}>
-                                        {suggestedWords.map(sw => (
-                                             <TouchableOpacity
-                                                  key={sw.id}
-                                                  style={[styles.wordChip, shadows.claySoft]}
-                                                  onPress={() => handleWordPress(sw.word)}
-                                             >
-                                                  <Text style={styles.wordChipText}>{sw.word}</Text>
-                                                  <Text style={styles.wordChipDef} numberOfLines={1}>{sw.definition}</Text>
+                              <View>
+                                   <View style={styles.sectionContainer}>
+                                        <View style={styles.sectionHeaderRow}>
+                                             <Text style={styles.sectionTitle}>Shadowing Videos 🎬</Text>
+                                             <TouchableOpacity onPress={() => navigation.navigate('ShadowingList')}>
+                                                  <Text style={styles.seeAllText}>See All</Text>
                                              </TouchableOpacity>
-                                        ))}
-                                   </ScrollView>
-                                   <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]}>Conversations</Text>
+                                        </View>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.wordsScroll}>
+                                             {[
+                                                  { id: 1, title: 'Daily Morning Routine', channel: 'English with Emma', duration: '3:45', level: 'Beginner', difficulty: 'Dễ', completed: true, stars: 3, thumbnail: '🌅', accent: 'American', views: '1.2M' },
+                                                  { id: 2, title: 'Coffee Shop Conversation', channel: 'Real English', duration: '4:20', level: 'Beginner', difficulty: 'Dễ', completed: true, stars: 2, thumbnail: '☕', accent: 'British', views: '850K' },
+                                             ].map(lesson => (
+                                                  <TouchableOpacity
+                                                       key={lesson.id}
+                                                       style={[styles.shadowingCard, shadows.claySoft]}
+                                                       onPress={() => navigation.navigate('ShadowingPractice', lesson)}
+                                                  >
+                                                       <View style={styles.shadowingIcon}>
+                                                            <Text style={{ fontSize: 28 }}>{lesson.thumbnail}</Text>
+                                                       </View>
+                                                       <View style={{ flex: 1 }}>
+                                                            <Text style={styles.shadowingTitle}>{lesson.title}</Text>
+                                                            <Text style={styles.shadowingSubtitle} numberOfLines={1}>{lesson.channel}</Text>
+                                                       </View>
+                                                       <View style={styles.playIconContainer}>
+                                                            <Ionicons name="play" size={12} color={colors.white} />
+                                                       </View>
+                                                  </TouchableOpacity>
+                                             ))}
+                                        </ScrollView>
+                                   </View>
+
+                                   <View style={styles.suggestedWordsSection}>
+                                        <Text style={styles.sectionTitle}>New Words for You</Text>
+                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.wordsScroll}>
+                                             {suggestedWords.map(sw => (
+                                                  <TouchableOpacity
+                                                       key={sw.id}
+                                                       style={[styles.wordChip, shadows.claySoft]}
+                                                       onPress={() => handleWordPress(sw.word)}
+                                                  >
+                                                       <Text style={styles.wordChipText}>{sw.word}</Text>
+                                                       <Text style={styles.wordChipDef} numberOfLines={1}>{sw.definition}</Text>
+                                                  </TouchableOpacity>
+                                             ))}
+                                        </ScrollView>
+                                        <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]}>Conversations</Text>
+                                   </View>
                               </View>
                          }
                          ListEmptyComponent={
@@ -377,5 +411,59 @@ const styles = StyleSheet.create({
           fontSize: 12,
           color: colors.textSecondary,
           fontWeight: '500',
+     },
+     sectionContainer: {
+          marginBottom: spacing.lg,
+          paddingTop: spacing.sm,
+     },
+     sectionHeaderRow: {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: spacing.md,
+     },
+     seeAllText: {
+          fontSize: 14,
+          fontWeight: '600',
+          color: colors.primary,
+     },
+     shadowingCard: {
+          backgroundColor: colors.white,
+          borderRadius: 20,
+          padding: 16,
+          width: 220,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          marginRight: 16,
+     },
+     shadowingIcon: {
+          width: 48,
+          height: 48,
+          borderRadius: 14,
+          backgroundColor: '#FFF7ED', // orange-50
+          alignItems: 'center',
+          justifyContent: 'center',
+     },
+     shadowingTitle: {
+          fontSize: 16,
+          fontWeight: 'bold',
+          color: colors.textPrimary,
+          marginBottom: 2,
+     },
+     shadowingSubtitle: {
+          fontSize: 11,
+          color: colors.textSecondary,
+     },
+     playIconContainer: {
+          position: 'absolute',
+          bottom: 12,
+          right: 12,
+          width: 24,
+          height: 24,
+          borderRadius: 12,
+          backgroundColor: colors.primary,
+          alignItems: 'center',
+          justifyContent: 'center',
      }
 });

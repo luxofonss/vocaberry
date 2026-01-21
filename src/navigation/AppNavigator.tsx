@@ -5,7 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { RootStackParamList } from '../types';
-import { WelcomeScreen, HomeScreen, WordDetailScreen, ReviewScreen, SettingsScreen, SentencePracticeScreen, DiscoverScreen, ConversationDetailScreen, CreateConversationScreen } from '../screens';
+import { WelcomeScreen, HomeScreen, WordDetailScreen, ReviewScreen, SettingsScreen, SentencePracticeScreen, DiscoverScreen, ConversationDetailScreen, CreateConversationScreen, ShadowingPracticeScreen, ShadowingListScreen } from '../screens';
 import { StorageService } from '../services/StorageService';
 import { colors } from '../theme/colors';
 
@@ -105,6 +105,22 @@ export const AppNavigator: React.FC = () => {
           options={{
             animation: 'slide_from_bottom',
             headerShown: false,
+          }}
+        />
+        <Stack.Screen
+          name="ShadowingPractice"
+          component={ShadowingPracticeScreen}
+          options={{
+            animation: 'slide_from_right',
+            headerShown: false
+          }}
+        />
+        <Stack.Screen
+          name="ShadowingList"
+          component={ShadowingListScreen}
+          options={{
+            animation: 'slide_from_right',
+            headerShown: false
           }}
         />
       </Stack.Navigator>
