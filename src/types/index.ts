@@ -107,6 +107,8 @@ export type RootStackParamList = {
      SentencePractice: { sentenceId?: string, sentencesLimit?: number, customText?: string }; // Practice mode for sentences
      CreateConversation: undefined;
      ShadowingList: undefined;
+     NewWordsList: undefined;
+     ConversationList: undefined;
      ShadowingPractice: {
           id: number;
           title: string;

@@ -11,3 +11,5 @@ export { ConversationDetailScreen } from './ConversationDetailScreen';
 export { CreateConversationScreen } from './CreateConversationScreen';
 export { ShadowingPracticeScreen } from './ShadowingPracticeScreen';
 export { ShadowingListScreen } from './ShadowingListScreen';
+export { NewWordsListScreen } from './NewWordsListScreen';
+export { ConversationListScreen } from './ConversationListScreen';

@@ -23,14 +23,14 @@ type RouteProps = RouteProp<RootStackParamList, 'ShadowingPractice'>;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const SUBTITLES = [
-     { id: 1, start: 0, end: 3, text: 'Hello everyone! Welcome to today\'s lesson.', translation: 'Xin chào mọi người! Chào mừng đến với bài học hôm nay.' },
-     { id: 2, start: 3, end: 7, text: 'Today we\'re going to talk about daily routines.', translation: 'Hôm nay chúng ta sẽ nói về thói quen hàng ngày.' },
-     { id: 3, start: 7, end: 11, text: 'I usually wake up at 6 o\'clock in the morning.', translation: 'Tôi thường thức dậy lúc 6 giờ sáng.' },
-     { id: 4, start: 11, end: 15, text: 'Then I brush my teeth and take a shower.', translation: 'Sau đó tôi đánh răng và tắm.' },
-     { id: 5, start: 15, end: 19, text: 'After that, I have breakfast with my family.', translation: 'Sau đó, tôi ăn sáng cùng gia đình.' },
-     { id: 6, start: 19, end: 23, text: 'I usually have coffee and some toast.', translation: 'Tôi thường uống cà phê và ăn bánh mì nướng.' },
-     { id: 7, start: 23, end: 27, text: 'At 7:30, I leave home and go to work.', translation: 'Lúc 7:30, tôi rời nhà và đi làm.' },
-     { id: 8, start: 27, end: 31, text: 'I work from 8 AM to 5 PM every day.', translation: 'Tôi làm việc từ 8 giờ sáng đến 5 giờ chiều mỗi ngày.' },
+     { id: 1, start: 0, end: 3, text: 'Hello everyone! Welcome to today\'s lesson.', translation: 'Hello everyone! Welcome to today\'s lesson.' },
+     { id: 2, start: 3, end: 7, text: 'Today we\'re going to talk about daily routines.', translation: 'Today we\'re going to talk about daily routines.' },
+     { id: 3, start: 7, end: 11, text: 'I usually wake up at 6 o\'clock in the morning.', translation: 'I usually wake up at 6 o\'clock in the morning.' },
+     { id: 4, start: 11, end: 15, text: 'Then I brush my teeth and take a shower.', translation: 'Then I brush my teeth and take a shower.' },
+     { id: 5, start: 15, end: 19, text: 'After that, I have breakfast with my family.', translation: 'After that, I have breakfast with my family.' },
+     { id: 6, start: 19, end: 23, text: 'I usually have coffee and some toast.', translation: 'I usually have coffee and some toast.' },
+     { id: 7, start: 23, end: 27, text: 'At 7:30, I leave home and go to work.', translation: 'At 7:30, I leave home and go to work.' },
+     { id: 8, start: 27, end: 31, text: 'I work from 8 AM to 5 PM every day.', translation: 'I work from 8 AM to 5 PM every day.' },
 ];
 
 export const ShadowingPracticeScreen: React.FC = () => {
@@ -179,7 +179,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
                               </View>
 
                               {/* Controls */}
-                              <View style={[styles.controlsContainer, shadows.light]}>
+                              <View style={[styles.controlsContainer, shadows.level1]}>
                                    {/* Progress Bar */}
                                    <View style={styles.progressBarRow}>
                                         <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
@@ -219,7 +219,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                                   onPress={() => setShowTranslation(!showTranslation)}
                                                   style={[styles.langBtn, showTranslation ? styles.langBtnActive : null]}
                                              >
-                                                  <Text style={[styles.langText, showTranslation ? styles.langTextActive : null]}>VN</Text>
+                                                  <Text style={[styles.langText, showTranslation ? styles.langTextActive : null]}>EN</Text>
                                              </TouchableOpacity>
                                         </View>
                                    </View>

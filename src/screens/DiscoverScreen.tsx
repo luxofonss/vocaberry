@@ -28,6 +28,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const DiscoverScreen: React.FC = () => {
+     // ... (keep logic: navigation, state, loadData, handleRefresh, handleWordPress) ...
      const navigation = useNavigation<NavigationProp>();
      const [conversations, setConversations] = useState<Conversation[]>([]);
      const [suggestedWords, setSuggestedWords] = useState<{ id: string, word: string, definition: string }[]>([]);
@@ -71,7 +72,6 @@ export const DiscoverScreen: React.FC = () => {
           setLookupStatus('Checking library...');
 
           try {
-               // 1. Check if word exists in library
                const existingWords = await StorageService.getWords();
                const existing = existingWords.find(w => w.word.toLowerCase() === word.toLowerCase());
 
@@ -81,11 +81,9 @@ export const DiscoverScreen: React.FC = () => {
                     return;
                }
 
-               // 2. Word not in library, open lookup modal
                setModalVisible(true);
                setLookupStatus('Looking up...');
 
-               // Lookup from dictionary service
                const data = await DictionaryService.lookup(word);
                if (data) {
                     setSelectedWordData(data.word);
@@ -147,110 +145,131 @@ export const DiscoverScreen: React.FC = () => {
      );
 
      return (
-          <LinearGradient
-               colors={gradients.backgroundMain.colors as [string, string, ...string[]]}
-               start={gradients.backgroundMain.start}
-               end={gradients.backgroundMain.end}
-               style={styles.container}
-          >
-               <SafeAreaView style={{ flex: 1 }} edges={['bottom', 'left', 'right']}>
-                    <View style={styles.header}>
-                         <View style={styles.headerTop}>
-                              <View style={styles.greetingContainer}>
-                                   <Text style={styles.title}>Discovery 🚀</Text>
-                                   <Text style={styles.subtitle}>Suggested practice for you</Text>
-                              </View>
+          <SafeAreaView style={{ flex: 1 }} edges={['bottom', 'left', 'right']}>
+               <View style={styles.header}>
+                    <View style={styles.headerTop}>
+                         <View style={styles.greetingContainer}>
+                              <Text style={styles.title}>Discovery 🚀</Text>
+                              <Text style={styles.subtitle}>Explore new ways to learn</Text>
                          </View>
                     </View>
+               </View>
 
-                    <FlatList
-                         data={conversations}
-                         renderItem={renderConversationCard}
-                         keyExtractor={(item) => item.id}
-                         contentContainerStyle={styles.listContent}
-                         showsVerticalScrollIndicator={false}
-                         refreshControl={
-                              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
-                         }
-                         ListHeaderComponent={
-                              <View>
-                                   <View style={styles.sectionContainer}>
-                                        <View style={styles.sectionHeaderRow}>
-                                             <Text style={styles.sectionTitle}>Shadowing Videos 🎬</Text>
-                                             <TouchableOpacity onPress={() => navigation.navigate('ShadowingList')}>
-                                                  <Text style={styles.seeAllText}>See All</Text>
-                                             </TouchableOpacity>
+               <FlatList
+                    data={conversations}
+                    renderItem={renderConversationCard}
+                    keyExtractor={(item) => item.id}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={
+                         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
+                    }
+                    ListHeaderComponent={
+                         <View style={styles.headerComponents}>
+                              {/* Shadowing Section */}
+                              <View style={{ marginBottom: 24 }}>
+                                   <View style={[styles.sectionHeaderRow, { paddingHorizontal: spacing.xs }]}>
+                                        <View style={styles.titleRow}>
+                                             <View style={[styles.iconBox, { backgroundColor: '#DCFCE7' }]}>
+                                                  <Ionicons name="videocam" size={18} color="#15803D" />
+                                             </View>
+                                             <Text style={styles.sectionTitle}>Shadowing</Text>
                                         </View>
-                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.wordsScroll}>
-                                             {[
-                                                  { id: 1, title: 'Daily Morning Routine', channel: 'English with Emma', duration: '3:45', level: 'Beginner', difficulty: 'Dễ', completed: true, stars: 3, thumbnail: '🌅', accent: 'American', views: '1.2M' },
-                                                  { id: 2, title: 'Coffee Shop Conversation', channel: 'Real English', duration: '4:20', level: 'Beginner', difficulty: 'Dễ', completed: true, stars: 2, thumbnail: '☕', accent: 'British', views: '850K' },
-                                             ].map(lesson => (
-                                                  <TouchableOpacity
-                                                       key={lesson.id}
-                                                       style={[styles.shadowingCard, shadows.claySoft]}
-                                                       onPress={() => navigation.navigate('ShadowingPractice', lesson)}
-                                                  >
-                                                       <View style={styles.shadowingIcon}>
-                                                            <Text style={{ fontSize: 28 }}>{lesson.thumbnail}</Text>
-                                                       </View>
-                                                       <View style={{ flex: 1 }}>
-                                                            <Text style={styles.shadowingTitle}>{lesson.title}</Text>
-                                                            <Text style={styles.shadowingSubtitle} numberOfLines={1}>{lesson.channel}</Text>
-                                                       </View>
-                                                       <View style={styles.playIconContainer}>
-                                                            <Ionicons name="play" size={12} color={colors.white} />
-                                                       </View>
-                                                  </TouchableOpacity>
-                                             ))}
-                                        </ScrollView>
+                                        <TouchableOpacity onPress={() => navigation.navigate('ShadowingList')}>
+                                             <Text style={styles.seeAllText}>See All</Text>
+                                        </TouchableOpacity>
                                    </View>
-
-                                   <View style={styles.suggestedWordsSection}>
-                                        <Text style={styles.sectionTitle}>New Words for You</Text>
-                                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.wordsScroll}>
-                                             {suggestedWords.map(sw => (
-                                                  <TouchableOpacity
-                                                       key={sw.id}
-                                                       style={[styles.wordChip, shadows.claySoft]}
-                                                       onPress={() => handleWordPress(sw.word)}
-                                                  >
-                                                       <Text style={styles.wordChipText}>{sw.word}</Text>
-                                                       <Text style={styles.wordChipDef} numberOfLines={1}>{sw.definition}</Text>
-                                                  </TouchableOpacity>
-                                             ))}
-                                        </ScrollView>
-                                        <Text style={[styles.sectionTitle, { marginTop: spacing.xl }]}>Conversations</Text>
-                                   </View>
+                                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                                        {[
+                                             { id: 1, title: 'Daily Morning Routine', channel: 'English with Emma', duration: '3:45', level: 'Beginner', difficulty: 'Easy', completed: true, stars: 3, thumbnail: '🌅', accent: 'American', views: '1.2M' },
+                                             { id: 2, title: 'Coffee Shop Conversation', channel: 'Real English', duration: '4:20', level: 'Beginner', difficulty: 'Easy', completed: true, stars: 2, thumbnail: '☕', accent: 'British', views: '850K' },
+                                        ].map(lesson => (
+                                             <TouchableOpacity
+                                                  key={lesson.id}
+                                                  style={[styles.shadowingCard]}
+                                                  onPress={() => navigation.navigate('ShadowingPractice', lesson)}
+                                             >
+                                                  <View style={styles.shadowingIcon}>
+                                                       <Text style={{ fontSize: 24 }}>{lesson.thumbnail}</Text>
+                                                  </View>
+                                                  <View style={{ flex: 1 }}>
+                                                       <Text style={styles.shadowingTitle}>{lesson.title}</Text>
+                                                       <Text style={styles.shadowingSubtitle} numberOfLines={1}>{lesson.channel}</Text>
+                                                  </View>
+                                                  <View style={styles.playIconContainer}>
+                                                       <Ionicons name="play" size={10} color={colors.white} />
+                                                  </View>
+                                             </TouchableOpacity>
+                                        ))}
+                                   </ScrollView>
                               </View>
-                         }
-                         ListEmptyComponent={
-                              !loading ? (
-                                   <View style={styles.emptyContainer}>
-                                        <Text style={styles.emptyText}>No suggestions found.</Text>
-                                   </View>
-                              ) : null
-                         }
-                    />
 
-                    <WordPreviewModal
-                         visible={modalVisible}
-                         wordData={selectedWordData}
-                         isNew={isSelectedWordNew}
-                         isLoading={isLookupLoading}
-                         statusText={lookupStatus}
-                         onClose={() => setModalVisible(false)}
-                         onSave={(newWord) => {
-                              // Optional: refresh any local state if needed
-                              setIsSelectedWordNew(false);
-                              setSelectedWordData(newWord);
-                         }}
-                         onGoToDetail={(wordId) => {
-                              navigation.navigate('WordDetail', { wordId });
-                         }}
-                    />
-               </SafeAreaView>
-          </LinearGradient>
+                              {/* New Words Section */}
+                              <View style={{ marginBottom: 24 }}>
+                                   <View style={[styles.sectionHeaderRow, { paddingHorizontal: spacing.xs }]}>
+                                        <View style={styles.titleRow}>
+                                             <View style={[styles.iconBox, { backgroundColor: '#DBEAFE' }]}>
+                                                  <Ionicons name="book" size={18} color="#1D4ED8" />
+                                             </View>
+                                             <Text style={styles.sectionTitle}>New Words</Text>
+                                        </View>
+                                        <TouchableOpacity onPress={() => navigation.navigate('NewWordsList')}>
+                                             <Text style={styles.seeAllText}>See All</Text>
+                                        </TouchableOpacity>
+                                   </View>
+                                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                                        {suggestedWords.map(sw => (
+                                             <TouchableOpacity
+                                                  key={sw.id}
+                                                  style={[styles.wordChip]}
+                                                  onPress={() => handleWordPress(sw.word)}
+                                             >
+                                                  <Text style={styles.wordChipText}>{sw.word}</Text>
+                                                  <Text style={styles.wordChipDef} numberOfLines={1}>{sw.definition}</Text>
+                                             </TouchableOpacity>
+                                        ))}
+                                   </ScrollView>
+                              </View>
+
+                              {/* Conversations Header */}
+                              <View style={[styles.sectionHeaderRow, { marginTop: spacing.lg, paddingHorizontal: spacing.xs }]}>
+                                   <View style={styles.titleRow}>
+                                        <View style={[styles.iconBox, { backgroundColor: '#FFEDD5' }]}>
+                                             <Ionicons name="chatbubbles" size={18} color="#C2410C" />
+                                        </View>
+                                        <Text style={styles.sectionTitle}>Conversations</Text>
+                                   </View>
+                                   <TouchableOpacity onPress={() => navigation.navigate('ConversationList')}>
+                                        <Text style={styles.seeAllText}>See All</Text>
+                                   </TouchableOpacity>
+                              </View>
+                         </View>
+                    }
+                    ListEmptyComponent={
+                         !loading ? (
+                              <View style={styles.emptyContainer}>
+                                   <Text style={styles.emptyText}>No suggestions found.</Text>
+                              </View>
+                         ) : null
+                    }
+               />
+
+               <WordPreviewModal
+                    visible={modalVisible}
+                    wordData={selectedWordData}
+                    isNew={isSelectedWordNew}
+                    isLoading={isLookupLoading}
+                    statusText={lookupStatus}
+                    onClose={() => setModalVisible(false)}
+                    onSave={(newWord) => {
+                         setIsSelectedWordNew(false);
+                         setSelectedWordData(newWord);
+                    }}
+                    onGoToDetail={(wordId) => {
+                         navigation.navigate('WordDetail', { wordId });
+                    }}
+               />
+          </SafeAreaView>
      );
 };
 
@@ -260,40 +279,74 @@ const styles = StyleSheet.create({
      },
      header: {
           paddingHorizontal: spacing.screenPadding,
-          paddingTop: 0, // Removed extra padding since it's inside SafeAreaView
-          paddingBottom: spacing.xs,
+          paddingTop: spacing.xs,
+          paddingBottom: spacing.sm,
      },
      headerTop: {
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'flex-start',
-          marginBottom: spacing.xxs,
      },
      greetingContainer: {
-          // Removed flex: 1 to prevent collapsing
           marginRight: spacing.md,
      },
      title: {
-          fontSize: typography.sizes.xxl,
-          fontWeight: typography.weights.extraBold,
-          color: colors.textPrimary,
+          fontSize: 28,
+          fontWeight: 'bold',
+          color: '#1E293B',
      },
      subtitle: {
-          fontSize: typography.sizes.base,
-          color: colors.textSecondary,
+          fontSize: 15,
+          color: '#64748B',
           marginTop: 4,
      },
      listContent: {
           paddingHorizontal: spacing.screenPadding,
           paddingBottom: 100,
      },
+     headerComponents: {
+          marginBottom: spacing.xs,
+     },
+     sectionHeaderRow: {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 12,
+     },
+     titleRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+     },
+     iconBox: {
+          width: 32,
+          height: 32,
+          borderRadius: 10,
+          alignItems: 'center',
+          justifyContent: 'center',
+     },
+     sectionTitle: {
+          fontSize: 18,
+          fontWeight: 'bold',
+          color: '#1E293B',
+     },
+     seeAllText: {
+          fontSize: 13,
+          fontWeight: '600',
+          color: colors.primary,
+     },
+     horizontalScroll: {
+          gap: 12,
+          paddingRight: 4,
+     },
+     // Card Styles
      card: {
           backgroundColor: colors.white,
           borderRadius: 24,
           padding: spacing.lg,
           marginBottom: spacing.md,
-          borderTopWidth: 1,
-          borderTopColor: colors.shadowInnerLight,
+          borderWidth: 1,
+          borderColor: '#F1F5F9', // light border
      },
      cardHeader: {
           flexDirection: 'row',
@@ -301,169 +354,98 @@ const styles = StyleSheet.create({
           marginBottom: spacing.sm,
      },
      categoryBadge: {
-          backgroundColor: '#F3F4F6',
+          backgroundColor: '#F8FAFC',
           paddingHorizontal: 10,
           paddingVertical: 4,
-          borderRadius: 12,
+          borderRadius: 10,
      },
      categoryText: {
           fontSize: 12,
           fontWeight: '700',
-          color: '#4B5563',
+          color: '#64748B',
      },
      difficultyBadge: {
           paddingHorizontal: 10,
           paddingVertical: 4,
-          borderRadius: 12,
+          borderRadius: 10,
      },
-     beginnerBadge: {
-          backgroundColor: '#ECFDF5',
-     },
-     intermediateBadge: {
-          backgroundColor: '#FFFBEB',
-     },
-     advancedBadge: {
-          backgroundColor: '#FEF2F2',
-     },
+     beginnerBadge: { backgroundColor: '#ECFDF5' },
+     intermediateBadge: { backgroundColor: '#FFFBEB' },
+     advancedBadge: { backgroundColor: '#FEF2F2' },
      difficultyText: {
           fontSize: 11,
           fontWeight: '800',
           textTransform: 'uppercase',
-          color: '#059669', // Default for beginner
+          color: '#059669',
      },
      cardTitle: {
-          fontSize: 20,
-          fontWeight: '800',
-          color: colors.textPrimary,
+          fontSize: 18,
+          fontWeight: 'bold',
+          color: '#1E293B',
           marginBottom: 8,
      },
      cardDescription: {
           fontSize: 14,
-          color: colors.textSecondary,
+          color: '#64748B',
           lineHeight: 20,
           marginBottom: spacing.md,
      },
      cardFooter: {
           flexDirection: 'row',
           alignItems: 'center',
-          gap: spacing.md,
-          borderTopWidth: 1,
-          borderTopColor: '#F3F4F6',
-          paddingTop: spacing.md,
-     },
-     messageCount: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 4,
-     },
-     practiceInfo: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 4,
-     },
-     footerText: {
-          fontSize: 13,
-          color: colors.textSecondary,
-          fontWeight: '600',
-     },
-     arrowContainer: {
-          marginLeft: 'auto',
-     },
-     emptyContainer: {
-          alignItems: 'center',
-          marginTop: 40,
-     },
-     emptyText: {
-          color: colors.textSecondary,
-          fontSize: 16,
-     },
-     suggestedWordsSection: {
-          marginBottom: spacing.lg,
+          gap: 16,
           paddingTop: spacing.sm,
-     },
-     sectionTitle: {
-          fontSize: 18,
-          fontWeight: '800',
-          color: colors.textPrimary,
-          marginBottom: spacing.md,
-     },
-     wordsScroll: {
-          gap: spacing.md,
-          paddingBottom: spacing.sm,
-     },
-     wordChip: {
-          backgroundColor: colors.white,
-          borderRadius: 20,
-          paddingHorizontal: 20,
-          paddingVertical: 14,
-          minWidth: 150,
-          maxWidth: 200,
           borderTopWidth: 1,
-          borderTopColor: colors.shadowInnerLight,
+          borderTopColor: '#F1F5F9',
      },
-     wordChipText: {
-          fontSize: 17,
-          fontWeight: '800',
-          color: colors.primary,
-          marginBottom: 4,
-     },
-     wordChipDef: {
-          fontSize: 12,
-          color: colors.textSecondary,
-          fontWeight: '500',
-     },
-     sectionContainer: {
-          marginBottom: spacing.lg,
-          paddingTop: spacing.sm,
-     },
-     sectionHeaderRow: {
-          flexDirection: 'row',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: spacing.md,
-     },
-     seeAllText: {
-          fontSize: 14,
-          fontWeight: '600',
-          color: colors.primary,
-     },
+     messageCount: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+     practiceInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+     footerText: { fontSize: 12, color: '#64748B', fontWeight: '500' },
+     arrowContainer: { marginLeft: 'auto' },
+
+     // Shadowing & Word Cards
      shadowingCard: {
           backgroundColor: colors.white,
-          borderRadius: 20,
-          padding: 16,
-          width: 220,
+          borderRadius: 16,
+          padding: 12,
+          width: 200,
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 12,
-          marginRight: 16,
+          gap: 10,
+          marginRight: 4,
      },
      shadowingIcon: {
-          width: 48,
-          height: 48,
-          borderRadius: 14,
-          backgroundColor: '#FFF7ED', // orange-50
+          width: 40,
+          height: 40,
+          borderRadius: 12,
+          backgroundColor: '#FFEDD5',
           alignItems: 'center',
           justifyContent: 'center',
      },
      shadowingTitle: {
-          fontSize: 16,
+          fontSize: 14,
           fontWeight: 'bold',
-          color: colors.textPrimary,
+          color: '#1E293B',
           marginBottom: 2,
      },
-     shadowingSubtitle: {
-          fontSize: 11,
-          color: colors.textSecondary,
-     },
+     shadowingSubtitle: { fontSize: 10, color: '#64748B' },
      playIconContainer: {
-          position: 'absolute',
-          bottom: 12,
-          right: 12,
-          width: 24,
-          height: 24,
-          borderRadius: 12,
-          backgroundColor: colors.primary,
-          alignItems: 'center',
-          justifyContent: 'center',
-     }
+          position: 'absolute', bottom: 10, right: 10,
+          width: 20, height: 20, borderRadius: 10,
+          backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
+     },
+     wordChip: {
+          backgroundColor: colors.white,
+          borderRadius: 16,
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          minWidth: 140,
+          marginRight: 4,
+     },
+     wordChipText: { fontSize: 16, fontWeight: 'bold', color: colors.primary, marginBottom: 4 },
+     wordChipDef: { fontSize: 12, color: '#64748B' },
+
+     // Empty State
+     emptyContainer: { alignItems: 'center', marginTop: 40 },
+     emptyText: { color: '#94A3B8', fontSize: 16 },
 });

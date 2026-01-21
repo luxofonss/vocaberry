@@ -27,7 +27,7 @@ const LESSONS = [
           channel: 'English with Emma',
           duration: '3:45',
           level: 'Beginner',
-          difficulty: 'Dễ',
+          difficulty: 'Easy',
           completed: true,
           stars: 3,
           thumbnail: '🌅',
@@ -40,7 +40,7 @@ const LESSONS = [
           channel: 'Real English',
           duration: '4:20',
           level: 'Beginner',
-          difficulty: 'Dễ',
+          difficulty: 'Easy',
           completed: true,
           stars: 2,
           thumbnail: '☕',
@@ -53,7 +53,7 @@ const LESSONS = [
           channel: 'Business English',
           duration: '5:30',
           level: 'Intermediate',
-          difficulty: 'Trung bình',
+          difficulty: 'Medium',
           completed: false,
           stars: 0,
           thumbnail: '💼',
@@ -66,7 +66,7 @@ const LESSONS = [
           channel: 'Travel with Alex',
           duration: '6:15',
           level: 'Intermediate',
-          difficulty: 'Trung bình',
+          difficulty: 'Medium',
           completed: false,
           stars: 0,
           thumbnail: '🗽',
@@ -79,7 +79,7 @@ const LESSONS = [
           channel: 'Chef\'s English',
           duration: '4:50',
           level: 'Intermediate',
-          difficulty: 'Trung bình',
+          difficulty: 'Medium',
           completed: false,
           stars: 0,
           thumbnail: '👨🍳',
@@ -92,7 +92,7 @@ const LESSONS = [
           channel: 'Tech Today',
           duration: '5:00',
           level: 'Advanced',
-          difficulty: 'Khó',
+          difficulty: 'Hard',
           completed: false,
           stars: 0,
           thumbnail: '📱',
@@ -105,7 +105,7 @@ const LESSONS = [
           channel: 'TED Talks',
           duration: '8:30',
           level: 'Advanced',
-          difficulty: 'Khó',
+          difficulty: 'Hard',
           completed: false,
           stars: 0,
           locked: true,
@@ -131,11 +131,11 @@ export const ShadowingListScreen: React.FC = () => {
 
      const getDifficultyColorStyles = (difficulty: string) => {
           switch (difficulty) {
-               case 'Dễ':
+               case 'Easy':
                     return { bg: '#DCFCE7', text: '#15803D' }; // green-100, green-700
-               case 'Trung bình':
+               case 'Medium':
                     return { bg: '#FEF9C3', text: '#A16207' }; // yellow-100, yellow-700
-               case 'Khó':
+               case 'Hard':
                     return { bg: '#FEE2E2', text: '#B91C1C' }; // red-100, red-700
                default:
                     return { bg: '#F3F4F6', text: '#374151' };
@@ -164,16 +164,16 @@ export const ShadowingListScreen: React.FC = () => {
                                    end={{ x: 1, y: 0 }}
                                    style={styles.header}
                               >
-                                   <TouchableOpacity
-                                        onPress={() => navigation.goBack()}
-                                        style={styles.backButton}
-                                   >
-                                        <Ionicons name="arrow-back" size={24} color="white" />
-                                   </TouchableOpacity>
+                                   <View style={styles.headerRow}>
+                                        <TouchableOpacity
+                                             onPress={() => navigation.goBack()}
+                                             style={styles.backButton}
+                                        >
+                                             <Ionicons name="arrow-back" size={24} color="white" />
+                                        </TouchableOpacity>
 
-                                   <View style={styles.headerTitleRow}>
                                         <View style={styles.headerIconContainer}>
-                                             <Ionicons name="videocam" size={32} color="white" />
+                                             <Ionicons name="videocam" size={28} color="white" />
                                         </View>
                                         <View style={{ flex: 1 }}>
                                              <Text style={styles.headerTitle}>Luyện shadowing</Text>
@@ -344,27 +344,26 @@ const styles = StyleSheet.create({
           backgroundColor: 'rgba(255,255,255,0.2)',
           alignItems: 'center',
           justifyContent: 'center',
-          marginBottom: 20,
      },
-     headerTitleRow: {
+     headerRow: {
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 16,
+          gap: 12,
           marginBottom: 24,
      },
      headerIconContainer: {
-          width: 64,
-          height: 64,
-          borderRadius: 16,
+          width: 48,
+          height: 48,
+          borderRadius: 12,
           backgroundColor: 'rgba(255,255,255,0.2)',
           alignItems: 'center',
           justifyContent: 'center',
      },
      headerTitle: {
-          fontSize: 28,
+          fontSize: 22,
           fontWeight: 'bold',
           color: 'white',
-          marginBottom: 4,
+          marginBottom: 2,
      },
      headerSubtitle: {
           color: '#DCFCE7',
