@@ -323,7 +323,7 @@ export const ConversationDetailScreen: React.FC = () => {
                     [msgId]: Math.max(prev[msgId] || 0, data.pronScore)
                }));
 
-               playFeedbackSound(data.pronScore >= 80);
+               playFeedbackSound(data.pronScore >= 90);
           } catch (error) {
                console.error('Analysis error:', error);
                const errorMessage = error instanceof Error

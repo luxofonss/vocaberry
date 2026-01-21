@@ -73,12 +73,15 @@ export const SentencePracticeScreen: React.FC = () => {
                errorType: string;
                syllables: Array<{
                     syllable: string;
+                    actualSyllable?: string;
+                    grapheme?: string;
                     accuracyScore: number;
                     phonemes: Array<{
                          phoneme: string;
+                         actualPhoneme?: string;
                          accuracyScore: number;
                     }> | null;
-               }>;
+               }> | null;
           }>;
      } | null>(null);
 
@@ -250,11 +253,11 @@ export const SentencePracticeScreen: React.FC = () => {
                          word: w.word,
                          accuracyScore: w.accuracyScore,
                          errorType: w.errorType,
-                         syllables: w.syllables.map(s => ({
+                         syllables: w.syllables ? w.syllables.map(s => ({
                               syllable: s.syllable,
                               accuracyScore: s.accuracyScore,
                               phonemes: s.phonemes || null
-                         }))
+                         })) : null
                     }))
                });
 
@@ -267,9 +270,12 @@ export const SentencePracticeScreen: React.FC = () => {
                const newResult = {
                     sentence: currentSentence,
                     accuracy: data.pronScore,
-                    ipaTranscript: data.words.map(w => w.syllables.map(s => s.syllable).join('')).join(' '),
+                    ipaTranscript: data.words
+                         .map(w => w.syllables ? w.syllables.map(s => s.syllable).join('') : '')
+                         .filter(s => s.length > 0)
+                         .join(' '),
                     userIpa: data.recognizedText,
-                    isCorrect: data.pronScore >= 80,
+                    isCorrect: data.pronScore >= 90,
                     words: data.words
                };
 
@@ -280,7 +286,7 @@ export const SentencePracticeScreen: React.FC = () => {
                });
 
                // Play sound based on accuracy (threshold 80%)
-               playSound(data.pronScore >= 80);
+               playSound(data.pronScore >= 90);
           } catch (error) {
                console.error('Analysis error:', error);
 
@@ -649,7 +655,7 @@ export const SentencePracticeScreen: React.FC = () => {
                                                        </TouchableOpacity>
                                                   ) : (
                                                        <TouchableOpacity style={styles.finishBtn} onPress={handleNext}>
-                                                            <Text style={styles.finishBtnText}>Finish & View Results</Text>
+                                                            <Text style={styles.finishBtnText}>Finish</Text>
                                                        </TouchableOpacity>
                                                   )}
                                              </View>

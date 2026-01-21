@@ -110,12 +110,15 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
       errorType: string;
       syllables: Array<{
         syllable: string;
+        actualSyllable?: string;
+        grapheme?: string;
         accuracyScore: number;
         phonemes: Array<{
           phoneme: string;
+          actualPhoneme?: string;
           accuracyScore: number;
         }> | null;
-      }>;
+      }> | null;
     }>;
   } | null>(null);
 
@@ -315,7 +318,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
   // -- Get Feedback Data Based on Score --
   const getFeedbackData = useCallback((score: number, isPronunciation: boolean = false) => {
     if (isPronunciation) {
-      if (score >= 80) {
+      if (score >= 90) {
         return {
           emoji: '🎉',
           title: 'Excellent!',
@@ -407,17 +410,17 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
             word: w.word,
             accuracyScore: w.accuracyScore,
             errorType: w.errorType,
-            syllables: w.syllables.map(s => ({
+            syllables: w.syllables ? w.syllables.map(s => ({
               syllable: s.syllable,
               accuracyScore: s.accuracyScore,
               phonemes: s.phonemes || null
-            }))
+            })) : null
           }))
         };
 
         setPronunciationResult(audioAnalysis);
 
-        const audioCorrect = result.data.pronScore >= 85;
+        const audioCorrect = result.data.pronScore >= 90;
 
         // If user typed something, we check both. 
         // If they ONLY spoke, we only check audio and fill in the transcribed text.
@@ -449,8 +452,11 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
     setIsAnswered(true);
     setShowHint(true);
 
-    // Play sound effect
-    playSound(finalCorrect && !isSkipped);
+    // Play sound effect based on pronunciation score (if audio was used)
+    const shouldPlayCorrectSound = userAudioUri && !isSkipped && pronunciationResult
+      ? pronunciationResult.pronScore >= 90
+      : (finalCorrect && !isSkipped);
+    playSound(shouldPlayCorrectSound);
 
     // Scroll to bottom to show results
     scrollToBottom();
@@ -1015,7 +1021,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
 
     const feedback = isAnswered
       ? (pronunciationResult
-        ? getFeedbackData(pronunciationResult.accuracy, true)
+        ? getFeedbackData(pronunciationResult.pronScore, true)
         : getFeedbackData(isCorrect ? 1 : 0, false))
       : null;
 
