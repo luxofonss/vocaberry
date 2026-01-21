@@ -13,15 +13,11 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
 import { colors, shadows } from '../theme';
 import { RootStackParamList } from '../types';
-
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ShadowingPractice'>;
 type RouteProps = RouteProp<RootStackParamList, 'ShadowingPractice'>;
-
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
-
 const SUBTITLES = [
      { id: 1, start: 0, end: 3, text: 'Hello everyone! Welcome to today\'s lesson.', translation: 'Hello everyone! Welcome to today\'s lesson.' },
      { id: 2, start: 3, end: 7, text: 'Today we\'re going to talk about daily routines.', translation: 'Today we\'re going to talk about daily routines.' },
@@ -32,12 +28,10 @@ const SUBTITLES = [
      { id: 7, start: 23, end: 27, text: 'At 7:30, I leave home and go to work.', translation: 'At 7:30, I leave home and go to work.' },
      { id: 8, start: 27, end: 31, text: 'I work from 8 AM to 5 PM every day.', translation: 'I work from 8 AM to 5 PM every day.' },
 ];
-
 export const ShadowingPracticeScreen: React.FC = () => {
      const navigation = useNavigation<NavigationProp>();
      const route = useRoute<RouteProps>();
      const lesson = route.params;
-
      const [isPlaying, setIsPlaying] = useState(false);
      const [currentTime, setCurrentTime] = useState(0);
      const [isMuted, setIsMuted] = useState(false);
@@ -46,25 +40,41 @@ export const ShadowingPracticeScreen: React.FC = () => {
      const [showTranslation, setShowTranslation] = useState(true);
      const [mode, setMode] = useState<'watch' | 'shadow'>('watch');
      const [recordedSegments, setRecordedSegments] = useState<Set<number>>(new Set());
-
      // Animation refs
      const fadeAnim = useRef(new Animated.Value(0)).current;
      const intervalRef = useRef<NodeJS.Timeout | null>(null);
-
+     const scrollViewRef = useRef<ScrollView>(null);
      const totalDuration = 31; // Mock total duration
-
+     const getCurrentSubtitle = () => {
+          return SUBTITLES.find(sub => currentTime >= sub.start && currentTime < sub.end);
+     };
+     const currentSubtitle = getCurrentSubtitle();
      useEffect(() => {
           Animated.timing(fadeAnim, {
                toValue: 1,
                duration: 500,
                useNativeDriver: true,
           }).start();
-
           return () => {
                if (intervalRef.current) clearInterval(intervalRef.current);
           };
      }, []);
-
+     // Auto-scroll to current subtitle
+     useEffect(() => {
+          if (currentSubtitle && scrollViewRef.current && isPlaying) {
+               const index = SUBTITLES.findIndex(s => s.id === currentSubtitle.id);
+               if (index !== -1) {
+                    // Calculate offset based on mode (Shadow mode has extra card at top)
+                    let offset = 0;
+                    if (mode === 'shadow') {
+                         offset += 340; // Approximate height of Shadow Area
+                    }
+                    offset += 50; // Transcript Header "Subtitles (N)" height
+                    const scrollY = offset + (index * 110); // 110 is approx item height
+                    scrollViewRef.current.scrollTo({ y: scrollY, animated: true });
+               }
+          }
+     }, [currentSubtitle, isPlaying, mode]);
      const togglePlay = () => {
           if (isPlaying) {
                setIsPlaying(false);
@@ -83,17 +93,9 @@ export const ShadowingPracticeScreen: React.FC = () => {
                }, 1000 / playbackSpeed);
           }
      };
-
-     const getCurrentSubtitle = () => {
-          return SUBTITLES.find(sub => currentTime >= sub.start && currentTime < sub.end);
-     };
-
-     const currentSubtitle = getCurrentSubtitle();
-
      const toggleRecording = () => {
           const nextState = !isRecording;
           setIsRecording(nextState);
-
           if (nextState) {
                // "Recording" started
                if (currentSubtitle) {
@@ -103,13 +105,11 @@ export const ShadowingPracticeScreen: React.FC = () => {
                }
           }
      };
-
      const formatTime = (seconds: number) => {
           const mins = Math.floor(seconds / 60);
           const secs = Math.floor(seconds % 60);
           return `${mins}:${secs.toString().padStart(2, '0')}`;
      };
-
      const handleSeek = (time: number) => {
           setCurrentTime(time);
           if (!isPlaying) {
@@ -118,7 +118,6 @@ export const ShadowingPracticeScreen: React.FC = () => {
                // If playing, continue playing from there (interval continues)
           }
      };
-
      return (
           <View style={styles.container}>
                <LinearGradient
@@ -128,7 +127,8 @@ export const ShadowingPracticeScreen: React.FC = () => {
                     style={styles.gradientBg}
                >
                     <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
-                         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                         {/* Fixed Top Section */}
+                         <View>
                               {/* Header */}
                               <LinearGradient
                                    colors={['#22C55E', '#10B981']}
@@ -142,7 +142,6 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                    >
                                         <Ionicons name="arrow-back" size={24} color="white" />
                                    </TouchableOpacity>
-
                                    <View style={styles.headerContent}>
                                         <Text style={styles.headerTitle}>{lesson.title || 'Lesson Title'}</Text>
                                         <View style={styles.accentBadge}>
@@ -151,13 +150,11 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                    </View>
                                    <Text style={styles.channelText}>{lesson.channel || 'Channel Name'}</Text>
                               </LinearGradient>
-
                               {/* Video Player Placeholder */}
                               <View style={styles.videoContainer}>
                                    <View style={styles.videoPlaceholder}>
                                         <Text style={{ fontSize: 60 }}>{lesson.thumbnail || '🎬'}</Text>
                                    </View>
-
                                    {/* Subtitles Overlay */}
                                    {currentSubtitle && (
                                         <Animated.View style={styles.subtitleOverlay}>
@@ -167,7 +164,6 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                              )}
                                         </Animated.View>
                                    )}
-
                                    {/* Play Overlay */}
                                    {!isPlaying && (
                                         <View style={styles.playButtonOverlayContainer}>
@@ -177,7 +173,6 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                         </View>
                                    )}
                               </View>
-
                               {/* Controls */}
                               <View style={[styles.controlsContainer, shadows.level1]}>
                                    {/* Progress Bar */}
@@ -190,7 +185,6 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                         </View>
                                         <Text style={styles.timeText}>{formatTime(totalDuration)}</Text>
                                    </View>
-
                                    {/* Buttons */}
                                    <View style={styles.controlsRow}>
                                         <View style={styles.leftControls}>
@@ -207,7 +201,6 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                                   <Ionicons name="refresh" size={24} color="#374151" />
                                              </TouchableOpacity>
                                         </View>
-
                                         <View style={styles.rightControls}>
                                              <TouchableOpacity
                                                   onPress={() => setPlaybackSpeed(playbackSpeed === 1 ? 0.75 : playbackSpeed === 0.75 ? 0.5 : 1)}
@@ -224,7 +217,6 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                         </View>
                                    </View>
                               </View>
-
                               {/* Mode Switcher */}
                               <View style={styles.modeContainer}>
                                    <View style={styles.modeSwitch}>
@@ -242,7 +234,14 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                         </TouchableOpacity>
                                    </View>
                               </View>
-
+                         </View>
+                         {/* Scrollable Bottom Section */}
+                         <ScrollView
+                              ref={scrollViewRef}
+                              contentContainerStyle={styles.scrollContent}
+                              showsVerticalScrollIndicator={false}
+                              style={{ flex: 1 }}
+                         >
                               {/* Shadow Mode - Recording Area */}
                               {mode === 'shadow' && (
                                    <Animated.View style={[styles.shadowArea, { opacity: fadeAnim }]}>
@@ -252,7 +251,6 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                         >
                                              <Text style={styles.shadowTitle}>🎯 Shadowing Mode</Text>
                                              <Text style={styles.shadowSubtitle}>Listen and repeat each sentence. Record your voice!</Text>
-
                                              <View style={{ alignItems: 'center', marginVertical: 20 }}>
                                                   <TouchableOpacity
                                                        onPress={toggleRecording}
@@ -264,11 +262,9 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                                        <Ionicons name="mic" size={32} color="white" />
                                                   </TouchableOpacity>
                                              </View>
-
                                              <Text style={styles.recordingStatus}>
                                                   {isRecording ? 'Recording... Speak now!' : 'Tap mic to start recording'}
                                              </Text>
-
                                              {currentSubtitle && (
                                                   <View style={styles.currentSentenceBox}>
                                                        <Text style={styles.currentSentenceText}>{currentSubtitle.text}</Text>
@@ -277,15 +273,12 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                         </LinearGradient>
                                    </Animated.View>
                               )}
-
                               {/* Transcript List */}
                               <View style={styles.transcriptContainer}>
                                    <Text style={styles.sectionHeader}>Subtitles ({SUBTITLES.length})</Text>
-
                                    {SUBTITLES.map((sub, index) => {
                                         const isActive = currentSubtitle?.id === sub.id;
                                         const isRecorded = recordedSegments.has(sub.id);
-
                                         return (
                                              <TouchableOpacity
                                                   key={sub.id}
@@ -301,7 +294,6 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                                   <View style={{ flex: 1 }}>
                                                        <Text style={[styles.subText, isActive && styles.subTextActive]}>{sub.text}</Text>
                                                        <Text style={[styles.subTranslation, isActive && styles.subTranslationActive]}>{sub.translation}</Text>
-
                                                        <View style={styles.subMetaRow}>
                                                             <Text style={styles.timestamp}>{formatTime(sub.start)} - {formatTime(sub.end)}</Text>
                                                             {isRecorded && (
@@ -316,7 +308,6 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                         );
                                    })}
                               </View>
-
                               {/* Progress Stats */}
                               <View style={styles.statsContainer}>
                                    <LinearGradient
@@ -340,14 +331,12 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                         </View>
                                    </LinearGradient>
                               </View>
-
                          </ScrollView>
                     </SafeAreaView>
                </LinearGradient>
           </View>
      );
 };
-
 const styles = StyleSheet.create({
      container: { flex: 1 },
      gradientBg: { flex: 1 },
