@@ -719,7 +719,7 @@ const styles = StyleSheet.create({
   phoneticText: { fontSize: typography.sizes.base, fontWeight: typography.weights.medium, color: colors.textSecondary, fontStyle: 'italic', opacity: 0.7 },
   slideDivider: { height: 1, backgroundColor: colors.borderLight, marginBottom: spacing.sm, opacity: 0.3 },
 
-  definitionText: { fontSize: typography.sizes.lg, color: colors.textPrimary, lineHeight: 28, fontWeight: typography.weights.semibold, marginBottom: spacing.md },
+  definitionText: { fontSize: typography.sizes.md, color: colors.textPrimary, lineHeight: 28, fontWeight: typography.weights.semibold, marginBottom: spacing.md },
   // Claymorphism example card - floating 3D clay tile
   exampleCard: {
     padding: 4,

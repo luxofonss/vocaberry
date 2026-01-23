@@ -5,6 +5,7 @@ export const colors = {
     primaryLight: '#A5A0F8',
     primaryLighter: '#D4D0FC',
     primarySoft: 'rgba(139, 124, 246, 0.12)',
+    primaryBlack: 'rgba(255,255,255,0.2)',
 
     // Secondary - Soft Mint
     secondary: '#5DD4CB',
@@ -49,8 +50,8 @@ export const colors = {
     white: '#FFFFFF',
 
     // Gradient colors for claymorphism
-    gradientCreamStart: '#FFFBF8',
-    gradientVioletEnd: '#F5F0FF',
+    gradientCreamStart: '#FFFFFF',
+    gradientVioletEnd: '#FFFFFF',
     gradientCardTop: '#FFFFFF',
     gradientCardBottom: '#FAF8F5',
     gradientButtonTop: '#9B8DF8',

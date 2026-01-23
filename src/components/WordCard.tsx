@@ -21,8 +21,8 @@ import { SpeechService } from '../services/SpeechService';
 
 // Grid configuration
 const GRID_CONFIG = {
-  standard: { columns: 2, sidePadding: spacing.screenPadding, gap: spacing.itemGap },
-  compact: { columns: 3, sidePadding: spacing.screenPadding, gap: spacing.itemGap },
+  standard: { columns: 3, sidePadding: spacing.screenPadding, gap: spacing.itemGap },
+  compact: { columns: 4, sidePadding: spacing.screenPadding, gap: spacing.itemGap },
 } as const;
 
 type CardVariant = 'standard' | 'compact';
@@ -178,7 +178,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: '100%',
     aspectRatio: 1,
-    borderRadius: borderRadius.xl,
+    borderRadius: borderRadius.md,
     backgroundColor: colors.cardSurface,
     overflow: 'hidden',
     position: 'relative',
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   wordLabel: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: '700',
     color: STYLES.textColor,
     textAlign: 'center',
