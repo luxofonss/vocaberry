@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors, shadows } from '../theme';
 import { TabType } from '../types';
+import { RocketIcon } from './icons/RocketIcon';
 
 // Icon assets
 const ICONS = {
@@ -111,11 +112,7 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
               styles.iconContainer,
               activeTab === 'discover' ? styles.iconEmbossed : styles.iconDebossed
             ]}>
-              <Image
-                source={ICONS.discover}
-                style={styles.tabIcon}
-                resizeMode="contain"
-              />
+              <RocketIcon size={34} />
             </View>
           </TouchableOpacity>
 

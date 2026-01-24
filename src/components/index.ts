@@ -26,4 +26,5 @@ export * from './CategoryFilter';
 export * from './icons/XIcon';
 export * from './icons/SkipIcon';
 export * from './icons/KeyboardIcon';
+export * from './icons/RocketIcon';
 

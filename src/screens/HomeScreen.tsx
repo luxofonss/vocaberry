@@ -218,6 +218,24 @@ export const HomeScreen: React.FC = () => {
     );
   }, []);
 
+  const handleDeleteConversation = useCallback(async (id: string) => {
+    Alert.alert(
+      'Remove Conversation',
+      'Are you sure you want to remove this conversation from your practice list?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            await StorageService.removePracticingConversation(id);
+            loadData();
+          }
+        },
+      ]
+    );
+  }, [loadData]);
+
   const toggleTopicExpand = useCallback((topic: string) => {
     setExpandedTopics(prev => ({ ...prev, [topic]: !prev[topic] }));
   }, []);
@@ -643,10 +661,7 @@ export const HomeScreen: React.FC = () => {
                           <Text style={{ fontSize: 12, color: colors.textLight, marginTop: 2 }}>{conv.category} • {conv.difficulty}</Text>
                         </View>
                         <TouchableOpacity
-                          onPress={async () => {
-                            const updated = await StorageService.removePracticingConversation(conv.id);
-                            setPracticingConversations(updated);
-                          }}
+                          onPress={() => handleDeleteConversation(conv.id)}
                           style={styles.actionBtn}
                         >
                           <TrashIcon size={24} />
