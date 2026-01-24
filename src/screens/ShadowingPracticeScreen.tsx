@@ -4,31 +4,63 @@ import {
      Text,
      StyleSheet,
      TouchableOpacity,
-     ScrollView,
-     Animated,
-     Dimensions,
-     Platform,
      Alert,
      ActivityIndicator,
      FlatList,
+     Modal,
+     ListRenderItemInfo,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Video, AVPlaybackStatus, ResizeMode, Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
-import * as FileSystem from 'expo-file-system';
 import { colors, shadows, spacing, typography, borderRadius } from '../theme';
-import { RootStackParamList } from '../types';
+import { RootStackParamList, Word } from '../types';
 import { AiService } from '../services/AiService';
+import { ClickableText } from '../components/ClickableText';
+import { DictionaryService } from '../services/DictionaryService';
+import { StorageService } from '../services/StorageService';
+import { WordPreviewModal } from '../components/WordPreviewModal';
+import { PronunciationDetailView } from '../components/PronunciationDetailView';
+import * as FileSystem from 'expo-file-system/legacy';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ShadowingPractice'>;
 type RouteProps = RouteProp<RootStackParamList, 'ShadowingPractice'>;
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+interface Subtitle {
+     id: number;
+     start: number;
+     end: number;
+     text: string;
+}
 
-const SUBTITLES = [
+interface PronunciationData {
+     pronScore: number;
+     accuracyScore: number;
+     fluencyScore: number;
+     completenessScore: number;
+     recognizedText: string;
+     words: any[];
+}
+
+interface SubtitleItemProps {
+     sub: Subtitle;
+     index: number;
+     isActive: boolean;
+     hasRecording: boolean;
+     score: number | undefined;
+     isAnalyzing: boolean;
+     isPlayingThis: boolean;
+     pronunciations: Record<number, PronunciationData>;
+     onSeek: () => void;
+     onPlay: () => void;
+     onPlayRecording: () => void;
+     onWordPress: (text: string) => void;
+     onScorePress: () => void;
+}
+
+const RAW_SUBTITLES: Subtitle[] = [
      { id: 1, start: 2.35, end: 4.99, text: "What's stopping you? Are you too tired?" },
      { id: 2, start: 5.509, end: 7.629, text: "Didn't get enough sleep?" },
      { id: 3, start: 7.629, end: 10.38, text: "Don't have enough energy?" },
@@ -68,32 +100,173 @@ const SUBTITLES = [
      { id: 37, start: 162.319, end: 169.86, text: "You still got work to do. Stay on that basketball court. Stay on that football field. It's grind season, homie." },
 ];
 
+const normalizeSubtitles = (subtitles: Subtitle[]): Subtitle[] => {
+     if (subtitles.length === 0) return [];
+
+     const normalized = subtitles.map(sub => ({ ...sub }));
+
+     normalized[0] = {
+          ...normalized[0],
+          start: normalized[0].start / 2,
+     };
+
+     for (let i = 1; i < normalized.length; i++) {
+          const prevItem = normalized[i - 1];
+          const currentItem = normalized[i];
+
+          const gap = currentItem.start - prevItem.end;
+
+          if (gap > 0) {
+               const halfGap = gap / 2;
+
+               normalized[i - 1] = {
+                    ...prevItem,
+                    end: prevItem.end + halfGap,
+               };
+
+               normalized[i] = {
+                    ...currentItem,
+                    start: currentItem.start - halfGap,
+               };
+          }
+     }
+
+     return normalized;
+};
+
+const SUBTITLES: Subtitle[] = RAW_SUBTITLES;
+
+const SubtitleItem = React.memo<SubtitleItemProps>(({
+     sub,
+     index,
+     isActive,
+     hasRecording,
+     score,
+     isAnalyzing,
+     isPlayingThis,
+     pronunciations,
+     onSeek,
+     onPlay,
+     onPlayRecording,
+     onWordPress,
+     onScorePress
+}) => {
+     return (
+          <View
+               style={[
+                    styles.subItem,
+                    isActive && styles.subItemActive,
+                    hasRecording && styles.subItemRecorded
+               ]}
+          >
+               <TouchableOpacity
+                    style={styles.subContent}
+                    onPress={onSeek}
+                    activeOpacity={0.7}
+               >
+                    <View style={[styles.subIndex, isActive && styles.subIndexActive]}>
+                         <Text style={[styles.subIndexText, isActive && styles.subIndexTextActive]}>{index + 1}</Text>
+                    </View>
+                    <View style={styles.subBody}>
+                         <ClickableText
+                              text={sub.text}
+                              onWordPress={onWordPress}
+                              style={[styles.subText, isActive && styles.subActiveText]}
+                              feedback={pronunciations[sub.id]}
+                         />
+
+                         {isAnalyzing && (
+                              <View style={styles.analyzingRow}>
+                                   <ActivityIndicator size="small" color={colors.primary} />
+                                   <Text style={styles.analyzingText}>Analyzing...</Text>
+                              </View>
+                         )}
+
+                         {!isAnalyzing && score !== undefined && (
+                              <TouchableOpacity
+                                   style={[
+                                        styles.scoreBadge,
+                                        score >= 80 ? styles.scoreHigh : score >= 50 ? styles.scoreMid : styles.scoreLow
+                                   ]}
+                                   onPress={onScorePress}
+                                   activeOpacity={0.7}
+                              >
+                                   <Text style={styles.scoreText}>{score}%</Text>
+                                   <Ionicons name="information-circle" size={14} color={colors.textSecondary} style={{ marginLeft: 4 }} />
+                              </TouchableOpacity>
+                         )}
+                    </View>
+               </TouchableOpacity>
+
+               <View style={styles.itemActions}>
+                    <TouchableOpacity
+                         style={styles.miniActionBtn}
+                         onPress={onPlay}
+                         activeOpacity={0.7}
+                         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                         <Ionicons name="volume-high-outline" size={18} color={colors.textSecondary} />
+                    </TouchableOpacity>
+
+                    {hasRecording && (
+                         <TouchableOpacity
+                              style={styles.miniActionBtn}
+                              onPress={onPlayRecording}
+                              activeOpacity={0.7}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                         >
+                              <Ionicons
+                                   name={isPlayingThis ? "stop-circle" : "play-circle"}
+                                   size={18}
+                                   color={isPlayingThis ? colors.primary : colors.textSecondary}
+                              />
+                         </TouchableOpacity>
+                    )}
+               </View>
+          </View>
+     );
+});
+
+SubtitleItem.displayName = 'SubtitleItem';
+
 export const ShadowingPracticeScreen: React.FC = () => {
      const navigation = useNavigation<NavigationProp>();
      const route = useRoute<RouteProps>();
      const lesson = route.params;
 
      const videoRef = useRef<Video>(null);
-     const flatListRef = useRef<FlatList>(null);
+     const flatListRef = useRef<FlatList<Subtitle>>(null);
      const audioRecorder = useRef<Audio.Recording | null>(null);
      const playbackSound = useRef<Audio.Sound | null>(null);
+     const recordingStartTime = useRef<number>(0);
+     const shouldBeRecording = useRef<boolean>(false);
+
+     // Video Control Refs
+     const isSeekingRef = useRef<boolean>(false); // Blocks status updates during seek
+     const stopAtRef = useRef<number | null>(null);
+     const isProcessingRef = useRef<boolean>(false);
 
      const [status, setStatus] = useState<AVPlaybackStatus>({} as AVPlaybackStatus);
-     const [currentTime, setCurrentTime] = useState(0);
-
-     type Subtitle = typeof SUBTITLES[number];
+     const [currentTime, setCurrentTime] = useState<number>(0);
      const [subtitles, setSubtitles] = useState<Subtitle[]>(SUBTITLES);
+     const [stopAt, setStopAt] = useState<number | null>(null);
+     const [isVideoReady, setIsVideoReady] = useState<boolean>(false);
+     const [isSeeking, setIsSeeking] = useState<boolean>(false);
 
-     // Recording & Scoring State
-     const [isRecording, setIsRecording] = useState(false);
+     const [isRecording, setIsRecording] = useState<boolean>(false);
      const [analyzingId, setAnalyzingId] = useState<number | null>(null);
      const [userRecordings, setUserRecordings] = useState<Record<number, string>>({});
      const [scores, setScores] = useState<Record<number, number>>({});
+     const [pronunciations, setPronunciations] = useState<Record<number, PronunciationData>>({});
      const [playingUserAudioId, setPlayingUserAudioId] = useState<number | null>(null);
-     const [isPlayingAll, setIsPlayingAll] = useState(false);
+     const [isPlayingAll, setIsPlayingAll] = useState<boolean>(false);
 
-     // Helper for single segment playback
-     const [stopAt, setStopAt] = useState<number | null>(null);
+     const [modalVisible, setModalVisible] = useState<boolean>(false);
+     const [selectedWordData, setSelectedWordData] = useState<Word | null>(null);
+     const [isSelectedWordNew, setIsSelectedWordNew] = useState<boolean>(false);
+
+     const [detailModalVisible, setDetailModalVisible] = useState<boolean>(false);
+     const [selectedPronunciation, setSelectedPronunciation] = useState<PronunciationData | null>(null);
 
      const currentSubtitle = subtitles.find(sub => currentTime >= sub.start && currentTime < sub.end);
 
@@ -106,7 +279,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
           };
      }, []);
 
-     const setupAudioMode = async () => {
+     const setupAudioMode = async (): Promise<void> => {
           try {
                await Audio.setAudioModeAsync({
                     allowsRecordingIOS: true,
@@ -122,50 +295,135 @@ export const ShadowingPracticeScreen: React.FC = () => {
           }
      };
 
-     // Handle status updates from the video player
-     const onPlaybackStatusUpdate = (status: AVPlaybackStatus) => {
-          setStatus(status);
-          if (status.isLoaded) {
-               const timeInSeconds = status.positionMillis / 1000;
-               setCurrentTime(timeInSeconds);
+     // Simplified status update handler
+     const onPlaybackStatusUpdate = useCallback((newStatus: AVPlaybackStatus): void => {
+          setStatus(newStatus);
 
-               // Stop partial playback
-               if (stopAt !== null && timeInSeconds >= stopAt) {
-                    videoRef.current?.pauseAsync();
-                    setStopAt(null);
-               }
+          if (!newStatus.isLoaded) return;
+
+          // Don't update time or check stop triggers while seeking manually
+          if (isSeekingRef.current) return;
+
+          const timeInSeconds = newStatus.positionMillis / 1000;
+          setCurrentTime(timeInSeconds);
+
+          // Check for auto-stop point (for Play Segment functionality)
+          if (stopAtRef.current !== null && timeInSeconds >= stopAtRef.current) {
+               // Reached end of segment
+               videoRef.current?.pauseAsync();
+               stopAtRef.current = null;
+               setIsPlayingAll(false); // Stop "Play My Recordings" loop if active
           }
-     };
+     }, []);
 
-     // Auto-scroll logic
+     // Simplified Play Segment
+     const playSegment = useCallback(async (sub: Subtitle): Promise<void> => {
+          if (!videoRef.current || isProcessingRef.current) return;
+
+          // Optimistic UI: Update active state immediately
+          setCurrentTime(sub.start);
+
+          try {
+               isProcessingRef.current = true;
+               isSeekingRef.current = true;
+               stopAtRef.current = sub.end; // Set stop point
+
+               // 1. Hard Pause first to ensure stable state
+               if (status.isLoaded && status.isPlaying) {
+                    await videoRef.current.pauseAsync();
+               }
+
+               // 2. Seek securely
+               await videoRef.current.setPositionAsync(sub.start * 1000, {
+                    toleranceMillisBefore: 0,
+                    toleranceMillisAfter: 0
+               });
+
+               // 3. Play
+               await videoRef.current.playAsync();
+
+          } catch (error) {
+               console.error('Play segment failed:', error);
+          } finally {
+               setTimeout(() => {
+                    isSeekingRef.current = false;
+                    isProcessingRef.current = false;
+               }, 100);
+          }
+     }, []);
+
+     // Simplified Seek To Subtitle
+     const seekToSubtitle = useCallback(async (sub: Subtitle): Promise<void> => {
+          if (!videoRef.current || isProcessingRef.current) return;
+
+          // Optimistic UI: Update active state immediately
+          setCurrentTime(sub.start);
+
+          try {
+               isProcessingRef.current = true;
+               isSeekingRef.current = true;
+               stopAtRef.current = null; // Clear pending stop
+
+               // 1. Hard Pause first
+               if (status.isLoaded && status.isPlaying) {
+                    await videoRef.current.pauseAsync();
+               }
+
+               // 2. Seek securely
+               await videoRef.current.setPositionAsync(sub.start * 1000, {
+                    toleranceMillisBefore: 0,
+                    toleranceMillisAfter: 0
+               });
+
+               // Force update current time immediately for UI responsiveness
+               setCurrentTime(sub.start);
+
+          } catch (error) {
+               console.error('Seek failed:', error);
+          } finally {
+               setTimeout(() => {
+                    isSeekingRef.current = false;
+                    isProcessingRef.current = false;
+               }, 100);
+          }
+     }, [status]);
+
      useEffect(() => {
           if (currentSubtitle && flatListRef.current && !isPlayingAll) {
                const index = subtitles.findIndex(s => s.id === currentSubtitle.id);
                if (index !== -1) {
-                    // Center the active item (viewPosition: 0.3 means 30% from top)
-                    flatListRef.current.scrollToIndex({ index, animated: true, viewPosition: 0.3 });
+                    flatListRef.current.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
                }
           }
      }, [currentSubtitle?.id, isPlayingAll]);
 
-     const playSegment = async (sub: Subtitle) => {
-          if (!videoRef.current) return;
-          setStopAt(sub.end);
-          await videoRef.current.setPositionAsync(sub.start * 1000);
-          await videoRef.current.playAsync();
+     const cleanupRecorder = async (): Promise<void> => {
+          if (audioRecorder.current) {
+               try {
+                    await audioRecorder.current.stopAndUnloadAsync();
+               } catch (e) {
+                    console.log('Cleanup warning:', e);
+               }
+               audioRecorder.current = null;
+          }
      };
 
-     const startRecording = async () => {
+     const startRecording = async (): Promise<void> => {
           if (!currentSubtitle) {
                Alert.alert("Notice", "Wait for a subtitle to appear or select one first.");
                return;
           }
 
+          shouldBeRecording.current = true;
+          setIsRecording(true);
+
           try {
-               // Pause video if playing
-               if (status.isLoaded && status.isPlaying) {
-                    await videoRef.current?.pauseAsync();
-               }
+               const cleanupPromise = cleanupRecorder();
+               const pausePromise = (status.isLoaded && status.isPlaying)
+                    ? videoRef.current?.pauseAsync()
+                    : Promise.resolve();
+
+               await Promise.all([cleanupPromise, pausePromise]);
 
                await Audio.setAudioModeAsync({
                     allowsRecordingIOS: true,
@@ -177,37 +435,90 @@ export const ShadowingPracticeScreen: React.FC = () => {
                     playThroughEarpieceAndroid: false,
                });
 
-               const { status: permStatus } = await Audio.requestPermissionsAsync();
-               if (permStatus !== 'granted') return;
+               const { status: existingStatus } = await Audio.getPermissionsAsync();
+               let finalStatus = existingStatus;
+
+               if (existingStatus !== 'granted') {
+                    const { status: newStatus } = await Audio.requestPermissionsAsync();
+                    finalStatus = newStatus;
+               }
+
+               if (finalStatus !== 'granted') {
+                    setIsRecording(false);
+                    return;
+               }
+
+               if (!shouldBeRecording.current) {
+                    setIsRecording(false);
+                    return;
+               }
 
                const recording = new Audio.Recording();
-               await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-               await recording.startAsync();
+               try {
+                    await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
 
-               audioRecorder.current = recording;
-               setIsRecording(true);
+                    if (!shouldBeRecording.current) {
+                         try {
+                              await recording.stopAndUnloadAsync();
+                         } catch (cleanupErr) { }
+                         setIsRecording(false);
+                         return;
+                    }
+
+                    await recording.startAsync();
+
+                    audioRecorder.current = recording;
+                    recordingStartTime.current = Date.now();
+                    setIsRecording(true);
+
+                    if (!shouldBeRecording.current) {
+                         await stopRecording();
+                    }
+               } catch (err) {
+                    console.error('Recording prepare/start failed', err);
+                    if (!audioRecorder.current) {
+                         try {
+                              await recording.stopAndUnloadAsync();
+                         } catch (e) { }
+                    }
+                    await cleanupRecorder();
+                    setIsRecording(false);
+               }
 
           } catch (error) {
                console.error('Failed to start recording', error);
+               setIsRecording(false);
           }
      };
 
-     const stopRecording = async () => {
-          if (!audioRecorder.current || !currentSubtitle) return;
+     const stopRecording = async (): Promise<void> => {
+          shouldBeRecording.current = false;
+
+          if (!audioRecorder.current) {
+               setIsRecording(false);
+               return;
+          }
 
           try {
                setIsRecording(false);
                await audioRecorder.current.stopAndUnloadAsync();
                const uri = audioRecorder.current.getURI();
+               const duration = Date.now() - recordingStartTime.current;
+
                audioRecorder.current = null;
 
-               if (uri) {
+               if (duration < 600) {
+                    Alert.alert("Hold to record", "Please hold the button while speaking.");
+                    await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+                    return;
+               }
+
+               if (uri && currentSubtitle) {
                     const targetId = currentSubtitle.id;
                     setUserRecordings(prev => ({ ...prev, [targetId]: uri }));
                     analyzePronunciation(targetId, currentSubtitle.text, uri);
                }
 
-               // Restore audio mode for playback
                await Audio.setAudioModeAsync({
                     allowsRecordingIOS: false,
                     playsInSilentModeIOS: true,
@@ -218,18 +529,9 @@ export const ShadowingPracticeScreen: React.FC = () => {
           }
      };
 
-     const analyzePronunciation = async (id: number, text: string, uri: string) => {
+     const analyzePronunciation = async (id: number, text: string, uri: string): Promise<void> => {
           setAnalyzingId(id);
           try {
-               // 1. Give the OS time to flush the file content to disk
-               await new Promise(resolve => setTimeout(resolve, 500));
-
-               // 2. Validate file health
-               const fileInfo = await FileSystem.getInfoAsync(uri);
-               if (!fileInfo.exists || fileInfo.size === 0) {
-                    throw new Error('Recording file is missing or empty. Please record again.');
-               }
-
                const base64Audio = await FileSystem.readAsStringAsync(uri, {
                     encoding: 'base64',
                });
@@ -239,20 +541,19 @@ export const ShadowingPracticeScreen: React.FC = () => {
                     `data:audio/wav;base64,${base64Audio.trim()}`
                );
 
-               // Validate response data
                if (!response || !response.data) {
                     throw new Error('Something went wrong, please try again later!');
                }
 
                const data = response.data;
 
-               // Check if required fields exist
                if (typeof data.pronScore === 'undefined') {
                     console.error('API Error Response:', data);
                     throw new Error('Invalid response from AI service.');
                }
 
                setScores(prev => ({ ...prev, [id]: data.pronScore }));
+               setPronunciations(prev => ({ ...prev, [id]: data }));
 
           } catch (error) {
                console.error('Analysis failed', error);
@@ -263,7 +564,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
           }
      };
 
-     const playUserRecording = async (id: number) => {
+     const playUserRecording = async (id: number): Promise<void> => {
           const uri = userRecordings[id];
           if (!uri) return;
 
@@ -274,8 +575,8 @@ export const ShadowingPracticeScreen: React.FC = () => {
                setPlayingUserAudioId(id);
                const { sound } = await Audio.Sound.createAsync({ uri });
                playbackSound.current = sound;
-               sound.setOnPlaybackStatusUpdate((status) => {
-                    if (status.isLoaded && status.didJustFinish) {
+               sound.setOnPlaybackStatusUpdate((playStatus) => {
+                    if (playStatus.isLoaded && playStatus.didJustFinish) {
                          setPlayingUserAudioId(null);
                     }
                });
@@ -286,7 +587,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
           }
      };
 
-     const playAllRecordings = async () => {
+     const playAllRecordings = async (): Promise<void> => {
           setIsPlayingAll(true);
           const recordingIds = Object.keys(userRecordings).map(Number).sort((a, b) => a - b);
 
@@ -297,9 +598,8 @@ export const ShadowingPracticeScreen: React.FC = () => {
           }
 
           for (const id of recordingIds) {
-               if (!isPlayingAll) break; // Check cancel flag (imperfect but helps)
+               if (!isPlayingAll) break;
 
-               // Scroll to item
                const index = subtitles.findIndex(s => s.id === id);
                if (index !== -1 && flatListRef.current) {
                     flatListRef.current.scrollToIndex({ index, animated: true, viewPosition: 0.3 });
@@ -312,8 +612,8 @@ export const ShadowingPracticeScreen: React.FC = () => {
                          if (playbackSound.current) await playbackSound.current.unloadAsync();
                          const { sound } = await Audio.Sound.createAsync({ uri });
                          playbackSound.current = sound;
-                         sound.setOnPlaybackStatusUpdate((status) => {
-                              if (status.isLoaded && status.didJustFinish) {
+                         sound.setOnPlaybackStatusUpdate((playStatus) => {
+                              if (playStatus.isLoaded && playStatus.didJustFinish) {
                                    resolve();
                               }
                          });
@@ -323,16 +623,105 @@ export const ShadowingPracticeScreen: React.FC = () => {
                     }
                });
                setPlayingUserAudioId(null);
-               await new Promise(r => setTimeout(r, 500)); // gap
+               await new Promise(r => setTimeout(r, 500));
           }
           setIsPlayingAll(false);
           setPlayingUserAudioId(null);
      };
 
+     const handleWordPress = useCallback(async (text: string): Promise<void> => {
+          try {
+               const result = await DictionaryService.lookup(text);
+
+               if (!result) {
+                    Alert.alert('Not Found', `Could not find "${text}" or it has no definition.`);
+                    return;
+               }
+
+               if (!result.isNew) {
+                    navigation.navigate('WordDetail', { wordId: result.word.id });
+                    return;
+               }
+
+               setSelectedWordData(result.word);
+               setIsSelectedWordNew(true);
+               setModalVisible(true);
+          } catch (error: any) {
+               console.log('Lookup failed', error);
+               Alert.alert('Error', error.message || 'Lookup failed');
+          }
+     }, [navigation]);
+
+     const handleSaveNewWord = useCallback(async (newWord: Word): Promise<void> => {
+          try {
+               await StorageService.addWord(newWord);
+               setIsSelectedWordNew(false);
+               Alert.alert('Saved!', `"${newWord.word}" added to your library.`);
+               setModalVisible(false);
+          } catch (error: any) {
+               Alert.alert('Error', error.message || 'Could not save word.');
+          }
+     }, []);
+
+     const handleGoToDetail = useCallback((id: string): void => {
+          setModalVisible(false);
+          navigation.push('WordDetail', { wordId: id });
+     }, [navigation]);
+
+     const renderItem = useCallback(({ item, index }: ListRenderItemInfo<Subtitle>) => {
+          const isActive = currentSubtitle?.id === item.id;
+          const hasRecording = !!userRecordings[item.id];
+          const score = scores[item.id];
+          const isAnalyzing = analyzingId === item.id;
+          const isPlayingThis = playingUserAudioId === item.id;
+
+          return (
+               <SubtitleItem
+                    sub={item}
+                    index={index}
+                    isActive={isActive}
+                    hasRecording={hasRecording}
+                    score={score}
+                    isAnalyzing={isAnalyzing}
+                    isPlayingThis={isPlayingThis}
+                    pronunciations={pronunciations}
+                    onSeek={() => seekToSubtitle(item)}
+                    onPlay={() => playSegment(item)}
+                    onPlayRecording={() => playUserRecording(item.id)}
+                    onWordPress={handleWordPress}
+                    onScorePress={() => {
+                         if (pronunciations[item.id]) {
+                              setSelectedPronunciation(pronunciations[item.id]);
+                              setDetailModalVisible(true);
+                         }
+                    }}
+               />
+          );
+     }, [
+          currentSubtitle,
+          userRecordings,
+          scores,
+          analyzingId,
+          playingUserAudioId,
+          pronunciations,
+          isSeeking,
+          seekToSubtitle,
+          playSegment,
+          playUserRecording,
+          handleWordPress
+     ]);
+
+     const getItemLayout = useCallback((data: ArrayLike<Subtitle> | null | undefined, index: number) => ({
+          length: 90,
+          offset: 90 * index,
+          index,
+     }), []);
+
+     const keyExtractor = useCallback((item: Subtitle) => `sub-${item.id}`, []);
+
      return (
           <View style={styles.container}>
                <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
-                    {/* Header */}
                     <View style={styles.header}>
                          <TouchableOpacity
                               onPress={() => navigation.goBack()}
@@ -346,7 +735,6 @@ export const ShadowingPracticeScreen: React.FC = () => {
                          </View>
                     </View>
 
-                    {/* Video Section - Top */}
                     <View style={styles.videoWrapper}>
                          <Video
                               ref={videoRef}
@@ -356,10 +744,10 @@ export const ShadowingPracticeScreen: React.FC = () => {
                               resizeMode={ResizeMode.CONTAIN}
                               isLooping={false}
                               onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+                              onLoad={() => setIsVideoReady(true)}
                          />
                     </View>
 
-                    {/* Transcript Header */}
                     <View style={styles.transcriptHeaderRow}>
                          <Text style={styles.sectionHeader}>Transcript ({subtitles.length})</Text>
                          <TouchableOpacity
@@ -373,119 +761,72 @@ export const ShadowingPracticeScreen: React.FC = () => {
                          </TouchableOpacity>
                     </View>
 
-                    {/* Transcript List - Middle */}
-                    <FlatList
+                    <FlatList<Subtitle>
                          ref={flatListRef}
                          data={subtitles}
                          style={styles.transcriptList}
                          contentContainerStyle={styles.transcriptContent}
                          showsVerticalScrollIndicator={false}
-                         keyExtractor={(item) => item.id.toString()}
+                         keyExtractor={keyExtractor}
+                         renderItem={renderItem}
+                         getItemLayout={getItemLayout}
+                         removeClippedSubviews={true}
+                         maxToRenderPerBatch={10}
+                         windowSize={11}
+                         initialNumToRender={10}
                          onScrollToIndexFailed={info => {
                               const wait = new Promise(resolve => setTimeout(resolve, 500));
                               wait.then(() => {
-                                   flatListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.3 });
+                                   flatListRef.current?.scrollToIndex({
+                                        index: info.index,
+                                        animated: true,
+                                        viewPosition: 0.3
+                                   });
                               });
-                         }}
-                         renderItem={({ item: sub, index }) => {
-                              const isActive = currentSubtitle?.id === sub.id;
-                              const hasRecording = !!userRecordings[sub.id];
-                              const score = scores[sub.id];
-                              const isAnalyzing = analyzingId === sub.id;
-                              const isPlayingThis = playingUserAudioId === sub.id;
-
-                              return (
-                                   <View
-                                        style={[
-                                             styles.subItem,
-                                             isActive && styles.subItemActive,
-                                             hasRecording && styles.subItemRecorded
-                                        ]}
-                                   >
-                                        <TouchableOpacity
-                                             style={styles.subContent}
-                                             onPress={() => playSegment(sub)}
-                                        >
-                                             <View style={[styles.subIndex, isActive && styles.subIndexActive]}>
-                                                  <Text style={[styles.subIndexText, isActive && styles.subIndexTextActive]}>{index + 1}</Text>
-                                             </View>
-                                             <View style={styles.subBody}>
-                                                  <Text style={[styles.subText, isActive && styles.subActiveText]}>{sub.text}</Text>
-
-                                                  {/* Score & Loading Indicator */}
-                                                  {isAnalyzing && (
-                                                       <View style={styles.analyzingRow}>
-                                                            <ActivityIndicator size="small" color={colors.primary} />
-                                                            <Text style={styles.analyzingText}>Analyzing...</Text>
-                                                       </View>
-                                                  )}
-
-                                                  {!isAnalyzing && score !== undefined && (
-                                                       <View style={[styles.scoreBadge, score >= 80 ? styles.scoreHigh : score >= 50 ? styles.scoreMid : styles.scoreLow]}>
-                                                            <Text style={styles.scoreText}>{score}%</Text>
-                                                       </View>
-                                                  )}
-                                             </View>
-                                        </TouchableOpacity>
-
-                                        {/* Action Buttons for this item */}
-                                        <View style={styles.itemActions}>
-                                             {/* Play Original */}
-                                             <TouchableOpacity
-                                                  style={styles.miniActionBtn}
-                                                  onPress={() => playSegment(sub)}
-                                             >
-                                                  <Ionicons name="volume-high-outline" size={18} color={colors.textSecondary} />
-                                             </TouchableOpacity>
-
-                                             {/* Play Recording */}
-                                             {hasRecording && (
-                                                  <TouchableOpacity
-                                                       style={styles.miniActionBtn}
-                                                       onPress={() => playUserRecording(sub.id)}
-                                                  >
-                                                       <Ionicons
-                                                            name={isPlayingThis ? "stop-circle" : "play-circle"}
-                                                            size={18}
-                                                            color={isPlayingThis ? colors.primary : colors.textSecondary}
-                                                       />
-                                                  </TouchableOpacity>
-                                             )}
-                                        </View>
-                                   </View>
-                              );
                          }}
                     />
 
-                    {/* Bottom Controls - Sticky */}
-                    <View style={[
-                         styles.bottomControls,
-                         {
-                              shadowColor: '#000',
-                              shadowOffset: { width: 0, height: -4 },
-                              shadowOpacity: 0.1,
-                              shadowRadius: 4,
-                              elevation: 10,
-                         }
-                    ]}>
-                         {/* Big Mic Button */}
+                    <View style={styles.bottomControls}>
                          <View style={styles.recordContainer}>
-                              <Text style={styles.recordHint}>
-                                   {isRecording
-                                        ? "Recording... Tap to stop"
-                                        : currentSubtitle
-                                             ? "Tap mic to record this sentence"
-                                             : "Play video to select a sentence"}
-                              </Text>
                               <TouchableOpacity
                                    style={[styles.mainMicBtn, isRecording && styles.mainMicBtnActive]}
-                                   onPress={isRecording ? stopRecording : startRecording}
-                                   disabled={!currentSubtitle && !isRecording}
+                                   onPressIn={startRecording}
+                                   onPressOut={stopRecording}
+                                   disabled={!currentSubtitle}
                               >
                                    <Ionicons name="mic" size={32} color="white" />
                               </TouchableOpacity>
                          </View>
                     </View>
+
+                    <WordPreviewModal
+                         visible={modalVisible}
+                         wordData={selectedWordData}
+                         isNew={isSelectedWordNew}
+                         onClose={() => setModalVisible(false)}
+                         onSave={handleSaveNewWord}
+                         onGoToDetail={handleGoToDetail}
+                    />
+
+                    <Modal
+                         visible={detailModalVisible}
+                         animationType="slide"
+                         presentationStyle="pageSheet"
+                         onRequestClose={() => setDetailModalVisible(false)}
+                    >
+                         {selectedPronunciation && (
+                              <PronunciationDetailView
+                                   recognizedText={selectedPronunciation.recognizedText}
+                                   accuracyScore={selectedPronunciation.accuracyScore}
+                                   fluencyScore={selectedPronunciation.fluencyScore}
+                                   completenessScore={selectedPronunciation.completenessScore}
+                                   pronScore={selectedPronunciation.pronScore}
+                                   words={selectedPronunciation.words}
+                                   onClose={() => setDetailModalVisible(false)}
+                                   compact={false}
+                              />
+                         )}
+                    </Modal>
 
                </SafeAreaView>
           </View>
@@ -568,7 +909,7 @@ const styles = StyleSheet.create({
      transcriptContent: {
           paddingHorizontal: spacing.screenPadding,
           paddingTop: 16,
-          paddingBottom: 100, // Space for bottom controls
+          paddingBottom: 100,
      },
      subItem: {
           flexDirection: 'row',
@@ -586,7 +927,7 @@ const styles = StyleSheet.create({
           borderWidth: 1.5,
      },
      subItemRecorded: {
-          borderColor: '#BBF7D0', // Greenish border if recorded
+          borderColor: '#BBF7D0',
      },
      subContent: {
           flex: 1,
@@ -639,14 +980,17 @@ const styles = StyleSheet.create({
      },
      scoreBadge: {
           alignSelf: 'flex-start',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
           marginTop: 6,
           paddingHorizontal: 8,
           paddingVertical: 2,
           borderRadius: 6,
      },
-     scoreHigh: { backgroundColor: '#DCFCE7' }, // Green
-     scoreMid: { backgroundColor: '#FEF9C3' }, // Yellow
-     scoreLow: { backgroundColor: '#FEE2E2' }, // Red
+     scoreHigh: { backgroundColor: '#DCFCE7' },
+     scoreMid: { backgroundColor: '#FEF9C3' },
+     scoreLow: { backgroundColor: '#FEE2E2' },
      scoreText: {
           fontSize: 11,
           fontWeight: '700',
@@ -677,16 +1021,15 @@ const styles = StyleSheet.create({
           borderTopLeftRadius: 24,
           borderTopRightRadius: 24,
           alignItems: 'center',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
           elevation: 10,
      },
      recordContainer: {
           alignItems: 'center',
           width: '100%',
-     },
-     recordHint: {
-          fontSize: 13,
-          color: colors.textSecondary,
-          marginBottom: 12,
      },
      mainMicBtn: {
           width: 64,
@@ -702,7 +1045,7 @@ const styles = StyleSheet.create({
           elevation: 6,
      },
      mainMicBtnActive: {
-          backgroundColor: '#EF4444', // Red
+          backgroundColor: '#EF4444',
           shadowColor: '#EF4444',
      },
 });
