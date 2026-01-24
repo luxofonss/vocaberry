@@ -18,7 +18,7 @@ export const BackIcon: React.FC<BackIconProps> = ({
 }) => {
      return (
           <Image
-               source={require('../../../assets/back.png')}
+               source={require('../../../assets/back.webp')}
                style={[
                     { width: size, height: size },
                     tintColor ? { tintColor } : null,

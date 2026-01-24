@@ -18,7 +18,7 @@ export const RocketIcon: React.FC<RocketIconProps> = ({
 }) => {
      return (
           <Image
-               source={require('../../../assets/rocket.png')}
+               source={require('../../../assets/rocket.webp')}
                style={[
                     { width: size, height: size },
                     tintColor ? { tintColor } : null,

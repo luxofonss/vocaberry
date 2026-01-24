@@ -18,7 +18,7 @@ export const FireIcon: React.FC<FireIconProps> = ({
 }) => {
      return (
           <Image
-               source={require('../../../assets/fire.png')}
+               source={require('../../../assets/fire.webp')}
                style={[
                     { width: size, height: size },
                     tintColor ? { tintColor } : null,

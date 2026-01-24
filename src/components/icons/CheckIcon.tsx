@@ -18,7 +18,7 @@ export const CheckIcon: React.FC<CheckIconProps> = ({
 }) => {
      return (
           <Image
-               source={require('../../../assets/check.png')}
+               source={require('../../../assets/check.webp')}
                style={[
                     { width: size, height: size },
                     tintColor ? { tintColor } : null,

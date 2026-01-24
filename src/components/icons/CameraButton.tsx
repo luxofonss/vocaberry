@@ -49,7 +49,7 @@ export const CameraButton: React.FC<CameraButtonProps> = ({
                     style={styles.button}
                >
                     <Image
-                         source={require('../../../assets/camera.png')}
+                         source={require('../../../assets/camera.webp')}
                          style={{ width: size, height: size }}
                          resizeMode="contain"
                     />

@@ -12,7 +12,7 @@ module.exports = {
     newArchEnabled: true,
     jsEngine: "hermes",
     splash: {
-      image: "./assets/splash-icon.png",
+      image: "./assets/splash-icon.webp",
       resizeMode: "contain",
       backgroundColor: "#ffffff"
     },
