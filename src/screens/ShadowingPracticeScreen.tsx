@@ -203,7 +203,7 @@ const SubtitleItem = React.memo<SubtitleItemProps>(({
                          activeOpacity={0.7}
                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                         <Ionicons name="volume-high-outline" size={18} color={colors.textSecondary} />
+                         <Ionicons name="volume-high-outline" size={22} color={colors.textSecondary} />
                     </TouchableOpacity>
 
                     {hasRecording && (
@@ -215,7 +215,7 @@ const SubtitleItem = React.memo<SubtitleItemProps>(({
                          >
                               <Ionicons
                                    name={isPlayingThis ? "stop-circle" : "play-circle"}
-                                   size={18}
+                                   size={22}
                                    color={isPlayingThis ? colors.primary : colors.textSecondary}
                               />
                          </TouchableOpacity>
@@ -250,6 +250,8 @@ export const ShadowingPracticeScreen: React.FC = () => {
      const [stopAt, setStopAt] = useState<number | null>(null);
      const [isVideoReady, setIsVideoReady] = useState<boolean>(false);
      const [isSeeking, setIsSeeking] = useState<boolean>(false);
+     const [rate, setRate] = useState<number>(1.0);
+     const [showSpeedModal, setShowSpeedModal] = useState<boolean>(false);
 
      const [isRecording, setIsRecording] = useState<boolean>(false);
      const [analyzingId, setAnalyzingId] = useState<number | null>(null);
@@ -258,6 +260,68 @@ export const ShadowingPracticeScreen: React.FC = () => {
      const [pronunciations, setPronunciations] = useState<Record<number, PronunciationData>>({});
      const [playingUserAudioId, setPlayingUserAudioId] = useState<number | null>(null);
      const [isPlayingAll, setIsPlayingAll] = useState<boolean>(false);
+
+     // --- Manual Video Controls ---
+     const handlePlayPause = async () => {
+          if (!videoRef.current || isProcessingRef.current || !status.isLoaded) return;
+          // @ts-ignore
+          if (status.isPlaying) {
+               await videoRef.current.pauseAsync();
+          } else {
+               stopAtRef.current = null;
+               setIsPlayingAll(false);
+               await videoRef.current.playAsync();
+          }
+     };
+
+     const handlePrevNext = async (direction: -1 | 1) => {
+          if (!videoRef.current || isProcessingRef.current || !status.isLoaded) return;
+
+          let targetIndex = -1;
+
+          if (currentSubtitle) {
+               const currentIndex = subtitles.findIndex(s => s.id === currentSubtitle.id);
+               if (currentIndex !== -1) {
+                    targetIndex = currentIndex + direction;
+               }
+          } else {
+               // If no subtitle is currently active, approximate based on time
+               const time = status.positionMillis / 1000;
+               if (direction === 1) {
+                    targetIndex = subtitles.findIndex(s => s.start > time);
+               } else {
+                    // Find last one that ended before now
+                    for (let i = subtitles.length - 1; i >= 0; i--) {
+                         if (subtitles[i].end < time) {
+                              targetIndex = i;
+                              break;
+                         }
+                    }
+               }
+          }
+
+          // Boundary checks
+          if (targetIndex >= 0 && targetIndex < subtitles.length) {
+               await seekToSubtitle(subtitles[targetIndex]);
+          }
+     };
+
+     const handleSpeed = () => {
+          setShowSpeedModal(true);
+     };
+
+     const handleSpeedSelect = async (newRate: number) => {
+          if (!videoRef.current) return;
+          setRate(newRate);
+          await videoRef.current.setRateAsync(newRate, true);
+          setShowSpeedModal(false);
+     };
+
+     const handleMute = async () => {
+          if (!videoRef.current || !status.isLoaded) return;
+          // @ts-ignore
+          await videoRef.current.setIsMutedAsync(!status.isMuted);
+     };
 
      const [modalVisible, setModalVisible] = useState<boolean>(false);
      const [selectedWordData, setSelectedWordData] = useState<Word | null>(null);
@@ -756,6 +820,40 @@ export const ShadowingPracticeScreen: React.FC = () => {
                          />
                     </View>
 
+                    {/* Video Controls (Compact) */}
+                    <View style={styles.controlsRow}>
+                         <TouchableOpacity style={styles.speedBtn} onPress={handleSpeed}>
+                              <Text style={styles.speedText}>{rate}x</Text>
+                         </TouchableOpacity>
+
+                         <View style={styles.centerControls}>
+                              <TouchableOpacity style={styles.controlBtn} onPress={() => handlePrevNext(-1)}>
+                                   <Ionicons name="play-back" size={20} color={colors.textPrimary} />
+                              </TouchableOpacity>
+
+                              <TouchableOpacity style={styles.playPauseBtn} onPress={handlePlayPause}>
+                                   <Ionicons
+                                        name={(status.isLoaded && status.isPlaying) ? "pause" : "play"}
+                                        size={24}
+                                        color={colors.white}
+                                        style={{ marginLeft: (status.isLoaded && status.isPlaying) ? 0 : 2 }}
+                                   />
+                              </TouchableOpacity>
+
+                              <TouchableOpacity style={styles.controlBtn} onPress={() => handlePrevNext(1)}>
+                                   <Ionicons name="play-forward" size={20} color={colors.textPrimary} />
+                              </TouchableOpacity>
+                         </View>
+
+                         <TouchableOpacity style={styles.controlBtn} onPress={handleMute}>
+                              <Ionicons
+                                   name={(status.isLoaded && status.isMuted) ? "volume-mute" : "volume-high"}
+                                   size={20}
+                                   color={(status.isLoaded && status.isMuted) ? colors.error : colors.textPrimary}
+                              />
+                         </TouchableOpacity>
+                    </View>
+
                     <View style={styles.transcriptHeaderRow}>
                          <Text style={styles.sectionHeader}>Transcript ({subtitles.length})</Text>
                          <TouchableOpacity
@@ -834,6 +932,36 @@ export const ShadowingPracticeScreen: React.FC = () => {
                                    compact={false}
                               />
                          )}
+                    </Modal>
+
+                    {/* Speed Selection Modal */}
+                    <Modal
+                         visible={showSpeedModal}
+                         transparent={true}
+                         animationType="fade"
+                         onRequestClose={() => setShowSpeedModal(false)}
+                    >
+                         <TouchableOpacity
+                              style={styles.modalOverlay}
+                              activeOpacity={1}
+                              onPress={() => setShowSpeedModal(false)}
+                         >
+                              <View style={styles.speedModalContent}>
+                                   <Text style={styles.speedModalTitle}>Playback Speed</Text>
+                                   {[0.5, 0.75, 1.0, 1.25].map((s) => (
+                                        <TouchableOpacity
+                                             key={s}
+                                             style={[styles.speedOption, rate === s && styles.speedOptionActive]}
+                                             onPress={() => handleSpeedSelect(s)}
+                                        >
+                                             <Text style={[styles.speedOptionText, rate === s && styles.speedOptionTextActive]}>
+                                                  {s}x
+                                             </Text>
+                                             {rate === s && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                                        </TouchableOpacity>
+                                   ))}
+                              </View>
+                         </TouchableOpacity>
                     </Modal>
 
                </SafeAreaView>
@@ -1008,12 +1136,12 @@ const styles = StyleSheet.create({
           flexDirection: 'row',
           alignItems: 'center',
           marginLeft: 8,
-          gap: 4,
+          gap: 2,
      },
      miniActionBtn: {
-          width: 32,
-          height: 32,
-          borderRadius: 16,
+          width: 26,
+          height: 26,
+          borderRadius: 20,
           backgroundColor: '#F1F5F9',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1060,5 +1188,88 @@ const styles = StyleSheet.create({
           backgroundColor: '#CBD5E1', // Gray color
           shadowColor: 'transparent',
           elevation: 0,
+     },
+     // Control Styles
+     controlsRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: spacing.screenPadding,
+          paddingVertical: 8, // Reduced padding
+          backgroundColor: 'white',
+          borderBottomWidth: 1,
+          borderBottomColor: '#F1F5F9',
+     },
+     centerControls: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 24, // Increased spacing between compact buttons
+     },
+     controlBtn: {
+          padding: 6,
+     },
+     playPauseBtn: {
+          width: 44, // Smaller size
+          height: 44,
+          borderRadius: 22,
+          backgroundColor: colors.accent3,
+          alignItems: 'center',
+          justifyContent: 'center',
+          ...shadows.subtle,
+     },
+     speedBtn: {
+          paddingHorizontal: 10,
+          paddingVertical: 6,
+          borderRadius: 16,
+          backgroundColor: '#F1F5F9',
+          alignItems: 'center',
+          justifyContent: 'center',
+     },
+     speedText: {
+          fontSize: 12,
+          fontWeight: '600',
+          color: colors.textPrimary,
+     },
+     // Speed Modal Styles
+     modalOverlay: {
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.4)',
+          justifyContent: 'center',
+          alignItems: 'center',
+     },
+     speedModalContent: {
+          width: 200,
+          backgroundColor: 'white',
+          borderRadius: 16,
+          padding: 16,
+          ...shadows.medium,
+     },
+     speedModalTitle: {
+          fontSize: 14,
+          fontWeight: '700',
+          color: colors.textSecondary,
+          marginBottom: 12,
+          textAlign: 'center',
+     },
+     speedOption: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingVertical: 10,
+          borderBottomWidth: 1,
+          borderBottomColor: '#F1F5F9',
+     },
+     speedOptionActive: {
+          backgroundColor: '#EFF6FF',
+          marginHorizontal: -16,
+          paddingHorizontal: 16,
+     },
+     speedOptionText: {
+          fontSize: 15,
+          color: colors.textPrimary,
+     },
+     speedOptionTextActive: {
+          fontWeight: '700',
+          color: colors.primary,
      },
 });
