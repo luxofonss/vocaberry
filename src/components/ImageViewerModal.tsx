@@ -15,6 +15,7 @@ import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import { colors, spacing, borderRadius, shadows } from '../theme';
 import { ImageSearchModal } from './ImageSearchModal';
+import { CameraIcon } from './icons/CameraIcon';
 import { IMAGE_VIEWER_TEXTS, UI_LIMITS } from '../constants';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -145,7 +146,7 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({
             {/* Edit Button (if allowed) */}
             {allowEdit && onImageChange && (
               <TouchableOpacity style={styles.editButton} onPress={handlePickImage}>
-                <Text style={styles.editIcon}>📸</Text>
+                <CameraIcon size={28} tintColor={colors.white} />
               </TouchableOpacity>
             )}
           </View>

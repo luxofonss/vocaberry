@@ -31,7 +31,7 @@ import { theme, colors, typography, spacing, borderRadius, shadows } from '../th
 import { gradients } from '../theme/styles';
 import { Word, RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
-import { SpeakButton, ImageViewerModal } from '../components';
+import { SpeakButton, ImageViewerModal, BackIcon, FireIcon, BookIcon, MicroIcon, CheckIcon, XIcon, SkipIcon, KeyboardIcon } from '../components';
 import { EventBus } from '../services/EventBus';
 import { AiService } from '../services/AiService';
 import { PronunciationDetailView } from '../components/PronunciationDetailView';
@@ -88,6 +88,8 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
     userAnswer?: string;
     inputMethod?: 'text' | 'audio' | 'both' | 'skipped';
     audioAccuracy?: number;
+    audioUri?: string | null;
+    recognizedText?: string;
     pronunciationData?: any;
   }>>([]);
   const [showReview, setShowReview] = useState(false);
@@ -376,6 +378,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
     const isSkipped = customAnswer === '?';
 
     let finalCorrect = false;
+    let audioAnalysis = null;
 
     // If we have a recording, process it through AI first
     if (userAudioUri && !isSkipped) {
@@ -400,7 +403,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
           throw new Error('Invalid API response format');
         }
 
-        const audioAnalysis = {
+        audioAnalysis = {
           recognizedText: result.data.recognizedText,
           accuracyScore: result.data.accuracyScore,
           fluencyScore: result.data.fluencyScore,
@@ -483,8 +486,10 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
       status: isSkipped ? 'skipped' : (finalCorrect ? 'correct' : 'incorrect'),
       userAnswer: isSkipped ? undefined : (normalizedInput || userAnswer),
       inputMethod: isSkipped ? 'skipped' : (userAudioUri ? (normalizedInput.length > 0 ? 'both' : 'audio') : 'text'),
-      audioAccuracy: pronunciationResult?.pronScore,
-      pronunciationData: pronunciationResult,
+      audioAccuracy: audioAnalysis?.pronScore || pronunciationResult?.pronScore,
+      audioUri: userAudioUri,
+      recognizedText: audioAnalysis?.recognizedText || pronunciationResult?.recognizedText,
+      pronunciationData: audioAnalysis || pronunciationResult,
     }]);
 
     StorageService.markAsReviewed(currentWord.id, finalCorrect);
@@ -532,6 +537,30 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
       setPlayingUserAudio(false);
     }
   }, [userAudioUri]);
+
+  const playResultAudio = useCallback(async (uri: string) => {
+    try {
+      if (userAudioSound.current) {
+        await userAudioSound.current.unloadAsync();
+      }
+      setPlayingUserAudio(true);
+      const { sound } = await Audio.Sound.createAsync(
+        { uri },
+        { shouldPlay: true, volume: 1.0 }
+      );
+      userAudioSound.current = sound;
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setPlayingUserAudio(false);
+          sound.unloadAsync();
+          userAudioSound.current = null;
+        }
+      });
+    } catch (error) {
+      console.error('Error playing result audio:', error);
+      setPlayingUserAudio(false);
+    }
+  }, []);
 
 
   const handleMicPress = useCallback(async () => {
@@ -747,17 +776,17 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
             )}
             <View style={styles.statsRow}>
               <View style={styles.statCard}>
-                <Text style={styles.statLabel}>🔥</Text>
+                <FireIcon size={20} style={{ marginBottom: 4 }} />
                 <Text style={styles.statValue}>{practiceStats.currentStreak}</Text>
                 <Text style={styles.statLabel}>{PRACTICE_TEXTS.dayStreak}</Text>
               </View>
               <View style={styles.statCard}>
-                <Text style={styles.statLabel}>📚</Text>
+                <BookIcon size={20} style={{ marginBottom: 4 }} />
                 <Text style={styles.statValue}>{practiceStats.totalWordsPracticed}</Text>
                 <Text style={styles.statLabel}>Words</Text>
               </View>
               <View style={styles.statCard}>
-                <Text style={styles.statLabel}>🎙️</Text>
+                <MicroIcon size={20} style={{ marginBottom: 4 }} />
                 <Text style={styles.statValue}>{practiceStats.totalSentencesPracticed || 0}</Text>
                 <Text style={styles.statLabel}>Pronun.</Text>
               </View>
@@ -765,41 +794,26 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
           </View>
         )}
 
-        <View style={styles.card}>
-          <Text style={styles.label}>How many items?</Text>
-          <View style={styles.countRow}>
-            {PRACTICE_CONFIG.questionCountOptions.map(num => (
-              <TouchableOpacity
-                key={num}
-                style={[styles.countBtn, questionCount === num && styles.countBtnActive]}
-                onPress={() => setQuestionCount(num)}
-              >
-                <Text style={[styles.countText, questionCount === num && styles.countTextActive]}>
-                  {num}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+
 
         <View style={styles.startButtonsRow}>
           <TouchableOpacity
-            style={[styles.modeButton, { backgroundColor: colors.primary }]}
+            style={[styles.modeButton, { backgroundColor: colors.accent1 }]}
             onPress={startPractice}
             disabled={loading}
           >
-            <Ionicons name="book" size={24} color={colors.white} />
+            <BookIcon size={24} />
             <Text style={styles.modeButtonText}>
               {loading ? '...' : 'Vocabulary'}
             </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={[styles.modeButton, { backgroundColor: colors.secondary || '#7C3AED' }]}
+            style={[styles.modeButton, { backgroundColor: colors.accent4 }]}
             onPress={startPronunciationPractice}
             disabled={loading}
           >
-            <Ionicons name="mic" size={24} color={colors.white} />
+            <MicroIcon size={24} />
             <Text style={styles.modeButtonText}>
               {loading ? '...' : 'Pronunciation'}
             </Text>
@@ -825,7 +839,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
             }}
             style={styles.closeBtn}
           >
-            <Text style={styles.closeText}>←</Text>
+            <BackIcon size={20} />
           </TouchableOpacity>
           <Text style={styles.progressText}>{PRACTICE_TEXTS.reviewResults}</Text>
           <View style={{ width: 40 }} />
@@ -878,31 +892,75 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
                   result.status === 'correct' && styles.reviewItemCorrect,
                   result.status === 'incorrect' && styles.reviewItemIncorrect,
                 ]}
-                onPress={() => {
-                  requestAnimationFrame(() => {
-                    navigation.navigate('WordDetail', { wordId: result.word.id });
-                  });
-                }}
-                activeOpacity={0.7}
               >
                 <View style={styles.reviewItemContent}>
-                  <View style={styles.reviewItemRow}>
+                  <TouchableOpacity
+                    style={styles.reviewItemRow}
+                    onPress={() => {
+                      requestAnimationFrame(() => {
+                        navigation.navigate('WordDetail', { wordId: result.word.id });
+                      });
+                    }}
+                    activeOpacity={0.6}
+                  >
                     <Text style={styles.reviewItemLabel}>Correct:</Text>
                     <Text style={styles.reviewItemWord}>{result.word.word}</Text>
-                  </View>
+                    <Ionicons name="chevron-forward" size={12} color={colors.textLight} />
+                  </TouchableOpacity>
 
                   {result.status !== 'skipped' && (
-                    <>
-                      <View style={styles.reviewItemRow}>
-                        <Text style={styles.reviewItemLabel}>Method:</Text>
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-                          <Text style={styles.reviewItemMethodText}>
-                            {result.inputMethod === 'both' ? '⌨️ + 🎙️' : (result.inputMethod === 'audio' ? '🎙️' : '⌨️')}
-                            {result.inputMethod !== 'text' && result.audioAccuracy !== undefined && ` (${Math.round(result.audioAccuracy)}%)`}
+                    <View style={{ gap: 0, paddingVertical: 0 }}>
+                      {/* Text Input Row */}
+                      {(result.inputMethod === 'text' || result.inputMethod === 'both') && (
+                        <View style={styles.reviewItemRow}>
+                          <View style={{ width: 40, alignItems: 'flex-start' }}>
+                            <KeyboardIcon size={16} />
+                          </View>
+                          <Text
+                            style={[
+                              styles.reviewItemUserAnswer,
+                              { flex: 1 },
+                              result.status === 'correct' ? styles.answerCorrect : styles.answerIncorrect
+                            ]}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                          >
+                            {result.userAnswer || '—'}
                           </Text>
-                          {result.inputMethod !== 'text' && result.pronunciationData && (
+                        </View>
+                      )}
+
+                      {/* Audio Input Row */}
+                      {(result.inputMethod === 'audio' || result.inputMethod === 'both') && (
+                        <View style={styles.reviewItemRow}>
+                          <View style={{ width: 55, flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            {result.audioAccuracy !== undefined ? (
+                              <Text style={{ fontSize: 10, color: colors.textSecondary, fontWeight: '700' }}>{Math.round(result.audioAccuracy)}%</Text>
+                            ) : (
+                              <View style={{ width: 22 }} />
+                            )}
                             <TouchableOpacity
-                              style={styles.detailButton}
+                              onPress={() => result.audioUri && playResultAudio(result.audioUri)}
+                              disabled={!result.audioUri}
+                            >
+                              <MicroIcon size={18} style={{ opacity: result.audioUri ? 1 : 0.5 }} />
+                            </TouchableOpacity>
+                          </View>
+
+                          <Text
+                            style={[
+                              styles.reviewItemUserAnswer,
+                              { flex: 1, fontSize: 13, color: colors.textSecondary, fontStyle: 'italic', marginRight: 4 },
+                              result.status === 'correct' ? styles.answerCorrect : styles.answerIncorrect
+                            ]}
+                            numberOfLines={1}
+                            ellipsizeMode="tail"
+                          >
+                            {result.recognizedText ? `"${result.recognizedText}"` : '—'}
+                          </Text>
+
+                          {result.pronunciationData && (
+                            <TouchableOpacity
                               onPress={() => {
                                 setPronunciationResult(result.pronunciationData);
                                 setDetailModalVisible(true);
@@ -912,33 +970,13 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
                             </TouchableOpacity>
                           )}
                         </View>
-                      </View>
-                      <View style={styles.reviewItemRow}>
-                        <Text style={styles.reviewItemLabel}>You:</Text>
-                        <Text style={[
-                          styles.reviewItemUserAnswer,
-                          result.status === 'correct' ? styles.answerCorrect : styles.answerIncorrect
-                        ]}>
-                          {result.userAnswer || '—'}
-                        </Text>
-                      </View>
-                    </>
+                      )}
+                    </View>
                   )}
 
                   {result.status === 'skipped' && (
                     <Text style={styles.reviewItemSkippedText}>Skipped</Text>
                   )}
-                </View>
-
-                <View style={[
-                  styles.reviewItemIconContainer,
-                  result.status === 'correct' && styles.iconContainerCorrect,
-                  result.status === 'incorrect' && styles.iconContainerIncorrect,
-                  result.status === 'skipped' && styles.iconContainerSkipped,
-                ]}>
-                  <Text style={styles.reviewItemIcon}>
-                    {result.status === 'correct' ? '✓' : result.status === 'incorrect' ? '✗' : '⏭'}
-                  </Text>
                 </View>
               </TouchableOpacity>
             ))}
@@ -951,10 +989,10 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
               setIsQuizVisible(false);
             }}
           >
-            <Text style={styles.primaryButtonText}>{PRACTICE_TEXTS.done}</Text>
+            <Text style={styles.reviewDoneButtonText}>{PRACTICE_TEXTS.done}</Text>
           </TouchableOpacity>
-        </ScrollView>
-      </View>
+        </ScrollView >
+      </View >
     );
   };
 
@@ -1204,7 +1242,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
                 <View style={[styles.feedbackCard, shadows.subtle, { backgroundColor: '#F8FAFF' }]}>
                   <View style={styles.feedbackHeader}>
                     <View style={styles.feedbackTitleRow}>
-                      <Text style={styles.feedbackIconTiny}>{userAudioUri && userAnswer.trim() === pronunciationResult?.recognizedText ? '🎙️' : '⌨️'}</Text>
+                      {userAudioUri && userAnswer.trim() === pronunciationResult?.recognizedText ? <MicroIcon size={16} /> : <KeyboardIcon size={16} />}
                       <Text style={styles.feedbackTitleTiny}>{userAudioUri && userAnswer.trim() === pronunciationResult?.recognizedText ? 'Recognized Text' : 'Text Answer'}</Text>
                     </View>
                     <View style={[
@@ -1225,7 +1263,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
 
               {/* Pronunciation Feedback - Detailed Version */}
               {pronunciationResult && (
-                <View style={[styles.pronunciationFeedback, shadows.subtle, { padding: 0, overflow: 'hidden' }]}>
+                <View style={[styles.pronunciationFeedback, shadows.subtle, { padding: 12, overflow: 'hidden' }]}>
                   <PronunciationDetailView
                     recognizedText={pronunciationResult.recognizedText}
                     accuracyScore={pronunciationResult.accuracyScore}
@@ -1667,10 +1705,6 @@ const styles = StyleSheet.create({
   micIconLarge: {
     fontSize: 32
   },
-  speechContainer: {
-    alignItems: 'center',
-    marginBottom: spacing.lg
-  },
   speechStatus: {
     fontWeight: typography.weights.semibold,
     color: colors.textSecondary,
@@ -1749,9 +1783,9 @@ const styles = StyleSheet.create({
 
   correctAnswerBox: {
     alignItems: 'center',
-    marginBottom: spacing.sm,
+    marginBottom: spacing.xs,
     width: '100%',
-    padding: spacing.md,
+    padding: spacing.sm,
     backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.clayCard,
     borderWidth: 0,
@@ -1885,13 +1919,14 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.lg,
     marginBottom: spacing.xs,
+    paddingHorizontal: spacing.md,
   },
 
   statCard: {
     flex: 1,
     backgroundColor: colors.cardSurface,
-    borderRadius: borderRadius.xxxl,
-    padding: spacing.sm,
+    borderRadius: borderRadius.xl,
+    padding: spacing.md,
     alignItems: 'center',
     borderWidth: 0,
     borderTopWidth: 1,
@@ -1998,7 +2033,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.md,
     paddingHorizontal: spacing.sm,
   },
   reviewStatsColumn: {
@@ -2007,10 +2042,10 @@ const styles = StyleSheet.create({
   },
   reviewStatRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: 4,
     borderRadius: borderRadius.md,
     borderLeftWidth: 4,
     ...shadows.subtle,
@@ -2052,13 +2087,16 @@ const styles = StyleSheet.create({
   reviewItem: {
     backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.lg,
-    padding: spacing.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 4,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderLeftWidth: 3,
-    borderLeftColor: colors.borderMedium,
-    ...shadows.claySoft,
+    borderRightWidth: 0.5,
+    borderTopWidth: 0.5,
+    borderBottomWidth: 0.5,
+    borderLeftWidth: 1,
+    borderColor: colors.borderMedium,
   },
   reviewItemCorrect: {
     borderLeftColor: colors.success,
@@ -2070,26 +2108,26 @@ const styles = StyleSheet.create({
   },
   reviewItemContent: {
     flex: 1,
+    gap: 0,
   },
   reviewItemRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 4,
   },
   reviewItemLabel: {
-    fontSize: typography.sizes.xs,
+    fontSize: 10,
     color: colors.textLight,
     fontWeight: typography.weights.medium,
-    width: 55,
+    width: 40,
   },
   reviewItemWord: {
-    fontSize: typography.sizes.md,
+    fontSize: 14,
     fontWeight: typography.weights.bold,
     color: colors.textPrimary,
     flex: 1,
   },
   reviewItemUserAnswer: {
-    fontSize: typography.sizes.md,
+    fontSize: 14,
     fontWeight: typography.weights.semibold,
     flex: 1,
   },
@@ -2105,10 +2143,9 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   reviewItemMethodText: {
-    fontSize: typography.sizes.sm,
+    fontSize: 11,
     fontWeight: typography.weights.medium,
     color: colors.textPrimary,
-    flex: 1,
   },
   detailButton: {
     padding: 4,
@@ -2139,13 +2176,22 @@ const styles = StyleSheet.create({
   },
   reviewDoneButton: {
     backgroundColor: colors.primary,
-    paddingVertical: spacing.puffyMd,
-    borderRadius: borderRadius.clayButton,
+    paddingVertical: 10,
+    paddingHorizontal: 30,
+    borderRadius: 100,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: spacing.xl,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    gap: 8,
+    alignSelf: 'center',
+    marginTop: spacing.lg,
     ...shadows.clayPrimary,
+  },
+  reviewDoneButtonText: {
+    color: colors.white,
+    fontSize: 15,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   wordReviewContainer: {
     marginVertical: spacing.sm,
@@ -2213,16 +2259,17 @@ const styles = StyleSheet.create({
   feedbackCard: {
     width: '100%',
     borderRadius: borderRadius.clayCard,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 4,
+    marginBottom: 4,
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.6)',
     ...shadows.clayMedium,
   },
   feedbackEmoji: {
-    fontSize: 48,
-    marginBottom: spacing.xs,
+    fontSize: 32,
+    marginBottom: 4,
   },
   feedbackTitle: {
     fontSize: typography.sizes.xl,
@@ -2542,10 +2589,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
-    marginBottom: spacing.sm,
-    paddingBottom: spacing.xs,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
+    marginBottom: 4,
+    paddingBottom: 2,
+    borderBottomWidth: 0,
   },
   feedbackTitleRow: {
     flexDirection: 'row',
@@ -2589,14 +2635,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   userAnswerValue: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '800',
     color: colors.primary,
-  },
-  reviewItemMethodText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    fontWeight: '700',
   },
   reviewTopSummary: {
     alignItems: 'center',

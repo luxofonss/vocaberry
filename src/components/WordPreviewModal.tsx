@@ -14,13 +14,13 @@ import {
 } from 'react-native';
 import { colors, borderRadius, shadows } from '../theme';
 import { Word } from '../types';
-import { SpeakButton } from './SpeakButton';
 import { ImageViewerModal } from './ImageViewerModal';
 import { SkeletonLoader } from './SkeletonLoader';
 import { EventBus } from '../services/EventBus';
 import { StorageService } from '../services/StorageService';
 import { getDisplayImageUrl, isValidImageUrl, isWordLoading } from '../utils/imageUtils';
 import { DEFAULTS, WORD_PREVIEW_TEXTS, POLLING_CONFIG, UI_LIMITS } from '../constants';
+import { SpeakButton } from './icons/SpeakButton';
 
 interface WordPreviewModalProps {
   visible: boolean;

@@ -28,6 +28,7 @@ import { DictionaryService } from '../services/DictionaryService';
 import { StorageService } from '../services/StorageService';
 import { TranslateService } from '../services/TranslateService';
 import { ImageSearchModal } from './ImageSearchModal';
+import { CameraIcon } from './icons/CameraIcon';
 import * as ImagePicker from 'expo-image-picker';
 import { LANGUAGES, UI_LIMITS, ANIMATION, MESSAGES, DEFAULTS } from '../constants';
 import { toBase64Uri, getScreenDimensions } from '../utils';
@@ -570,7 +571,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                         onPress={handlePickImage}
                                         disabled={false}
                                     >
-                                        <Text style={styles.cameraIcon}>📸</Text>
+                                        <CameraIcon size={24} style={{ marginRight: spacing.sm }} />
                                         <Text style={styles.cameraText}>
                                             {imageUri ? 'Change Photo' : 'Take a photo of the word'}
                                         </Text>

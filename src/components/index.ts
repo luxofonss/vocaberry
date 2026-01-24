@@ -1,7 +1,17 @@
 // Components Export Index
 export * from './BottomTabBar';
 export * from './WordCard';
-export * from './SpeakButton';
+export * from './icons/SpeakButton';
+export * from './icons/CameraIcon';
+export * from './icons/BackIcon';
+export * from './icons/TrashIcon';
+export * from './icons/CoinIcon';
+export * from './icons/TimeIcon';
+export * from './icons/MicroIcon';
+export * from './icons/TargetIcon';
+export * from './icons/CheckIcon';
+export * from './icons/FireIcon';
+export * from './icons/BookIcon';
 export * from './QuickAddModal';
 export * from './ClickableText';
 export * from './WordPreviewModal';
@@ -13,4 +23,7 @@ export * from './LazyImage';
 export * from './SkeletonLoader';
 export * from './FilterChip';
 export * from './CategoryFilter';
+export * from './icons/XIcon';
+export * from './icons/SkipIcon';
+export * from './icons/KeyboardIcon';
 

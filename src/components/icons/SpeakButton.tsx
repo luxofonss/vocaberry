@@ -6,10 +6,11 @@ import {
   StyleSheet,
   Text,
   Animated,
+  Image,
 } from 'react-native';
-import { colors, shadows, borderRadius } from '../theme';
-import { SpeechService } from '../services/SpeechService';
-import { ANIMATION } from '../constants';
+import { colors, shadows, borderRadius } from '../../theme';
+import { SpeechService } from '../../services/SpeechService';
+import { ANIMATION } from '../../constants';
 
 type ButtonSize = 'small' | 'medium' | 'large';
 
@@ -18,6 +19,7 @@ interface SpeakButtonProps {
   text?: string; // Fallback for TTS if audioUrl is not available
   size?: ButtonSize;
   isLoading?: boolean;
+  iconHeight?: number;
 }
 
 interface SizeDimensions {
@@ -40,6 +42,7 @@ export const SpeakButton: React.FC<SpeakButtonProps> = ({
   text,
   size = 'medium',
   isLoading = false,
+  iconHeight,
 }) => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const scaleValue = useRef(new Animated.Value(1)).current;
@@ -95,48 +98,57 @@ export const SpeakButton: React.FC<SpeakButtonProps> = ({
   const buttonStyle = useMemo(() => ({
     width: dimensions.width,
     height: dimensions.height,
-    backgroundColor: isSpeaking ? colors.primary : colors.cardSurface,
+    backgroundColor: 'transparent',
     opacity: isDisabled ? DISABLED_OPACITY : 1,
-  }), [dimensions, isSpeaking, isDisabled]);
+  }), [dimensions, isDisabled]);
 
   return (
     <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
       <TouchableOpacity
-        style={[styles.button, buttonStyle, isSpeaking ? styles.buttonActive : styles.buttonInactive]}
+        style={[styles.button, buttonStyle]}
         onPress={handlePress}
-        activeOpacity={isDisabled ? 1 : 0.8}
+        activeOpacity={isDisabled ? 1 : 0.6}
         disabled={isDisabled}
       >
-        <Text style={[styles.icon, { fontSize: dimensions.fontSize }]}>
-          {isSpeaking ? '🔊' : '🔈'}
-        </Text>
+        {isSpeaking ? (
+          <Image
+            source={require('../../../assets/loa.png')}
+            style={[
+              styles.speakerImage,
+              {
+                width: iconHeight ? iconHeight * 1.1 : dimensions.fontSize * 2,
+                height: iconHeight || dimensions.fontSize * 2
+              }
+            ]}
+            resizeMode="contain"
+          />
+        ) : (
+          <Image
+            source={require('../../../assets/loa.png')}
+            style={[
+              styles.speakerImage,
+              {
+                width: iconHeight ? iconHeight * 1.1 : dimensions.fontSize * 1.6,
+                height: iconHeight || dimensions.fontSize * 1.6
+              }
+            ]}
+            resizeMode="contain"
+          />
+        )}
       </TouchableOpacity>
     </Animated.View>
   );
 };
-
 const styles = StyleSheet.create({
-  // Claymorphism button - floating 3D clay circle with inner highlight
   button: {
-    borderRadius: borderRadius.clayBadge,
     alignItems: 'center',
     justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-    borderBottomWidth: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-  },
-  // Inactive state - soft clay shadow
-  buttonInactive: {
-    ...shadows.claySoft,
-  },
-  // Active state - primary colored shadow
-  buttonActive: {
-    borderTopColor: 'rgba(255, 255, 255, 0.3)',
-    ...shadows.clayPrimary,
+    borderRadius: 9999,
   },
   icon: {
     textAlign: 'center',
+  },
+  speakerImage: {
+    // Sizing handled dynamically or via prop
   },
 });

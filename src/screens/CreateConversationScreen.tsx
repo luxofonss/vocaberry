@@ -24,6 +24,7 @@ import { colors, shadows, borderRadius, spacing, typography } from '../theme';
 import { gradients } from '../theme/styles';
 import { Conversation, ConversationMessage, RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
+import { TrashIcon } from '../components';
 import { EventBus } from '../services/EventBus';
 import { getScreenDimensions } from '../utils';
 
@@ -374,7 +375,7 @@ export const CreateConversationScreen: React.FC = () => {
                                              style={styles.removeBtn}
                                              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                                         >
-                                             <Ionicons name="trash-outline" size={18} color={colors.textLight} />
+                                             <TrashIcon size={28} />
                                         </TouchableOpacity>
                                    </View>
                               ))}

@@ -19,6 +19,7 @@ import { colors, shadows, borderRadius, spacing, typography } from '../theme';
 import { Conversation, ConversationMessage } from '../types';
 import { StorageService } from '../services/StorageService';
 import { getScreenDimensions } from '../utils';
+import { TrashIcon } from './icons/TrashIcon';
 import { ANIMATION } from '../constants';
 
 const { height: SCREEN_HEIGHT } = getScreenDimensions();
@@ -229,7 +230,7 @@ export const CreateConversationModal: React.FC<CreateConversationModalProps> = (
                                                             style={styles.removeBtn}
                                                             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                                                        >
-                                                            <Ionicons name="trash-outline" size={18} color={colors.textLight} />
+                                                            <TrashIcon size={28} />
                                                        </TouchableOpacity>
                                                   </View>
                                              ))}

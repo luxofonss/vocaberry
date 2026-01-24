@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
      baseText: {
           fontSize: 16,
           color: colors.textPrimary,
-          lineHeight: 24,
+          lineHeight: 22,
      },
      clickableWord: {
           fontWeight: '600',

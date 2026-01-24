@@ -165,7 +165,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.30,
     shadowRadius: 4.65,
-    elevation: 8,
+    elevation: 16,
   },
   menuContainer: {
     flexDirection: 'row',
@@ -185,6 +185,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 14,
     fontWeight: '600',
+    lineHeight: 18,
   },
   divider: {
     width: 1,
@@ -194,7 +195,7 @@ const styles = StyleSheet.create({
   translationContainer: {
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingVertical: 6,
     borderRadius: borderRadius.lg,
     minWidth: 80,
     alignItems: 'center',
@@ -204,6 +205,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 14,
     fontWeight: '700',
+    lineHeight: 18,
   },
   popupTriangle: {
     width: 0,

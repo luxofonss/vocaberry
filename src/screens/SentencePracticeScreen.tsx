@@ -31,6 +31,7 @@ import { AiService } from '../services/AiService';
 import { SpeechService } from '../services/SpeechService';
 import { ANIMATION, PRACTICE_TEXTS } from '../constants';
 import { PronunciationDetailView } from '../components/PronunciationDetailView';
+import { MicroIcon } from '../components/icons/MicroIcon';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -668,7 +669,7 @@ export const SentencePracticeScreen: React.FC = () => {
                                                        </>
                                                   ) : (
                                                        <>
-                                                            <Ionicons name="mic-outline" size={48} color={colors.textSecondary} style={{ opacity: 0.3 }} />
+                                                            <MicroIcon size={64} style={{ opacity: 0.3 }} />
                                                             <Text style={styles.placeholderText}>Tap the mic to start speaking</Text>
                                                        </>
                                                   )}

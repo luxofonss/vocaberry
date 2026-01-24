@@ -18,7 +18,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { colors, borderRadius, shadow } from '../theme';
 import { Word, RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
-import { SpeakButton, ImageViewerModal } from '../components';
+import { SpeakButton, ImageViewerModal, BackIcon } from '../components';
 import { ANIMATION, SWIPE_THRESHOLD, REVIEW_TEXTS } from '../constants';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -160,7 +160,7 @@ export const ReviewScreen: React.FC = () => {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-            <Text style={styles.backIcon}>←</Text>
+            <BackIcon size={20} />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>{REVIEW_TEXTS.practice}</Text>
           <View style={styles.placeholder} />

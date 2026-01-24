@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
      IS_SEEDED: 'vocaberry_is_seeded_v12', // Bumped version for mock data
      USER_NAME: 'vocaberry_user_name', // User's name
      MOTHER_LANGUAGE: 'vocaberry_mother_language', // User's mother language code (e.g., 'vi', 'zh', 'es')
+     USER_AVATAR: 'vocaberry_user_avatar', // User's selected avatar identifier
      LAST_PRACTICE_TIME: 'vocaberry_last_practice_time', // Timestamp of last practice session
      LAST_NOTIFICATION_SHOWN: 'vocaberry_last_notification_shown', // Timestamp of last notification shown
      PRACTICE_STATS: 'vocaberry_practice_stats', // Practice statistics (JSON)
@@ -278,6 +279,30 @@ export const StorageService = {
                return await AsyncStorage.getItem(STORAGE_KEYS.MOTHER_LANGUAGE);
           } catch (e) {
                console.error('[StorageService] Failed to get mother language', e);
+               return null;
+          }
+     },
+
+     /**
+      * Saves the user's selected avatar ID to AsyncStorage.
+      */
+     saveUserAvatar: async (avatarId: string): Promise<void> => {
+          try {
+               await AsyncStorage.setItem(STORAGE_KEYS.USER_AVATAR, avatarId);
+          } catch (e) {
+               console.error('[StorageService] Failed to save user avatar', e);
+               throw e;
+          }
+     },
+
+     /**
+      * Gets the user's selected avatar ID from AsyncStorage.
+      */
+     getUserAvatar: async (): Promise<string | null> => {
+          try {
+               return await AsyncStorage.getItem(STORAGE_KEYS.USER_AVATAR);
+          } catch (e) {
+               console.error('[StorageService] Failed to get user avatar', e);
                return null;
           }
      },

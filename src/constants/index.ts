@@ -31,6 +31,20 @@ export const LANGUAGES: Language[] = [
      { code: 'hi', name: 'हिन्दी (Hindi)', flag: '🇮🇳' },
 ];
 
+export const AVATARS = [
+     { id: '1', source: require('../../assets/avatars/avatar_vibrent_1.png') },
+     { id: '2', source: require('../../assets/avatars/avatar_vibrent_2.png') },
+     { id: '3', source: require('../../assets/avatars/avatar_vibrent_3.png') },
+     { id: '4', source: require('../../assets/avatars/avatar_vibrent_4.png') },
+     { id: '5', source: require('../../assets/avatars/avatar_vibrent_5.png') },
+     { id: '6', source: require('../../assets/avatars/avatar_vibrent_6.png') },
+     { id: '8', source: require('../../assets/avatars/avatar_vibrent_8.png') },
+     { id: '9', source: require('../../assets/avatars/avatar_vibrent_9.png') },
+     { id: '10', source: require('../../assets/avatars/avatar_vibrent_10.png') },
+     { id: '11', source: require('../../assets/avatars/avatar_vibrent_11.png') },
+     { id: '12', source: require('../../assets/avatars/avatar_vibrent_12.png') },
+];
+
 // ============================================
 // PARTS OF SPEECH
 // ============================================
@@ -52,7 +66,7 @@ export type PartOfSpeech = typeof PARTS_OF_SPEECH[number];
 // ============================================
 export const PRACTICE_CONFIG = {
      questionCountOptions: [5, 10, 20] as const,
-     defaultQuestionCount: 5,
+     defaultQuestionCount: 10,
      maxExamples: 3,
      pollingIntervalMs: 2000,
      pollingTimeoutMs: 30000,

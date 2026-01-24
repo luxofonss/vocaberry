@@ -20,6 +20,7 @@ import { colors, typography, spacing, shadows, borderRadius } from '../theme';
 import { Meaning, Word } from '../types';
 import { ImageSearchModal } from './ImageSearchModal';
 import { ImageViewerModal } from './ImageViewerModal';
+import { CameraIcon } from './icons/CameraIcon';
 import * as ImagePicker from 'expo-image-picker';
 import { PARTS_OF_SPEECH, UI_LIMITS, MESSAGES } from '../constants';
 import { toBase64Uri, generateMeaningId } from '../utils';
@@ -268,10 +269,12 @@ export const AddMeaningModal: React.FC<AddMeaningModalProps> = ({
               ) : (
                 <View style={styles.imageButtons}>
                   <TouchableOpacity style={styles.imageButton} onPress={handlePickImage}>
-                    <Text style={styles.imageButtonText}>📷 Upload</Text>
+                    <CameraIcon size={20} style={{ marginRight: 6 }} />
+                    <Text style={styles.imageButtonText}>Upload</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.imageButton} onPress={handleTakePhoto}>
-                    <Text style={styles.imageButtonText}>📸 Take Photo</Text>
+                    <CameraIcon size={20} style={{ marginRight: 6 }} />
+                    <Text style={styles.imageButtonText}>Take Photo</Text>
                   </TouchableOpacity>
                   <TouchableOpacity style={styles.imageButton} onPress={handleSearchImage}>
                     <Text style={styles.imageButtonText}>🔍 Search</Text>
@@ -416,7 +419,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     borderRadius: borderRadius.md,
     padding: spacing.md,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: colors.borderMedium,
   },

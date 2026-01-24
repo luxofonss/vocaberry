@@ -7,7 +7,7 @@ export const shadows = {
      // Level 1 - Cards per rules.md: 0 2px 8px rgba(0, 0, 0, 0.06)
      level1: Platform.select({
           ios: {
-               shadowColor: '#000000',
+               shadowColor: '#292929ff',
                shadowOffset: { width: 0, height: 2 },
                shadowOpacity: 0.06,
                shadowRadius: 8,
@@ -16,7 +16,7 @@ export const shadows = {
                elevation: 2,
           },
      }),
-     
+
      // Level 2 - Buttons per rules.md: 0 4px 12px rgba(124, 58, 237, 0.2)
      level2: Platform.select({
           ios: {
@@ -29,7 +29,7 @@ export const shadows = {
                elevation: 4,
           },
      }),
-     
+
      // Level 3 - Modals per rules.md: 0 8px 24px rgba(0, 0, 0, 0.12)
      level3: Platform.select({
           ios: {
@@ -42,7 +42,7 @@ export const shadows = {
                elevation: 8,
           },
      }),
-     
+
      // Level 4 - Floating Elements per rules.md: 0 12px 32px rgba(0, 0, 0, 0.16)
      level4: Platform.select({
           ios: {
@@ -55,7 +55,7 @@ export const shadows = {
                elevation: 12,
           },
      }),
-     
+
      // Glow effect per rules.md - Active buttons: purple glow with 20% opacity
      glow: Platform.select({
           ios: {

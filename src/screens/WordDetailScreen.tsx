@@ -21,7 +21,7 @@ import { Word, RootStackParamList, Meaning } from '../types';
 import { StorageService } from '../services/StorageService';
 import { DatabaseService } from '../services/DatabaseService';
 import { DictionaryService } from '../services/DictionaryService';
-import { SpeakButton, ClickableText, WordPreviewModal, ImageSearchModal, ImageViewerModal, SkeletonLoader } from '../components';
+import { SpeakButton, ClickableText, WordPreviewModal, ImageSearchModal, ImageViewerModal, SkeletonLoader, CameraIcon, BackIcon, TrashIcon, MicroIcon, TargetIcon, CheckIcon } from '../components';
 import * as ImagePicker from 'expo-image-picker';
 import { EventBus } from '../services/EventBus';
 import { Ionicons } from '@expo/vector-icons';
@@ -460,7 +460,7 @@ export const WordDetailScreen: React.FC = () => {
                     style={styles.editImageBtnMini}
                     onPress={() => handleEditMeaningImage(item.id)}
                   >
-                    <Ionicons name="camera-outline" size={18} color="#6B7280" />
+                    <CameraIcon size={24} />
                   </TouchableOpacity>
                 </>
               )}
@@ -537,7 +537,7 @@ export const WordDetailScreen: React.FC = () => {
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={styles.navHeader}>
             <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-              <Text style={styles.backIcon}>←</Text>
+              <BackIcon size={20} />
             </TouchableOpacity>
           </View>
           <View style={{ flex: 1 }}>
@@ -568,7 +568,7 @@ export const WordDetailScreen: React.FC = () => {
 
             {!loading && (
               <TouchableOpacity style={styles.editImageBtn} onPress={handleEditMainImage}>
-                <Ionicons name="camera-outline" size={20} color="#6B7280" />
+                <CameraIcon size={32} />
               </TouchableOpacity>
             )}
           </View>
@@ -615,19 +615,19 @@ export const WordDetailScreen: React.FC = () => {
       <View style={styles.actionBarSafe}>
         <View style={styles.actionBar}>
           <TouchableOpacity style={styles.squareDeleteButton} onPress={handleDelete}>
-            <Ionicons name="trash-outline" size={20} color="#DC2626" />
+            <TrashIcon size={32} />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.micButton}
             onPress={handlePracticePronunciation}
           >
-            <Ionicons name="mic-outline" size={20} color={colors.white} />
+            <MicroIcon size={32} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.doneButton} onPress={handleDone}>
-            <Ionicons name="school-outline" size={20} color={colors.primary} />
+            <TargetIcon size={34} />
           </TouchableOpacity>
           <TouchableOpacity style={styles.primaryButton} onPress={handleGotIt}>
-            <Ionicons name="checkmark-outline" size={22} color={colors.white} />
+            <CheckIcon size={34} />
           </TouchableOpacity>
         </View>
       </View>
@@ -679,10 +679,10 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     display: 'flex',
-    alignItems: 'flex-start',
-    justifyContent: 'flex-start',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  backIcon: { fontSize: typography.sizes.xxl, color: colors.textPrimary, fontWeight: typography.weights.semibold },
+  backIcon: { fontSize: typography.sizes.xl, color: colors.textPrimary, fontWeight: typography.weights.semibold },
 
   fixedHeader: { paddingHorizontal: spacing.xxl, paddingBottom: spacing.sm },
   // Claymorphism header image wrapper - floating 3D clay tile
@@ -719,7 +719,7 @@ const styles = StyleSheet.create({
   phoneticText: { fontSize: typography.sizes.base, fontWeight: typography.weights.medium, color: colors.textSecondary, fontStyle: 'italic', opacity: 0.7 },
   slideDivider: { height: 1, backgroundColor: colors.borderLight, marginBottom: spacing.sm, opacity: 0.3 },
 
-  definitionText: { fontSize: typography.sizes.md, color: colors.textPrimary, lineHeight: 28, fontWeight: typography.weights.semibold, marginBottom: spacing.md },
+  definitionText: { fontSize: typography.sizes.md, color: colors.textPrimary, lineHeight: 20, fontWeight: typography.weights.semibold, marginBottom: spacing.md },
   // Claymorphism example card - floating 3D clay tile
   exampleCard: {
     padding: 4,
@@ -739,7 +739,7 @@ const styles = StyleSheet.create({
   exampleImage: { width: '100%', height: '100%' },
   exampleContent: { padding: spacing.lg, paddingTop: spacing.md },
   exampleTextRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm, alignItems: 'center' },
-  exampleText: { fontSize: typography.sizes.base, fontStyle: 'italic', color: colors.textSecondary, lineHeight: 24, flex: 1 },
+  exampleText: { fontSize: typography.sizes.base, fontStyle: 'italic', color: colors.textSecondary, lineHeight: 20, flex: 1 },
 
   // Claymorphism action bar - floating 3D clay container
   actionBarSafe: {
@@ -766,9 +766,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#FEE2E2',
     alignItems: 'center',
     justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 200, 200, 0.6)',
-    ...shadows.claySoft,
   },
   // Claymorphism microphone button - vibrant primary with gradient feel
   micButton: {
@@ -778,35 +775,24 @@ const styles = StyleSheet.create({
     backgroundColor: colors.secondary || '#7C3AED',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 0,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.3)',
-    ...shadows.clayPrimary,
   },
   // Claymorphism done button - square icon button with checkmark
   doneButton: {
     width: 48,
     height: 48,
-    backgroundColor: colors.cardSurface,
+    backgroundColor: colors.accent3Light,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 0,
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-    ...shadows.claySoft,
   },
   // Claymorphism primary button - square icon button with checkmark
   primaryButton: {
     width: 48,
     height: 48,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.backgroundPurple,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.3)',
-    ...shadows.clayPrimary,
   },
   primaryButtonText: { fontSize: typography.sizes.base, fontWeight: typography.weights.bold, color: colors.white, letterSpacing: 0.2 },
 
@@ -893,7 +879,7 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.sm,
     fontStyle: 'italic',
     color: colors.textPrimary,
-    lineHeight: 20,
+    lineHeight: 18,
     flex: 1,
   },
 });

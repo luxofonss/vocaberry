@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Pressable,
   ScrollView,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -17,17 +18,28 @@ import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import { gradients } from '../theme/styles';
 import { RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
-import { LANGUAGES } from '../constants';
+import { LANGUAGES, AVATARS } from '../constants';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Settings'>;
 
 export const SettingsScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
+  const [selectedAvatarId, setSelectedAvatarId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadMotherLanguage();
+    loadUserAvatar();
+  }, []);
+
+  const loadUserAvatar = useCallback(async () => {
+    try {
+      const avatarId = await StorageService.getUserAvatar();
+      setSelectedAvatarId(avatarId || '1');
+    } catch (error) {
+      console.error('[SettingsScreen] Failed to load user avatar:', error);
+    }
   }, []);
 
   const loadMotherLanguage = useCallback(async () => {
@@ -47,6 +59,15 @@ export const SettingsScreen: React.FC = () => {
       setSelectedLanguage(languageCode);
     } catch (error) {
       console.error('[SettingsScreen] Failed to save mother language:', error);
+    }
+  }, []);
+
+  const handleAvatarSelect = useCallback(async (avatarId: string) => {
+    try {
+      await StorageService.saveUserAvatar(avatarId);
+      setSelectedAvatarId(avatarId);
+    } catch (error) {
+      console.error('[SettingsScreen] Failed to save user avatar:', error);
     }
   }, []);
 
@@ -87,6 +108,45 @@ export const SettingsScreen: React.FC = () => {
         </View>
 
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Section: Profile Avatar */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionIcon}>👤</Text>
+              <Text style={styles.sectionTitle}>Profile Avatar</Text>
+            </View>
+            <Text style={styles.sectionDescription}>
+              Choose an avatar that represents you.
+            </Text>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.avatarList}
+            >
+              {AVATARS.map((avatar) => {
+                const isSelected = selectedAvatarId === avatar.id;
+                return (
+                  <Pressable
+                    key={avatar.id}
+                    style={({ pressed }) => [
+                      styles.avatarPickerItem,
+                      isSelected && styles.avatarPickerItemSelected,
+                      pressed && styles.avatarPickerItemPressed,
+                    ]}
+                    onPress={() => handleAvatarSelect(avatar.id)}
+                  >
+                    <Image source={avatar.source} style={styles.avatarPickerImage} />
+                    {isSelected && (
+                      <View style={styles.avatarCheckBadge}>
+                        <Ionicons name="checkmark" size={10} color={colors.white} />
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+
           {/* Section: Mother Language */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -329,5 +389,46 @@ const styles = StyleSheet.create({
     borderLeftWidth: 0,
     borderRightWidth: 0,
     ...shadows.subtle,
+  },
+  // Avatar Picker Styles
+  avatarList: {
+    paddingVertical: spacing.xs,
+    gap: spacing.md,
+  },
+  avatarPickerItem: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: colors.cardSurface,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    ...shadows.claySoft,
+  },
+  avatarPickerItemSelected: {
+    borderColor: colors.primary,
+    ...shadows.clayPrimary,
+  },
+  avatarPickerItemPressed: {
+    transform: [{ scale: 0.95 }],
+  },
+  avatarPickerImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+  },
+  avatarCheckBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: colors.white,
   },
 });

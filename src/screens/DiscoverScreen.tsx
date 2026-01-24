@@ -5,30 +5,25 @@ import {
      StyleSheet,
      FlatList,
      TouchableOpacity,
-     Image,
      RefreshControl,
-     Animated,
      ScrollView,
      Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { LinearGradient } from 'expo-linear-gradient';
 
-import { colors, typography, spacing, borderRadius, shadows } from '../theme';
-import { gradients } from '../theme/styles';
-import { Conversation, RootStackParamList, Word } from '../types';
+import { colors, spacing, shadows } from '../theme';
+import { Conversation, RootStackParamList } from '../types';
 import { ConversationService } from '../services/ConversationService';
 import { DictionaryService } from '../services/DictionaryService';
 import { StorageService } from '../services/StorageService';
-import { WordPreviewModal, ClickableText } from '../components';
+import { WordPreviewModal } from '../components';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const DiscoverScreen: React.FC = () => {
-     // ... (keep logic: navigation, state, loadData, handleRefresh, handleWordPress) ...
      const navigation = useNavigation<NavigationProp>();
      const [conversations, setConversations] = useState<Conversation[]>([]);
      const [suggestedWords, setSuggestedWords] = useState<{ id: string, word: string, definition: string }[]>([]);
@@ -101,45 +96,101 @@ export const DiscoverScreen: React.FC = () => {
           }
      };
 
-     const renderConversationCard = ({ item }: { item: Conversation }) => (
+     const renderShadowingCard = (lesson: any) => (
           <TouchableOpacity
-               style={[styles.card, shadows.claySoft]}
+               key={lesson.id}
+               style={[styles.sectionCard, shadows.claySoft]}
                activeOpacity={0.9}
-               onPress={() => navigation.navigate('ConversationDetail', { conversationId: item.id })}
+               onPress={() => navigation.navigate('ShadowingPractice', lesson)}
           >
-               <View style={styles.cardHeader}>
-                    <View style={styles.categoryBadge}>
-                         <Text style={styles.categoryText}>{item.category}</Text>
-                    </View>
-                    <View style={[
-                         styles.difficultyBadge,
-                         item.difficulty === 'beginner' ? styles.beginnerBadge :
-                              item.difficulty === 'intermediate' ? styles.intermediateBadge : styles.advancedBadge
-                    ]}>
-                         <Text style={styles.difficultyText}>{item.difficulty}</Text>
+               <View style={styles.cardIconContainer}>
+                    <View style={[styles.cardIcon, { backgroundColor: '#DCFCE7' }]}>
+                         <Text style={{ fontSize: 32 }}>{lesson.thumbnail}</Text>
                     </View>
                </View>
 
-               <Text style={styles.cardTitle}>{item.title}</Text>
-               <ClickableText
-                    text={item.description || ''}
-                    style={styles.cardDescription}
-                    onWordPress={handleWordPress}
-                    numberOfLines={2}
-               />
+               <View style={styles.cardContent}>
+                    <Text style={styles.cardMainTitle} numberOfLines={2}>{lesson.title}</Text>
+                    <View style={styles.cardMetaRow}>
+                         <Ionicons name="person-outline" size={12} color="#64748B" />
+                         <Text style={styles.cardMetaText} numberOfLines={1}>{lesson.channel}</Text>
+                    </View>
+                    <View style={styles.cardMetaRow}>
+                         <Ionicons name="time-outline" size={12} color="#64748B" />
+                         <Text style={styles.cardMetaText}>{lesson.duration}</Text>
+                         <View style={styles.metaDivider} />
+                         <Text style={[styles.cardMetaText, { color: '#15803D', fontWeight: '600' }]}>{lesson.level}</Text>
+                    </View>
+               </View>
 
-               <View style={styles.cardFooter}>
-                    <View style={styles.messageCount}>
-                         <Ionicons name="chatbubbles-outline" size={16} color={colors.textSecondary} />
-                         <Text style={styles.footerText}>{item.messages.length} messages</Text>
+               <View style={[styles.cardPlayButton, { backgroundColor: '#15803D' }]}>
+                    <Ionicons name="play" size={16} color={colors.white} />
+               </View>
+          </TouchableOpacity>
+     );
+
+     const renderWordCard = (word: { id: string, word: string, definition: string }) => (
+          <TouchableOpacity
+               key={word.id}
+               style={[styles.sectionCard, shadows.claySoft]}
+               activeOpacity={0.9}
+               onPress={() => handleWordPress(word.word)}
+          >
+               <View style={styles.cardIconContainer}>
+                    <View style={[styles.cardIcon, { backgroundColor: '#DBEAFE' }]}>
+                         <Ionicons name="book" size={28} color="#1D4ED8" />
                     </View>
-                    <View style={styles.practiceInfo}>
-                         <Ionicons name="stats-chart-outline" size={16} color={colors.textSecondary} />
-                         <Text style={styles.footerText}>{item.practiceCount} practices</Text>
+               </View>
+
+               <View style={styles.cardContent}>
+                    <Text style={styles.cardMainTitle} numberOfLines={1}>{word.word}</Text>
+                    <Text style={styles.cardDefinition} numberOfLines={3}>{word.definition}</Text>
+               </View>
+
+               <View style={[styles.cardPlayButton, { backgroundColor: '#1D4ED8' }]}>
+                    <Ionicons name="add" size={20} color={colors.white} />
+               </View>
+          </TouchableOpacity>
+     );
+
+     const renderConversationCard = (item: Conversation) => (
+          <TouchableOpacity
+               key={item.id}
+               style={[styles.sectionCard, shadows.claySoft]}
+               activeOpacity={0.9}
+               onPress={() => navigation.navigate('ConversationDetail', { conversationId: item.id })}
+          >
+               <View style={styles.cardIconContainer}>
+                    <View style={[styles.cardIcon, { backgroundColor: '#FFEDD5' }]}>
+                         <Ionicons name="chatbubbles" size={28} color="#C2410C" />
                     </View>
-                    <TouchableOpacity style={styles.arrowContainer}>
-                         <Ionicons name="chevron-forward" size={20} color={colors.primary} />
-                    </TouchableOpacity>
+               </View>
+
+               <View style={styles.cardContent}>
+                    <View style={styles.conversationBadges}>
+                         <View style={styles.categoryBadgeSmall}>
+                              <Text style={styles.categoryTextSmall}>{item.category}</Text>
+                         </View>
+                         <View style={[
+                              styles.difficultyBadgeSmall,
+                              item.difficulty === 'beginner' ? styles.beginnerBadge :
+                                   item.difficulty === 'intermediate' ? styles.intermediateBadge : styles.advancedBadge
+                         ]}>
+                              <Text style={styles.difficultyTextSmall}>{item.difficulty}</Text>
+                         </View>
+                    </View>
+                    <Text style={styles.cardMainTitle} numberOfLines={2}>{item.title}</Text>
+                    <View style={styles.cardMetaRow}>
+                         <Ionicons name="chatbubbles-outline" size={12} color="#64748B" />
+                         <Text style={styles.cardMetaText}>{item.messages.length} messages</Text>
+                         <View style={styles.metaDivider} />
+                         <Ionicons name="stats-chart-outline" size={12} color="#64748B" />
+                         <Text style={styles.cardMetaText}>{item.practiceCount} practices</Text>
+                    </View>
+               </View>
+
+               <View style={[styles.cardPlayButton, { backgroundColor: '#C2410C' }]}>
+                    <Ionicons name="chevron-forward" size={16} color={colors.white} />
                </View>
           </TouchableOpacity>
      );
@@ -156,9 +207,8 @@ export const DiscoverScreen: React.FC = () => {
                </View>
 
                <FlatList
-                    data={conversations}
-                    renderItem={renderConversationCard}
-                    keyExtractor={(item) => item.id}
+                    data={[]}
+                    renderItem={() => null}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}
                     refreshControl={
@@ -167,8 +217,8 @@ export const DiscoverScreen: React.FC = () => {
                     ListHeaderComponent={
                          <View style={styles.headerComponents}>
                               {/* Shadowing Section */}
-                              <View style={{ marginBottom: 24 }}>
-                                   <View style={[styles.sectionHeaderRow, { paddingHorizontal: spacing.xs }]}>
+                              <View style={styles.sectionContainer}>
+                                   <View style={styles.sectionHeaderRow}>
                                         <View style={styles.titleRow}>
                                              <View style={[styles.iconBox, { backgroundColor: '#DCFCE7' }]}>
                                                   <Ionicons name="videocam" size={18} color="#15803D" />
@@ -179,34 +229,23 @@ export const DiscoverScreen: React.FC = () => {
                                              <Text style={styles.seeAllText}>See All</Text>
                                         </TouchableOpacity>
                                    </View>
-                                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
+                                   <ScrollView
+                                        horizontal
+                                        showsHorizontalScrollIndicator={false}
+                                        contentContainerStyle={styles.horizontalScroll}
+                                   >
                                         {[
                                              { id: 1, title: 'Daily Morning Routine', channel: 'English with Emma', duration: '3:45', level: 'Beginner', difficulty: 'Easy', completed: true, stars: 3, thumbnail: '🌅', accent: 'American', views: '1.2M' },
                                              { id: 2, title: 'Coffee Shop Conversation', channel: 'Real English', duration: '4:20', level: 'Beginner', difficulty: 'Easy', completed: true, stars: 2, thumbnail: '☕', accent: 'British', views: '850K' },
-                                        ].map(lesson => (
-                                             <TouchableOpacity
-                                                  key={lesson.id}
-                                                  style={[styles.shadowingCard]}
-                                                  onPress={() => navigation.navigate('ShadowingPractice', lesson)}
-                                             >
-                                                  <View style={styles.shadowingIcon}>
-                                                       <Text style={{ fontSize: 24 }}>{lesson.thumbnail}</Text>
-                                                  </View>
-                                                  <View style={{ flex: 1 }}>
-                                                       <Text style={styles.shadowingTitle}>{lesson.title}</Text>
-                                                       <Text style={styles.shadowingSubtitle} numberOfLines={1}>{lesson.channel}</Text>
-                                                  </View>
-                                                  <View style={styles.playIconContainer}>
-                                                       <Ionicons name="play" size={10} color={colors.white} />
-                                                  </View>
-                                             </TouchableOpacity>
-                                        ))}
+                                             { id: 3, title: 'At the Restaurant', channel: 'Speak Easy', duration: '5:10', level: 'Intermediate', difficulty: 'Medium', completed: false, stars: 0, thumbnail: '🍽️', accent: 'American', views: '620K' },
+                                             { id: 4, title: 'Job Interview Tips', channel: 'Business English', duration: '6:30', level: 'Advanced', difficulty: 'Hard', completed: false, stars: 0, thumbnail: '💼', accent: 'British', views: '980K' },
+                                        ].map(lesson => renderShadowingCard(lesson))}
                                    </ScrollView>
                               </View>
 
                               {/* New Words Section */}
-                              <View style={{ marginBottom: 24 }}>
-                                   <View style={[styles.sectionHeaderRow, { paddingHorizontal: spacing.xs }]}>
+                              <View style={styles.sectionContainer}>
+                                   <View style={styles.sectionHeaderRow}>
                                         <View style={styles.titleRow}>
                                              <View style={[styles.iconBox, { backgroundColor: '#DBEAFE' }]}>
                                                   <Ionicons name="book" size={18} color="#1D4ED8" />
@@ -217,40 +256,44 @@ export const DiscoverScreen: React.FC = () => {
                                              <Text style={styles.seeAllText}>See All</Text>
                                         </TouchableOpacity>
                                    </View>
-                                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScroll}>
-                                        {suggestedWords.map(sw => (
-                                             <TouchableOpacity
-                                                  key={sw.id}
-                                                  style={[styles.wordChip]}
-                                                  onPress={() => handleWordPress(sw.word)}
-                                             >
-                                                  <Text style={styles.wordChipText}>{sw.word}</Text>
-                                                  <Text style={styles.wordChipDef} numberOfLines={1}>{sw.definition}</Text>
-                                             </TouchableOpacity>
-                                        ))}
+                                   <ScrollView
+                                        horizontal
+                                        showsHorizontalScrollIndicator={false}
+                                        contentContainerStyle={styles.horizontalScroll}
+                                   >
+                                        {suggestedWords.slice(0, 4).map(word => renderWordCard(word))}
                                    </ScrollView>
                               </View>
 
-                              {/* Conversations Header */}
-                              <View style={[styles.sectionHeaderRow, { marginTop: spacing.lg, paddingHorizontal: spacing.xs }]}>
-                                   <View style={styles.titleRow}>
-                                        <View style={[styles.iconBox, { backgroundColor: '#FFEDD5' }]}>
-                                             <Ionicons name="chatbubbles" size={18} color="#C2410C" />
+                              {/* Conversations Section */}
+                              <View style={styles.sectionContainer}>
+                                   <View style={styles.sectionHeaderRow}>
+                                        <View style={styles.titleRow}>
+                                             <View style={[styles.iconBox, { backgroundColor: '#FFEDD5' }]}>
+                                                  <Ionicons name="chatbubbles" size={18} color="#C2410C" />
+                                             </View>
+                                             <Text style={styles.sectionTitle}>Conversations</Text>
                                         </View>
-                                        <Text style={styles.sectionTitle}>Conversations</Text>
+                                        <TouchableOpacity onPress={() => navigation.navigate('ConversationList')}>
+                                             <Text style={styles.seeAllText}>See All</Text>
+                                        </TouchableOpacity>
                                    </View>
-                                   <TouchableOpacity onPress={() => navigation.navigate('ConversationList')}>
-                                        <Text style={styles.seeAllText}>See All</Text>
-                                   </TouchableOpacity>
+                                   <ScrollView
+                                        horizontal
+                                        showsHorizontalScrollIndicator={false}
+                                        contentContainerStyle={styles.horizontalScroll}
+                                   >
+                                        {conversations.slice(0, 4).map(item => renderConversationCard(item))}
+                                   </ScrollView>
                               </View>
+
+                              {/* Empty State */}
+                              {!loading && conversations.length === 0 && (
+                                   <View style={styles.emptyContainer}>
+                                        <Text style={styles.emptyText}>No conversations found.</Text>
+                                   </View>
+                              )}
                          </View>
-                    }
-                    ListEmptyComponent={
-                         !loading ? (
-                              <View style={styles.emptyContainer}>
-                                   <Text style={styles.emptyText}>No suggestions found.</Text>
-                              </View>
-                         ) : null
                     }
                />
 
@@ -307,11 +350,14 @@ const styles = StyleSheet.create({
      headerComponents: {
           marginBottom: spacing.xs,
      },
+     sectionContainer: {
+          marginBottom: 28,
+     },
      sectionHeaderRow: {
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: 12,
+          marginBottom: 14,
      },
      titleRow: {
           flexDirection: 'row',
@@ -336,114 +382,106 @@ const styles = StyleSheet.create({
           color: colors.primary,
      },
      horizontalScroll: {
-          gap: 12,
+          gap: 14,
           paddingRight: 4,
      },
-     // Card Styles
-     card: {
+
+     // Unified Section Card Styles
+     sectionCard: {
           backgroundColor: colors.white,
-          borderRadius: 24,
-          padding: spacing.lg,
-          marginBottom: spacing.md,
+          borderRadius: 20,
+          padding: 16,
+          width: 280,
           borderWidth: 1,
-          borderColor: '#F1F5F9', // light border
+          borderColor: '#F1F5F9',
+          flexDirection: 'column',
      },
-     cardHeader: {
+     cardIconContainer: {
+          marginBottom: 12,
+     },
+     cardIcon: {
+          width: 56,
+          height: 56,
+          borderRadius: 16,
+          alignItems: 'center',
+          justifyContent: 'center',
+     },
+     cardContent: {
+          flex: 1,
+     },
+     cardMainTitle: {
+          fontSize: 16,
+          fontWeight: 'bold',
+          color: '#1E293B',
+          marginBottom: 8,
+          lineHeight: 22,
+     },
+     cardDefinition: {
+          fontSize: 13,
+          color: '#64748B',
+          lineHeight: 18,
+     },
+     cardMetaRow: {
           flexDirection: 'row',
-          justifyContent: 'space-between',
-          marginBottom: spacing.sm,
+          alignItems: 'center',
+          gap: 4,
+          marginTop: 4,
+          flexWrap: 'wrap',
      },
-     categoryBadge: {
+     cardMetaText: {
+          fontSize: 11,
+          color: '#64748B',
+          fontWeight: '500',
+     },
+     metaDivider: {
+          width: 3,
+          height: 3,
+          borderRadius: 1.5,
+          backgroundColor: '#CBD5E1',
+          marginHorizontal: 4,
+     },
+     cardPlayButton: {
+          position: 'absolute',
+          bottom: 16,
+          right: 16,
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          alignItems: 'center',
+          justifyContent: 'center',
+     },
+
+     // Conversation specific badges
+     conversationBadges: {
+          flexDirection: 'row',
+          gap: 6,
+          marginBottom: 8,
+     },
+     categoryBadgeSmall: {
           backgroundColor: '#F8FAFC',
-          paddingHorizontal: 10,
-          paddingVertical: 4,
-          borderRadius: 10,
+          paddingHorizontal: 8,
+          paddingVertical: 3,
+          borderRadius: 8,
      },
-     categoryText: {
-          fontSize: 12,
+     categoryTextSmall: {
+          fontSize: 10,
           fontWeight: '700',
           color: '#64748B',
      },
-     difficultyBadge: {
-          paddingHorizontal: 10,
-          paddingVertical: 4,
-          borderRadius: 10,
+     difficultyBadgeSmall: {
+          paddingHorizontal: 8,
+          paddingVertical: 3,
+          borderRadius: 8,
      },
      beginnerBadge: { backgroundColor: '#ECFDF5' },
      intermediateBadge: { backgroundColor: '#FFFBEB' },
      advancedBadge: { backgroundColor: '#FEF2F2' },
-     difficultyText: {
-          fontSize: 11,
+     difficultyTextSmall: {
+          fontSize: 9,
           fontWeight: '800',
           textTransform: 'uppercase',
           color: '#059669',
      },
-     cardTitle: {
-          fontSize: 18,
-          fontWeight: 'bold',
-          color: '#1E293B',
-          marginBottom: 8,
-     },
-     cardDescription: {
-          fontSize: 14,
-          color: '#64748B',
-          lineHeight: 20,
-          marginBottom: spacing.md,
-     },
-     cardFooter: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 16,
-          paddingTop: spacing.sm,
-          borderTopWidth: 1,
-          borderTopColor: '#F1F5F9',
-     },
-     messageCount: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-     practiceInfo: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-     footerText: { fontSize: 12, color: '#64748B', fontWeight: '500' },
-     arrowContainer: { marginLeft: 'auto' },
-
-     // Shadowing & Word Cards
-     shadowingCard: {
-          backgroundColor: colors.white,
-          borderRadius: 16,
-          padding: 12,
-          width: 200,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 10,
-          marginRight: 4,
-     },
-     shadowingIcon: {
-          width: 40,
-          height: 40,
-          borderRadius: 12,
-          backgroundColor: '#FFEDD5',
-          alignItems: 'center',
-          justifyContent: 'center',
-     },
-     shadowingTitle: {
-          fontSize: 14,
-          fontWeight: 'bold',
-          color: '#1E293B',
-          marginBottom: 2,
-     },
-     shadowingSubtitle: { fontSize: 10, color: '#64748B' },
-     playIconContainer: {
-          position: 'absolute', bottom: 10, right: 10,
-          width: 20, height: 20, borderRadius: 10,
-          backgroundColor: colors.primary, alignItems: 'center', justifyContent: 'center',
-     },
-     wordChip: {
-          backgroundColor: colors.white,
-          borderRadius: 16,
-          paddingHorizontal: 16,
-          paddingVertical: 12,
-          minWidth: 140,
-          marginRight: 4,
-     },
-     wordChipText: { fontSize: 16, fontWeight: 'bold', color: colors.primary, marginBottom: 4 },
-     wordChipDef: { fontSize: 12, color: '#64748B' },
 
      // Empty State
      emptyContainer: { alignItems: 'center', marginTop: 40 },

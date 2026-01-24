@@ -12,6 +12,7 @@ import {
   ScrollView,
   Alert,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -29,12 +30,15 @@ import {
   QuickAddModal,
   SearchModal,
   FilterChip,
+  TrashIcon,
+  CoinIcon,
+  TimeIcon,
 } from '../components';
 import { EventBus } from '../services/EventBus';
 import { PracticeScreen } from './PracticeScreen';
 import { DiscoverScreen } from './DiscoverScreen';
 import { BottomTabBar } from '../components/BottomTabBar';
-import { UI_LIMITS, ANIMATION } from '../constants';
+import { UI_LIMITS, ANIMATION, AVATARS } from '../constants';
 import { getNotificationByTime, getUserInitial } from '../utils';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
@@ -49,6 +53,7 @@ export const HomeScreen: React.FC = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [wordsForReview, setWordsForReview] = useState(0);
   const [leastViewedCount, setLeastViewedCount] = useState(0);
+  const [avatarId, setAvatarId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('home');
   const [homeSubTab, setHomeSubTab] = useState<string>('words');
   const [sentences, setSentences] = useState<Sentence[]>([]);
@@ -156,6 +161,9 @@ export const HomeScreen: React.FC = () => {
 
       const name = await StorageService.getUserName();
       setUserName(name);
+
+      const selectedAvatarId = await StorageService.getUserAvatar();
+      setAvatarId(selectedAvatarId);
 
       const allSentences = await StorageService.getSentences();
       setSentences(allSentences);
@@ -299,6 +307,7 @@ export const HomeScreen: React.FC = () => {
   const renderHeader = useCallback(() => {
     const greetingName = userName || 'there';
     const avatarInitial = getUserInitial(userName);
+    const selectedAvatar = AVATARS.find(a => a.id === avatarId);
 
     return (
       <View style={styles.header}>
@@ -317,13 +326,17 @@ export const HomeScreen: React.FC = () => {
               ]}
               onPress={() => navigation.navigate('Settings')}
             >
-              <Text style={styles.avatarText}>{avatarInitial}</Text>
+              {selectedAvatar ? (
+                <Image source={selectedAvatar.source} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>{avatarInitial}</Text>
+              )}
             </Pressable>
           </View>
         </View>
       </View>
     );
-  }, [userName, navigation]);
+  }, [userName, avatarId, navigation]);
 
   const renderEmpty = useCallback(() => (
     <View style={styles.emptyContainer}>
@@ -408,8 +421,8 @@ export const HomeScreen: React.FC = () => {
           <View style={styles.subTabRow}>
             {[
               { id: 'words', label: 'Words' },
-              { id: 'sentences', label: 'Pron.' },
-              { id: 'conversations', label: 'Convo' }
+              { id: 'sentences', label: 'Pronunications' },
+              { id: 'conversations', label: 'Conversations' }
             ].map(tab => (
               <TouchableOpacity
                 key={tab.id}
@@ -469,7 +482,7 @@ export const HomeScreen: React.FC = () => {
                   />
                 )}
                 keyExtractor={(item) => item.id}
-                numColumns={3}
+                numColumns={4}
                 columnWrapperStyle={styles.columnWrapper}
                 ListHeaderComponent={<View style={styles.listHeaderSpacer} />}
                 ListEmptyComponent={renderEmpty}
@@ -492,23 +505,21 @@ export const HomeScreen: React.FC = () => {
               }
             >
               <View style={styles.sentenceInputRow}>
-                <View style={[styles.sentenceInputCardFlexible, shadows.claySoft]}>
-                  <TextInput
-                    style={styles.sentenceInputFlexible}
-                    placeholder="Add a sentence..."
-                    placeholderTextColor={colors.textLight}
-                    value={newSentence}
-                    onChangeText={setNewSentence}
-                    multiline
-                    maxLength={256}
-                  />
-                </View>
+                <TextInput
+                  style={styles.sentenceInputFlexible}
+                  placeholder="Add a sentence..."
+                  placeholderTextColor={colors.textLight}
+                  value={newSentence}
+                  onChangeText={setNewSentence}
+                  multiline
+                  maxLength={256}
+                />
                 <TouchableOpacity
-                  style={[styles.saveBtnCompact, shadows.clayStrong]}
+                  style={[styles.saveBtnCompact]}
                   onPress={handleSaveSentence}
                 >
                   <LinearGradient
-                    colors={[colors.primary, '#8B5CF6']}
+                    colors={[colors.accent3, colors.accent3Light]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.gradientBtnCompact}
@@ -520,7 +531,7 @@ export const HomeScreen: React.FC = () => {
 
               <View style={styles.recentListHeader}>
                 <View style={styles.recentListTitleRow}>
-                  <Text style={styles.recentListTitle}>RECENT LIST</Text>
+                  <Text style={styles.recentListTitle}>Your examples</Text>
                   <View style={styles.sentenceCountBadge}>
                     <Text style={styles.sentenceCountBadgeText}>{sentences.length}</Text>
                   </View>
@@ -536,29 +547,31 @@ export const HomeScreen: React.FC = () => {
                 sentences.map((sent) => (
                   <TouchableOpacity
                     key={sent.id}
-                    style={[styles.sentenceCard, shadows.claySoft]}
+                    style={[styles.sentenceCard, shadows.level1]}
                     onPress={() => navigation.navigate('SentencePractice', { sentenceId: sent.id })}
                   >
                     <View style={styles.sentenceCardHeader}>
                       <Text style={styles.sentenceText}>{sent.text}</Text>
                       <TouchableOpacity onPress={() => handleDeleteSentence(sent.id)} style={styles.actionBtn}>
-                        <Ionicons name="trash-outline" size={18} color={colors.textLight} />
+                        <TrashIcon size={24} />
                       </TouchableOpacity>
                     </View>
                     <View style={styles.sentenceCardFooter}>
                       <View style={styles.practiceBadgesRow}>
-                        <View style={styles.practiceBadge}>
-                          <Text style={styles.practiceBadgeText}>{sent.practiceCount || 0} practices</Text>
+                        <View style={[styles.practiceBadge, { backgroundColor: '#F0F9FF' }]}>
+                          <TimeIcon size={14} style={{ marginRight: 4 }} />
+                          <Text style={[styles.practiceBadgeText, { color: '#0284C7' }]}>{sent.practiceCount || 0}</Text>
                         </View>
                         {sent.totalScore !== undefined && sent.totalScore > 0 && (
                           <View style={[styles.practiceBadge, { backgroundColor: '#FFF7ED' }]}>
-                            <Text style={[styles.practiceBadgeText, { color: '#EA580C' }]}>⭐️ {sent.totalScore}</Text>
+                            <CoinIcon size={14} style={{ marginRight: 4 }} />
+                            <Text style={[styles.practiceBadgeText, { color: '#EA580C' }]}>{sent.totalScore}</Text>
                           </View>
                         )}
                       </View>
                       {sent.lastPracticedAt && (
                         <Text style={styles.lastPracticedText}>
-                          {new Date(sent.lastPracticedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          {new Date(sent.lastPracticedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                         </Text>
                       )}
                     </View>
@@ -580,7 +593,7 @@ export const HomeScreen: React.FC = () => {
 
               <View style={styles.recentListHeader}>
                 <View style={styles.recentListTitleRow}>
-                  <Text style={styles.recentListTitle}>PRACTICING CONVERSATIONS</Text>
+                  <Text style={styles.recentListTitle}>Your conversations</Text>
                   <View style={styles.sentenceCountBadge}>
                     <Text style={styles.sentenceCountBadgeText}>{practicingConversations.length}</Text>
                   </View>
@@ -591,7 +604,7 @@ export const HomeScreen: React.FC = () => {
                   onPress={() => navigation.navigate('CreateConversation')}
                 >
                   <LinearGradient
-                    colors={[colors.primary, '#8B5CF6']}
+                    colors={[colors.accent3, colors.accent3Light]}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 0 }}
                     style={styles.smallCreateGradient}
@@ -621,7 +634,7 @@ export const HomeScreen: React.FC = () => {
                   return (
                     <TouchableOpacity
                       key={conv.id}
-                      style={[styles.sentenceCard, shadows.claySoft]}
+                      style={[styles.sentenceCard, shadows.level1]}
                       onPress={() => navigation.navigate('ConversationDetail', { conversationId: conv.id })}
                     >
                       <View style={styles.sentenceCardHeader}>
@@ -636,23 +649,25 @@ export const HomeScreen: React.FC = () => {
                           }}
                           style={styles.actionBtn}
                         >
-                          <Ionicons name="trash-outline" size={18} color={colors.textLight} />
+                          <TrashIcon size={24} />
                         </TouchableOpacity>
                       </View>
                       <View style={styles.sentenceCardFooter}>
                         <View style={styles.practiceBadgesRow}>
-                          <View style={styles.practiceBadge}>
-                            <Text style={styles.practiceBadgeText}>{conv.practiceCount || 0} sessions</Text>
+                          <View style={[styles.practiceBadge, { backgroundColor: '#F0F9FF' }]}>
+                            <TimeIcon size={14} style={{ marginRight: 4 }} />
+                            <Text style={[styles.practiceBadgeText, { color: '#0284C7' }]}>{conv.practiceCount || 0}</Text>
                           </View>
                           {avgScore > 0 && (
                             <View style={[styles.practiceBadge, { backgroundColor: '#F0FDF4' }]}>
-                              <Text style={[styles.practiceBadgeText, { color: '#16A34A' }]}>Score: {avgScore}%</Text>
+                              <CoinIcon size={14} style={{ marginRight: 4 }} />
+                              <Text style={[styles.practiceBadgeText, { color: '#16A34A' }]}>{avgScore}%</Text>
                             </View>
                           )}
                         </View>
                         {conv.lastPracticedAt && (
                           <Text style={styles.lastPracticedText}>
-                            {new Date(conv.lastPracticedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            {new Date(conv.lastPracticedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </Text>
                         )}
                       </View>
@@ -849,6 +864,11 @@ const styles = StyleSheet.create({
     fontWeight: typography.weights.bold,
     fontSize: typography.sizes.lg
   },
+  avatarImage: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
 
   listContent: {
     paddingBottom: 120
@@ -963,7 +983,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accentGreen,
     borderRadius: borderRadius.clayCard,
     padding: spacing.puffyMd,
     borderTopWidth: 1,
@@ -1018,16 +1038,16 @@ const styles = StyleSheet.create({
     marginBottom: spacing.md,
   },
   subTabButton: {
-    paddingVertical: 12,
-    borderBottomWidth: 3,
+    paddingBottom: 6,
+    borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
   subTabButtonActive: {
     borderBottomColor: colors.primary,
   },
   subTabText: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: 17,
+    fontWeight: '700',
     color: colors.textSecondary,
   },
   subTabTextActive: {
@@ -1042,20 +1062,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.screenPadding,
     paddingBottom: 120,
   },
-  sentenceInputCardFlexible: {
+  sentenceInputFlexible: {
     flex: 1,
-    backgroundColor: '#F8FAFF',
+    backgroundColor: colors.white,
+    borderColor: colors.accent3Light,
+    borderWidth: 1,
     borderRadius: 16,
     paddingHorizontal: spacing.md,
-    paddingVertical: 10,
+    paddingVertical: 12,
     minHeight: 48,
     maxHeight: 120,
-    justifyContent: 'center',
-  },
-  sentenceInputFlexible: {
     fontSize: 15,
     color: colors.textPrimary,
     lineHeight: 20,
+    textAlignVertical: 'center',
   },
   saveBtnCompact: {
     width: 48,
@@ -1092,8 +1112,8 @@ const styles = StyleSheet.create({
   },
   recentListTitle: {
     fontSize: 14,
-    fontWeight: '800',
-    color: colors.textLight,
+    fontWeight: '700',
+    color: colors.textSecondary,
     letterSpacing: 0.5,
   },
   sentenceInputRow: {
@@ -1103,7 +1123,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   sentenceCountBadge: {
-    backgroundColor: '#EDE9FE',
+    backgroundColor: colors.backgroundViolet,
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -1112,6 +1132,7 @@ const styles = StyleSheet.create({
     color: '#8B5CF6',
     fontSize: 12,
     fontWeight: '700',
+    borderRadius: 12,
   },
   sentenceCard: {
     backgroundColor: colors.white,
@@ -1152,6 +1173,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   practiceBadgeText: {
     color: '#10B981',
