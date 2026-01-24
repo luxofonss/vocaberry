@@ -8,6 +8,7 @@ import {
      RefreshControl,
      ScrollView,
      Alert,
+     ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -18,6 +19,7 @@ import { Conversation, RootStackParamList } from '../types';
 import { ConversationService } from '../services/ConversationService';
 import { DictionaryService } from '../services/DictionaryService';
 import { StorageService } from '../services/StorageService';
+import { ApiClient } from '../services/ApiClient';
 import { WordPreviewModal, WordCard } from '../components';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Word } from '../types';
@@ -27,7 +29,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export const DiscoverScreen: React.FC = () => {
      const navigation = useNavigation<NavigationProp>();
      const [conversations, setConversations] = useState<Conversation[]>([]);
-     const [suggestedWords, setSuggestedWords] = useState<{ id: string, word: string, definition: string }[]>([]);
+     const [suggestedWords, setSuggestedWords] = useState<{ id: string, word: string, definition: string, imageUrl?: string }[]>([]);
      const [loading, setLoading] = useState(true);
      const [refreshing, setRefreshing] = useState(false);
 
@@ -38,16 +40,63 @@ export const DiscoverScreen: React.FC = () => {
      const [isLookupLoading, setIsLookupLoading] = useState(false);
      const [lookupStatus, setLookupStatus] = useState('');
 
+     // Dictionary pagination state
+     const [dictionaryPage, setDictionaryPage] = useState(0);
+     const [hasMoreWords, setHasMoreWords] = useState(true);
+     const [isFetchingMoreWords, setIsFetchingMoreWords] = useState(false);
+
+     const fetchDictionaryWords = async (page: number, shouldRefresh = false) => {
+          try {
+               if (!shouldRefresh && (isFetchingMoreWords || !hasMoreWords)) return;
+
+               if (!shouldRefresh) setIsFetchingMoreWords(true);
+
+               // API default size is 5 as requested
+               const response = await ApiClient.getDictionaryWords(page, 20);
+
+               if (response && response.data) {
+                    const mappedWords = response.data.map((item: any) => ({
+                         id: item.word.id,
+                         word: item.word.word,
+                         definition: item.word.meanings?.[0]?.definition || 'No definition available',
+                         imageUrl: item.word.imageUrl
+                    }));
+
+                    if (shouldRefresh) {
+                         setSuggestedWords(mappedWords);
+                         setDictionaryPage(0);
+                    } else {
+                         setSuggestedWords(prev => [...prev, ...mappedWords]);
+                         setDictionaryPage(page);
+                    }
+
+                    // Check if we have loaded all items
+                    // meta: { code, pageIndex, pageSize, totalItems, message }
+                    const { totalItems, pageIndex, pageSize } = response.meta;
+                    // simple check: if we received fewer items than requested size, or if predicted next index is out of bounds
+                    // actually totalItems is the most reliable
+                    const currentCount = (pageIndex + 1) * pageSize;
+                    // Note: response.meta.pageIndex is 0-based from server
+
+                    setHasMoreWords(mappedWords.length > 0 && (page + 1) * 5 < totalItems);
+               }
+          } catch (error) {
+               console.error('Failed to fetch dictionary words:', error);
+          } finally {
+               setIsFetchingMoreWords(false);
+          }
+     };
+
      const loadData = useCallback(async () => {
           try {
-               const [convs, words] = await Promise.all([
-                    ConversationService.getConversations(),
-                    ConversationService.getSuggestedWords()
-               ]);
+               // Load conversations and initial dictionary words
+               const convs = await ConversationService.getConversations();
                setConversations(convs);
-               setSuggestedWords(words);
+
+               // Load first page of dictionary
+               await fetchDictionaryWords(0, true);
           } catch (error) {
-               console.error('Failed to load conversations:', error);
+               console.error('Failed to load data:', error);
           } finally {
                setLoading(false);
                setRefreshing(false);
@@ -97,6 +146,12 @@ export const DiscoverScreen: React.FC = () => {
           }
      };
 
+     const handleLoadMoreWords = () => {
+          if (hasMoreWords && !isFetchingMoreWords) {
+               fetchDictionaryWords(dictionaryPage + 1);
+          }
+     };
+
      const renderShadowingCard = (lesson: any) => (
           <TouchableOpacity
                key={lesson.id}
@@ -122,12 +177,12 @@ export const DiscoverScreen: React.FC = () => {
           </TouchableOpacity>
      );
 
-     const renderWordCard = (wordData: { id: string, word: string, definition: string }) => {
+     const renderWordCard = (wordData: { id: string, word: string, definition: string, imageUrl?: string }) => {
           const dummyWord: Word = {
                id: wordData.id,
                word: wordData.word,
                meanings: [{ id: '1', definition: wordData.definition }],
-               imageUrl: '',
+               imageUrl: wordData.imageUrl || '',
                topics: [],
                nextReviewDate: new Date().toISOString(),
                reviewCount: 0,
@@ -246,13 +301,23 @@ export const DiscoverScreen: React.FC = () => {
                                              <Text style={styles.seeAllText}>See All</Text>
                                         </TouchableOpacity>
                                    </View>
-                                   <ScrollView
+                                   <FlatList
                                         horizontal
+                                        data={suggestedWords}
+                                        renderItem={({ item }) => renderWordCard(item)}
+                                        keyExtractor={(item, index) => `${item.id}-${index}`}
                                         showsHorizontalScrollIndicator={false}
                                         contentContainerStyle={styles.horizontalScroll}
-                                   >
-                                        {suggestedWords.slice(0, 4).map(word => renderWordCard(word))}
-                                   </ScrollView>
+                                        onEndReached={handleLoadMoreWords}
+                                        onEndReachedThreshold={0.5}
+                                        ListFooterComponent={
+                                             isFetchingMoreWords ? (
+                                                  <View style={{ width: 50, justifyContent: 'center', alignItems: 'center' }}>
+                                                       <ActivityIndicator size="small" color={colors.primary} />
+                                                  </View>
+                                             ) : null
+                                        }
+                                   />
                               </View>
 
                               {/* Conversations Section */}

@@ -64,11 +64,13 @@ type DetailRouteProp = RouteProp<RootStackParamList, 'WordDetail'>;
 export const WordDetailScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<DetailRouteProp>();
-  const { wordId } = route.params;
+  // @ts-ignore - Handle flexible params
+  const { wordId, previewData, isPreview } = route.params;
 
   const [word, setWord] = useState<Word | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [isPreviewMode, setIsPreviewMode] = useState(!!isPreview);
 
   // Popup State
   const [modalVisible, setModalVisible] = useState(false);
@@ -93,6 +95,8 @@ export const WordDetailScreen: React.FC = () => {
 
   // Refresh word from server when entering screen to get latest data
   useEffect(() => {
+    if (isPreviewMode) return; // Skip background refresh in preview mode
+
     const refreshFromServer = async () => {
       console.log('[WordDetail] 🔍 Checking if word needs refresh...', { wordId });
 
@@ -138,6 +142,8 @@ export const WordDetailScreen: React.FC = () => {
   }, [wordId]);
 
   useEffect(() => {
+    if (isPreviewMode) return;
+
     // Listen for word update event - reload từ DB để đảm bảo đồng bộ
     const cb = async ({ wordId: wId, word: updatedWord }: { wordId: string; word?: Word }) => {
       console.log(`[WordDetail] 📡 Nhận event wordImageUpdated - wId: "${wId}", current wordId: "${wordId}"`);
@@ -159,7 +165,7 @@ export const WordDetailScreen: React.FC = () => {
     };
     EventBus.on('wordImageUpdated', cb);
     return () => EventBus.off('wordImageUpdated', cb);
-  }, [wordId]);
+  }, [wordId, isPreviewMode]);
 
   // Remove old polling fallback - DictionaryService handles this now
   /*
@@ -173,6 +179,12 @@ export const WordDetailScreen: React.FC = () => {
 
   const loadWord = useCallback(async () => {
     try {
+      if (isPreviewMode && previewData) {
+        setWord(previewData);
+        setLoading(false);
+        return;
+      }
+
       const loadedWord = await StorageService.getWordById(wordId);
       setWord(loadedWord || null);
     } catch (error) {
@@ -180,7 +192,18 @@ export const WordDetailScreen: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [wordId]);
+  }, [wordId, isPreviewMode, previewData]);
+
+  const handleAddToLibrary = useCallback(async () => {
+    if (!word) return;
+    try {
+      await StorageService.addWord(word);
+      Alert.alert(DETAIL_TEXTS.saved, DETAIL_TEXTS.addedToLibrary.replace('{word}', word.word));
+      setIsPreviewMode(false); // Switch to normal view
+    } catch (error: any) {
+      Alert.alert(DETAIL_TEXTS.error, error.message || DETAIL_TEXTS.cannotSave);
+    }
+  }, [word]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(DETAIL_TEXTS.deleteWord, DETAIL_TEXTS.deleteConfirm.replace('{word}', word?.word || ''), [
@@ -613,23 +636,35 @@ export const WordDetailScreen: React.FC = () => {
       )}
 
       <View style={styles.actionBarSafe}>
-        <View style={styles.actionBar}>
-          <TouchableOpacity style={styles.squareDeleteButton} onPress={handleDelete}>
-            <TrashIcon size={32} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.micButton}
-            onPress={handlePracticePronunciation}
-          >
-            <MicroIcon size={32} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.doneButton} onPress={handleDone}>
-            <TargetIcon size={34} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.primaryButton} onPress={handleGotIt}>
-            <CheckIcon size={34} />
-          </TouchableOpacity>
-        </View>
+        {isPreviewMode ? (
+          <View style={styles.actionBar}>
+            <TouchableOpacity
+              style={[styles.primaryButton, { width: undefined, flex: 1, flexDirection: 'row', gap: 8 }]}
+              onPress={handleAddToLibrary}
+            >
+              <Ionicons name="add-circle" size={24} color="white" />
+              <Text style={styles.primaryButtonText}>Add to Library</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.actionBar}>
+            <TouchableOpacity style={styles.squareDeleteButton} onPress={handleDelete}>
+              <TrashIcon size={32} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.micButton}
+              onPress={handlePracticePronunciation}
+            >
+              <MicroIcon size={32} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.doneButton} onPress={handleDone}>
+              <TargetIcon size={34} />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.primaryButton} onPress={handleGotIt}>
+              <CheckIcon size={34} />
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
 
       <WordPreviewModal
@@ -789,7 +824,7 @@ const styles = StyleSheet.create({
   primaryButton: {
     width: 48,
     height: 48,
-    backgroundColor: colors.backgroundPurple,
+    backgroundColor: colors.primary,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',

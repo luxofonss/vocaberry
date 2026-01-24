@@ -259,4 +259,45 @@ export const ApiClient = {
       throw handleApiError(error, `getWordStatus("${word}")`);
     }
   },
+
+  /**
+   * Get paginated dictionary words
+   * GET /dictionary?page=0&size=5
+   * 
+   * @param page - Page index (0-based)
+   * @param size - Page size
+   * @returns List of dictionary words
+   */
+  getDictionaryWords: async (page: number = 0, size: number = 5): Promise<any> => {
+    const url = `${config.baseUrl}/dictionary?page=${page}&size=${size}`;
+    try {
+      console.log(`[ApiClient] 📚 Fetching dictionary words: page=${page}, size=${size}`);
+
+      const response = await fetchWithTimeout(
+        url,
+        {
+          method: 'GET',
+          headers: {
+            'Accept': '*/*',
+            'Content-Type': 'application/json',
+          },
+        },
+        config.timeout
+      );
+
+      const rawData = await response.json();
+
+      if (!rawData || !rawData.meta) {
+        throw new Error('Invalid response format from server: missing meta');
+      }
+
+      if (!isSuccessCode(rawData.meta.code)) {
+        throw handleApiError(null, 'getDictionaryWords', rawData.meta);
+      }
+
+      return rawData;
+    } catch (error) {
+      throw handleApiError(error, 'getDictionaryWords');
+    }
+  },
 };

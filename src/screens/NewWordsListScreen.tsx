@@ -7,6 +7,9 @@ import {
      ScrollView,
      Animated,
      Alert,
+     FlatList,
+     Image,
+     ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -19,13 +22,21 @@ import { RootStackParamList } from '../types';
 import { ConversationService } from '../services/ConversationService';
 import { StorageService } from '../services/StorageService';
 import { DictionaryService } from '../services/DictionaryService';
+import { ApiClient } from '../services/ApiClient';
 import { WordPreviewModal } from '../components';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
 export const NewWordsListScreen: React.FC = () => {
      const navigation = useNavigation<NavigationProp>();
-     const [words, setWords] = useState<{ id: string, word: string, definition: string }[]>([]);
+     const [words, setWords] = useState<{ id: string, word: string, definition: string, imageUrl?: string }[]>([]);
+     const [totalWords, setTotalWords] = useState(0);
+
+     // Pagination state
+     const [page, setPage] = useState(0);
+     const [hasMore, setHasMore] = useState(true);
+     const [loadingMore, setLoadingMore] = useState(false);
+     const [initialLoading, setInitialLoading] = useState(true);
 
      // Lookup state
      const [modalVisible, setModalVisible] = useState(false);
@@ -36,33 +47,63 @@ export const NewWordsListScreen: React.FC = () => {
 
      // Animation for list items
      const fadeAnims = React.useRef<Animated.Value[]>([]).current;
-     const [ready, setReady] = useState(false);
 
-     useEffect(() => {
-          // Mock loading data
-          ConversationService.getSuggestedWords().then(data => {
-               // Duplicate data to make the list longer for demo
-               const extendedData = [...data, ...data, ...data].map((item, index) => ({
-                    ...item,
-                    id: `${item.id}-${index}`
-               }));
-               setWords(extendedData);
+     const fetchWords = async (pageNum: number, refresh = false) => {
+          try {
+               if (!refresh && (loadingMore || !hasMore)) return;
 
-               // Initialize animations
-               extendedData.forEach(() => fadeAnims.push(new Animated.Value(0)));
-               setReady(true);
-          });
-     }, []);
+               if (pageNum > 0) setLoadingMore(true);
 
-     useEffect(() => {
-          if (ready) {
-               Animated.stagger(50, fadeAnims.map(anim => Animated.timing(anim, {
-                    toValue: 1,
-                    duration: 400,
-                    useNativeDriver: true,
-               }))).start();
+               const response = await ApiClient.getDictionaryWords(pageNum, 10);
+
+               if (response && response.data) {
+                    const newWords = response.data.map((item: any) => ({
+                         id: item.word.id,
+                         word: item.word.word,
+                         definition: item.word.meanings?.[0]?.definition || 'No definition available',
+                         imageUrl: item.word.imageUrl
+                    }));
+
+                    if (refresh) {
+                         setWords(newWords);
+                         // Reset anims
+                         fadeAnims.length = 0;
+                         newWords.forEach(() => fadeAnims.push(new Animated.Value(0)));
+                    } else {
+                         setWords(prev => [...prev, ...newWords]);
+                         newWords.forEach(() => fadeAnims.push(new Animated.Value(0)));
+                    }
+
+                    // Update total from meta
+                    if (response.meta) {
+                         setTotalWords(response.meta.totalItems);
+                         const { totalItems, pageIndex, pageSize } = response.meta;
+                         setHasMore((pageIndex + 1) * pageSize < totalItems);
+                    }
+
+                    setPage(pageNum);
+
+                    // Trigger animation for new items
+                    const startIdx = refresh ? 0 : words.length;
+                    const animsToStart = fadeAnims.slice(startIdx);
+
+                    Animated.stagger(50, animsToStart.map(anim => Animated.timing(anim, {
+                         toValue: 1,
+                         duration: 400,
+                         useNativeDriver: true,
+                    }))).start();
+               }
+          } catch (error) {
+               console.error('Failed to fetch words:', error);
+          } finally {
+               setInitialLoading(false);
+               setLoadingMore(false);
           }
-     }, [ready]);
+     };
+
+     useEffect(() => {
+          fetchWords(0, true);
+     }, []);
 
      const handleWordPress = async (word: string) => {
           setIsLookupLoading(true);
@@ -79,23 +120,25 @@ export const NewWordsListScreen: React.FC = () => {
                     return;
                }
 
-               // 2. Word not in library, open lookup modal
-               setModalVisible(true);
+               // 2. Word not in library, lookup and navigate to detail in preview mode
                setLookupStatus('Looking up...');
 
                // Lookup from dictionary service
                const data = await DictionaryService.lookup(word);
                if (data) {
-                    setSelectedWordData(data.word);
-                    setIsSelectedWordNew(true);
-                    setLookupStatus('');
+                    // Navigate to detail screen in preview mode
+                    // @ts-ignore - Dynamic params support
+                    navigation.navigate('WordDetail', {
+                         wordId: data.word.id,
+                         previewData: data.word,
+                         isPreview: true
+                    });
                } else {
                     Alert.alert("Notice", `Could not find details for "${word}".`);
-                    setModalVisible(false);
                }
           } catch (error) {
                console.error('Lookup error:', error);
-               setModalVisible(false);
+               Alert.alert("Error", "Could not lookup word details.");
           } finally {
                setIsLookupLoading(false);
           }
@@ -110,98 +153,128 @@ export const NewWordsListScreen: React.FC = () => {
                     style={styles.gradientBg}
                >
                     <SafeAreaView style={{ flex: 1 }} edges={['top']}>
-                         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                              {/* Header Section */}
-                              <LinearGradient
-                                   colors={['#3B82F6', '#2563EB']} // Blue-500 to Blue-600
-                                   start={{ x: 0, y: 0 }}
-                                   end={{ x: 1, y: 0 }}
-                                   style={styles.header}
-                              >
-                                   <View style={styles.headerRow}>
-                                        <TouchableOpacity
-                                             onPress={() => navigation.goBack()}
-                                             style={styles.backButton}
+                         <FlatList
+                              data={words}
+                              keyExtractor={(item, index) => `${item.id}-${index}`}
+                              showsVerticalScrollIndicator={false}
+                              onEndReached={() => fetchWords(page + 1)}
+                              onEndReachedThreshold={0.5}
+                              ListHeaderComponent={
+                                   <>
+                                        {/* Header Section */}
+                                        <LinearGradient
+                                             colors={['#3B82F6', '#2563EB']} // Blue-500 to Blue-600
+                                             start={{ x: 0, y: 0 }}
+                                             end={{ x: 1, y: 0 }}
+                                             style={styles.header}
                                         >
-                                             <Ionicons name="arrow-back" size={24} color="white" />
-                                        </TouchableOpacity>
-
-                                        <View style={styles.headerIconContainer}>
-                                             <Ionicons name="book" size={28} color="white" />
-                                        </View>
-                                        <View style={{ flex: 1 }}>
-                                             <Text style={styles.headerTitle}>New Words For You</Text>
-                                             <Text style={styles.headerSubtitle}>Expand your vocabulary</Text>
-                                        </View>
-                                   </View>
-
-                                   <View style={styles.statsRow}>
-                                        <View style={styles.statItem}>
-                                             <Text style={styles.statValue}>{words.length}</Text>
-                                             <Text style={styles.statLabel}>Available</Text>
-                                        </View>
-                                        <View style={styles.statItem}>
-                                             <Text style={styles.statValue}>12</Text>
-                                             <Text style={styles.statLabel}>Mastered</Text>
-                                        </View>
-                                        <View style={styles.statItem}>
-                                             <Text style={styles.statValue}>5</Text>
-                                             <Text style={styles.statLabel}>Daily Goal</Text>
-                                        </View>
-                                   </View>
-                              </LinearGradient>
-
-                              {/* Content Body */}
-                              <View style={styles.bodyContainer}>
-                                   {/* Progress Card */}
-                                   <View style={[styles.progressCard, shadows.claySoft]}>
-                                        <View style={styles.progressCardHeader}>
-                                             <View>
-                                                  <Text style={styles.progressLabel}>Daily Progress</Text>
-                                                  <Text style={styles.progressValue}>5/10 words</Text>
-                                             </View>
-                                             <LinearGradient
-                                                  colors={['#3B82F6', '#2563EB']}
-                                                  style={styles.progressCircle}
-                                             >
-                                                  <Text style={styles.progressPercentage}>50%</Text>
-                                             </LinearGradient>
-                                        </View>
-                                        <View style={styles.progressBarBg}>
-                                             <LinearGradient
-                                                  colors={['#3B82F6', '#2563EB']}
-                                                  style={[styles.progressBarFill, { width: '50%' }]}
-                                             />
-                                        </View>
-                                   </View>
-
-                                   <Text style={styles.sectionTitle}>Word Bank</Text>
-
-                                   <View style={styles.listContainer}>
-                                        {words.map((item, index) => (
-                                             <Animated.View
-                                                  key={item.id}
-                                                  style={{ opacity: fadeAnims[index], transform: [{ translateX: fadeAnims[index].interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }}
-                                             >
+                                             <View style={styles.headerRow}>
                                                   <TouchableOpacity
-                                                       style={[styles.wordCard, shadows.claySoft]}
-                                                       onPress={() => handleWordPress(item.word)}
+                                                       onPress={() => navigation.goBack()}
+                                                       style={styles.backButton}
                                                   >
-                                                       <View style={styles.wordIcon}>
+                                                       <Ionicons name="arrow-back" size={24} color="white" />
+                                                  </TouchableOpacity>
+
+                                                  <View style={styles.headerIconContainer}>
+                                                       <Ionicons name="book" size={28} color="white" />
+                                                  </View>
+                                                  <View style={{ flex: 1 }}>
+                                                       <Text style={styles.headerTitle}>New Words For You</Text>
+                                                       <Text style={styles.headerSubtitle}>Expand your vocabulary</Text>
+                                                  </View>
+                                             </View>
+
+                                             <View style={styles.statsRow}>
+                                                  <View style={styles.statItem}>
+                                                       <Text style={styles.statValue}>{totalWords}</Text>
+                                                       <Text style={styles.statLabel}>Available</Text>
+                                                  </View>
+                                                  <View style={styles.statItem}>
+                                                       <Text style={styles.statValue}>12</Text>
+                                                       <Text style={styles.statLabel}>Mastered</Text>
+                                                  </View>
+                                                  <View style={styles.statItem}>
+                                                       <Text style={styles.statValue}>5</Text>
+                                                       <Text style={styles.statLabel}>Daily Goal</Text>
+                                                  </View>
+                                             </View>
+                                        </LinearGradient>
+
+                                        {/* Content Body Header */}
+                                        <View style={[styles.bodyContainer, { paddingBottom: 0 }]}>
+                                             {/* Progress Card */}
+                                             <View style={[styles.progressCard, shadows.claySoft]}>
+                                                  <View style={styles.progressCardHeader}>
+                                                       <View>
+                                                            <Text style={styles.progressLabel}>Daily Progress</Text>
+                                                            <Text style={styles.progressValue}>5/10 words</Text>
+                                                       </View>
+                                                       <LinearGradient
+                                                            colors={['#3B82F6', '#2563EB']}
+                                                            style={styles.progressCircle}
+                                                       >
+                                                            <Text style={styles.progressPercentage}>50%</Text>
+                                                       </LinearGradient>
+                                                  </View>
+                                                  <View style={styles.progressBarBg}>
+                                                       <LinearGradient
+                                                            colors={['#3B82F6', '#2563EB']}
+                                                            style={[styles.progressBarFill, { width: '50%' }]}
+                                                       />
+                                                  </View>
+                                             </View>
+
+                                             <Text style={styles.sectionTitle}>Word Bank</Text>
+                                        </View>
+                                   </>
+                              }
+                              renderItem={({ item, index }) => (
+                                   <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                                        <Animated.View
+                                             style={{
+                                                  opacity: fadeAnims[index] || 1,
+                                                  transform: [{
+                                                       translateX: (fadeAnims[index] || new Animated.Value(1)).interpolate({
+                                                            inputRange: [0, 1],
+                                                            outputRange: [-20, 0]
+                                                       })
+                                                  }]
+                                             }}
+                                        >
+                                             <TouchableOpacity
+                                                  style={[styles.wordCard, shadows.claySoft]}
+                                                  onPress={() => handleWordPress(item.word)}
+                                             >
+                                                  <View style={styles.wordIcon}>
+                                                       {item.imageUrl ? (
+                                                            <Image
+                                                                 source={{ uri: item.imageUrl }}
+                                                                 style={{ width: '100%', height: '100%', borderRadius: 14 }}
+                                                                 resizeMode="cover"
+                                                            />
+                                                       ) : (
                                                             <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#3B82F6' }}>
                                                                  {item.word.charAt(0).toUpperCase()}
                                                             </Text>
-                                                       </View>
-                                                       <View style={{ flex: 1 }}>
-                                                            <Text style={styles.wordTitle}>{item.word}</Text>
-                                                            <Text style={styles.wordDefinition} numberOfLines={1}>{item.definition}</Text>
-                                                       </View>
-                                                  </TouchableOpacity>
-                                             </Animated.View>
-                                        ))}
+                                                       )}
+                                                  </View>
+                                                  <View style={{ flex: 1 }}>
+                                                       <Text style={styles.wordTitle}>{item.word}</Text>
+                                                       <Text style={styles.wordDefinition} numberOfLines={1}>{item.definition}</Text>
+                                                  </View>
+                                             </TouchableOpacity>
+                                        </Animated.View>
                                    </View>
-                              </View>
-                         </ScrollView>
+                              )}
+                              ListFooterComponent={
+                                   loadingMore ? (
+                                        <View style={{ paddingVertical: 20 }}>
+                                             <ActivityIndicator size="small" color="#3B82F6" />
+                                        </View>
+                                   ) : <View style={{ height: 40 }} />
+                              }
+                         />
                     </SafeAreaView>
 
                     <WordPreviewModal
