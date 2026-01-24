@@ -11,6 +11,7 @@ import {
 import { colors, shadows, borderRadius } from '../../theme';
 import { SpeechService } from '../../services/SpeechService';
 import { ANIMATION } from '../../constants';
+import { SpeakIcon } from './SpeakIcon';
 
 type ButtonSize = 'small' | 'medium' | 'large';
 
@@ -110,31 +111,10 @@ export const SpeakButton: React.FC<SpeakButtonProps> = ({
         activeOpacity={isDisabled ? 1 : 0.6}
         disabled={isDisabled}
       >
-        {isSpeaking ? (
-          <Image
-            source={require('../../../assets/loa.png')}
-            style={[
-              styles.speakerImage,
-              {
-                width: iconHeight ? iconHeight * 1.1 : dimensions.fontSize * 2,
-                height: iconHeight || dimensions.fontSize * 2
-              }
-            ]}
-            resizeMode="contain"
-          />
-        ) : (
-          <Image
-            source={require('../../../assets/loa.png')}
-            style={[
-              styles.speakerImage,
-              {
-                width: iconHeight ? iconHeight * 1.1 : dimensions.fontSize * 1.6,
-                height: iconHeight || dimensions.fontSize * 1.6
-              }
-            ]}
-            resizeMode="contain"
-          />
-        )}
+        <SpeakIcon
+          size={iconHeight || (isSpeaking ? dimensions.fontSize * 2 : dimensions.fontSize * 1.6)}
+          style={styles.speakerImage}
+        />
       </TouchableOpacity>
     </Animated.View>
   );

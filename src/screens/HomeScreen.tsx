@@ -70,6 +70,10 @@ export const HomeScreen: React.FC = () => {
   const [notificationData, setNotificationData] = useState<{ emoji: string; title: string; message: string } | null>(null);
   const [showAddSentence, setShowAddSentence] = useState(false);
   const [isPracticeQuizActive, setIsPracticeQuizActive] = useState(false);
+  const [sentenceSearch, setSentenceSearch] = useState('');
+  const [isSentenceSearchActive, setIsSentenceSearchActive] = useState(false);
+  const [conversationSearch, setConversationSearch] = useState('');
+  const [isConversationSearchActive, setIsConversationSearchActive] = useState(false);
   const notificationAnim = useRef(new Animated.Value(-150)).current;
   const autoDismissTimer = useRef<NodeJS.Timeout | null>(null);
 
@@ -321,6 +325,19 @@ export const HomeScreen: React.FC = () => {
     return topicList;
   }, [words, sortBy]);
 
+  const filteredSentences = useMemo(() => {
+    if (!sentenceSearch) return sentences;
+    return sentences.filter(s => s.text.toLowerCase().includes(sentenceSearch.toLowerCase()));
+  }, [sentences, sentenceSearch]);
+
+  const filteredConversations = useMemo(() => {
+    if (!conversationSearch) return practicingConversations;
+    return practicingConversations.filter(c =>
+      c.title.toLowerCase().includes(conversationSearch.toLowerCase()) ||
+      c.category.toLowerCase().includes(conversationSearch.toLowerCase())
+    );
+  }, [practicingConversations, conversationSearch]);
+
   // -- Render Components --
   const renderHeader = useCallback(() => {
     const greetingName = userName || 'there';
@@ -548,21 +565,43 @@ export const HomeScreen: React.FC = () => {
               </View>
 
               <View style={styles.recentListHeader}>
-                <View style={styles.recentListTitleRow}>
+                <View style={[styles.recentListTitleRow, { flex: 1 }]}>
                   <Text style={styles.recentListTitle}>Your examples</Text>
                   <View style={styles.sentenceCountBadge}>
-                    <Text style={styles.sentenceCountBadgeText}>{sentences.length}</Text>
+                    <Text style={styles.sentenceCountBadgeText}>{filteredSentences.length}</Text>
                   </View>
                 </View>
+                <TouchableOpacity
+                  style={styles.searchIconBtn}
+                  onPress={() => {
+                    setIsSentenceSearchActive(!isSentenceSearchActive);
+                    if (isSentenceSearchActive) setSentenceSearch('');
+                  }}
+                >
+                  <Ionicons name={isSentenceSearchActive ? "close" : "search"} size={20} color={colors.textSecondary} />
+                </TouchableOpacity>
               </View>
 
-              {sentences.length === 0 ? (
+              {isSentenceSearchActive && (
+                <View style={styles.searchContainer}>
+                  <Ionicons name="search" size={16} color={colors.textLight} style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search sentences..."
+                    value={sentenceSearch}
+                    onChangeText={setSentenceSearch}
+                    autoFocus
+                  />
+                </View>
+              )}
+
+              {filteredSentences.length === 0 ? (
                 <View style={styles.emptySentences}>
                   <Text style={styles.emptyEmoji}>✍️</Text>
-                  <Text style={styles.emptyText}>No sentences yet.</Text>
+                  <Text style={styles.emptyText}>{sentenceSearch ? 'No matches found.' : 'No sentences yet.'}</Text>
                 </View>
               ) : (
-                sentences.map((sent) => (
+                filteredSentences.map((sent) => (
                   <TouchableOpacity
                     key={sent.id}
                     style={[styles.sentenceCard, shadows.level1]}
@@ -610,41 +649,68 @@ export const HomeScreen: React.FC = () => {
             >
 
               <View style={styles.recentListHeader}>
-                <View style={styles.recentListTitleRow}>
+                <View style={[styles.recentListTitleRow, { flex: 1 }]}>
                   <Text style={styles.recentListTitle}>Your conversations</Text>
                   <View style={styles.sentenceCountBadge}>
-                    <Text style={styles.sentenceCountBadgeText}>{practicingConversations.length}</Text>
+                    <Text style={styles.sentenceCountBadgeText}>{filteredConversations.length}</Text>
                   </View>
                 </View>
 
-                <TouchableOpacity
-                  style={[styles.smallCreateBtn, shadows.claySoft]}
-                  onPress={() => navigation.navigate('CreateConversation')}
-                >
-                  <LinearGradient
-                    colors={[colors.accent3, colors.accent3Light]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.smallCreateGradient}
-                  >
-                    <Ionicons name="add" size={20} color={colors.white} />
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
-
-              {practicingConversations.length === 0 ? (
-                <View style={styles.emptySentences}>
-                  <Text style={styles.emptyEmoji}>💬</Text>
-                  <Text style={styles.emptyText}>No practicing conversations.</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm }}>
                   <TouchableOpacity
-                    onPress={() => setActiveTab('discover')}
-                    style={{ marginTop: 12 }}
+                    style={styles.searchIconBtn}
+                    onPress={() => {
+                      setIsConversationSearchActive(!isConversationSearchActive);
+                      if (isConversationSearchActive) setConversationSearch('');
+                    }}
                   >
-                    <Text style={{ color: colors.primary, fontWeight: '700' }}>Discover more →</Text>
+                    <Ionicons name={isConversationSearchActive ? "close" : "search"} size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.smallCreateBtn, shadows.claySoft]}
+                    onPress={() => navigation.navigate('CreateConversation')}
+                  >
+                    <LinearGradient
+                      colors={[colors.accent3, colors.accent3Light]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.smallCreateGradient}
+                    >
+                      <Ionicons name="add" size={20} color={colors.white} />
+                    </LinearGradient>
                   </TouchableOpacity>
                 </View>
+              </View>
+
+              {isConversationSearchActive && (
+                <View style={styles.searchContainer}>
+                  <Ionicons name="search" size={16} color={colors.textLight} style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search conversations..."
+                    value={conversationSearch}
+                    onChangeText={setConversationSearch}
+                    autoFocus
+                  />
+                </View>
+              )}
+
+              {filteredConversations.length === 0 ? (
+                <View style={styles.emptySentences}>
+                  <Text style={styles.emptyEmoji}>💬</Text>
+                  <Text style={styles.emptyText}>{conversationSearch ? 'No matches found.' : 'No practicing conversations.'}</Text>
+                  {!conversationSearch && (
+                    <TouchableOpacity
+                      onPress={() => setActiveTab('discover')}
+                      style={{ marginTop: 12 }}
+                    >
+                      <Text style={{ color: colors.primary, fontWeight: '700' }}>Discover more →</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               ) : (
-                practicingConversations.map((conv) => {
+                filteredConversations.map((conv) => {
                   const avgScore = conv.practiceCount > 0
                     ? Math.round((conv.totalScore || 0) / conv.practiceCount)
                     : 0;
@@ -697,7 +763,7 @@ export const HomeScreen: React.FC = () => {
     }
 
     return null;
-  }, [activeTab, filteredWords, navigation, renderHeader, renderEmpty, refreshing, handleRefresh, inventoryData, renderTopicBlock, renderFilterToolbar, homeSubTab, availableCategories, selectedCategory, sentences, newSentence, handleSaveSentence, handleDeleteSentence, showAddSentence, insets.top]);
+  }, [activeTab, filteredWords, navigation, renderHeader, renderEmpty, refreshing, handleRefresh, inventoryData, renderTopicBlock, renderFilterToolbar, homeSubTab, availableCategories, selectedCategory, sentences, newSentence, handleSaveSentence, handleDeleteSentence, showAddSentence, insets.top, sentenceSearch, isSentenceSearchActive, filteredSentences, conversationSearch, isConversationSearchActive, filteredConversations, handleDeleteConversation]);
 
   return (
     <LinearGradient
@@ -1130,6 +1196,26 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.textSecondary,
     letterSpacing: 0.5,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    marginBottom: spacing.md,
+    height: 40,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    color: colors.textPrimary,
+    paddingVertical: 8,
+  },
+  searchIconBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.03)',
   },
   sentenceInputRow: {
     flexDirection: 'row',

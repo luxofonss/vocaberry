@@ -32,6 +32,7 @@ import { SpeechService } from '../services/SpeechService';
 import { ANIMATION, PRACTICE_TEXTS } from '../constants';
 import { PronunciationDetailView } from '../components/PronunciationDetailView';
 import { MicroIcon } from '../components/icons/MicroIcon';
+import { SpeakIcon } from '../components';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -612,10 +613,9 @@ export const SentencePracticeScreen: React.FC = () => {
                                                   disabled={isPlayingNative}
                                                   style={styles.playNativeBtn}
                                              >
-                                                  <Ionicons
-                                                       name={isPlayingNative ? "volume-high" : "volume-medium-outline"}
-                                                       size={28}
-                                                       color={colors.primary}
+                                                  <SpeakIcon
+                                                       size={32}
+                                                       tintColor={isPlayingNative ? colors.primary : undefined}
                                                   />
                                              </TouchableOpacity>
                                         </View>
@@ -782,6 +782,9 @@ const styles = StyleSheet.create({
      playNativeBtn: {
           padding: 4,
           marginTop: 2,
+          justifyContent: 'center',
+          alignItems: 'center',
+          minWidth: 44,
      },
      listenCardBtn: {
           flexDirection: 'row',
@@ -817,6 +820,7 @@ const styles = StyleSheet.create({
           // marginBottom: spacing.md,
      },
      sentenceText: {
+          flex: 1, // Added to prevent overflow
           fontSize: 24,
           fontWeight: '700',
           color: colors.textPrimary,

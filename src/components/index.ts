@@ -27,4 +27,5 @@ export * from './icons/XIcon';
 export * from './icons/SkipIcon';
 export * from './icons/KeyboardIcon';
 export * from './icons/RocketIcon';
+export * from './icons/SpeakIcon';
 
