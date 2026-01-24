@@ -13,13 +13,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import { colors, spacing, shadows } from '../theme';
+import { colors, spacing, shadows, typography } from '../theme';
 import { Conversation, RootStackParamList } from '../types';
 import { ConversationService } from '../services/ConversationService';
 import { DictionaryService } from '../services/DictionaryService';
 import { StorageService } from '../services/StorageService';
-import { WordPreviewModal } from '../components';
+import { WordPreviewModal, WordCard } from '../components';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Word } from '../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
@@ -99,64 +100,54 @@ export const DiscoverScreen: React.FC = () => {
      const renderShadowingCard = (lesson: any) => (
           <TouchableOpacity
                key={lesson.id}
-               style={[styles.sectionCard, shadows.claySoft]}
+               style={styles.shadowingCard}
                activeOpacity={0.9}
                onPress={() => navigation.navigate('ShadowingPractice', lesson)}
           >
-               <View style={styles.cardIconContainer}>
-                    <View style={[styles.cardIcon, { backgroundColor: '#DCFCE7' }]}>
-                         <Text style={{ fontSize: 32 }}>{lesson.thumbnail}</Text>
+               <View style={styles.videoThumbnail}>
+                    <View style={[styles.thumbnailPlaceholder, { backgroundColor: '#F1F5F9' }]}>
+                         <Text style={{ fontSize: 40 }}>{lesson.thumbnail}</Text>
+                    </View>
+                    <View style={styles.durationBadge}>
+                         <Text style={styles.durationText}>{lesson.duration}</Text>
                     </View>
                </View>
 
-               <View style={styles.cardContent}>
-                    <Text style={styles.cardMainTitle} numberOfLines={2}>{lesson.title}</Text>
-                    <View style={styles.cardMetaRow}>
-                         <Ionicons name="person-outline" size={12} color="#64748B" />
-                         <Text style={styles.cardMetaText} numberOfLines={1}>{lesson.channel}</Text>
-                    </View>
-                    <View style={styles.cardMetaRow}>
-                         <Ionicons name="time-outline" size={12} color="#64748B" />
-                         <Text style={styles.cardMetaText}>{lesson.duration}</Text>
-                         <View style={styles.metaDivider} />
-                         <Text style={[styles.cardMetaText, { color: '#15803D', fontWeight: '600' }]}>{lesson.level}</Text>
-                    </View>
-               </View>
-
-               <View style={[styles.cardPlayButton, { backgroundColor: '#15803D' }]}>
-                    <Ionicons name="play" size={16} color={colors.white} />
+               <View style={styles.videoContent}>
+                    <Text style={styles.videoTitle} numberOfLines={2}>{lesson.title}</Text>
+                    <Text style={styles.videoMeta} numberOfLines={1}>
+                         {lesson.channel} • {lesson.views} views • {lesson.level}
+                    </Text>
                </View>
           </TouchableOpacity>
      );
 
-     const renderWordCard = (word: { id: string, word: string, definition: string }) => (
-          <TouchableOpacity
-               key={word.id}
-               style={[styles.sectionCard, shadows.claySoft]}
-               activeOpacity={0.9}
-               onPress={() => handleWordPress(word.word)}
-          >
-               <View style={styles.cardIconContainer}>
-                    <View style={[styles.cardIcon, { backgroundColor: '#DBEAFE' }]}>
-                         <Ionicons name="book" size={28} color="#1D4ED8" />
-                    </View>
-               </View>
+     const renderWordCard = (wordData: { id: string, word: string, definition: string }) => {
+          const dummyWord: Word = {
+               id: wordData.id,
+               word: wordData.word,
+               meanings: [{ id: '1', definition: wordData.definition }],
+               imageUrl: '',
+               topics: [],
+               nextReviewDate: new Date().toISOString(),
+               reviewCount: 0,
+          };
 
-               <View style={styles.cardContent}>
-                    <Text style={styles.cardMainTitle} numberOfLines={1}>{word.word}</Text>
-                    <Text style={styles.cardDefinition} numberOfLines={3}>{word.definition}</Text>
+          return (
+               <View key={wordData.id} style={{ marginRight: 4 }}>
+                    <WordCard
+                         word={dummyWord}
+                         variant="standard"
+                         onPress={() => handleWordPress(wordData.word)}
+                    />
                </View>
-
-               <View style={[styles.cardPlayButton, { backgroundColor: '#1D4ED8' }]}>
-                    <Ionicons name="add" size={20} color={colors.white} />
-               </View>
-          </TouchableOpacity>
-     );
+          );
+     };
 
      const renderConversationCard = (item: Conversation) => (
           <TouchableOpacity
                key={item.id}
-               style={[styles.sectionCard, shadows.claySoft]}
+               style={styles.sectionCard}
                activeOpacity={0.9}
                onPress={() => navigation.navigate('ConversationDetail', { conversationId: item.id })}
           >
@@ -181,7 +172,6 @@ export const DiscoverScreen: React.FC = () => {
                     </View>
                     <Text style={styles.cardMainTitle} numberOfLines={2}>{item.title}</Text>
                     <View style={styles.cardMetaRow}>
-                         <Ionicons name="chatbubbles-outline" size={12} color="#64748B" />
                          <Text style={styles.cardMetaText}>{item.messages.length} messages</Text>
                          <View style={styles.metaDivider} />
                          <Ionicons name="stats-chart-outline" size={12} color="#64748B" />
@@ -322,26 +312,28 @@ const styles = StyleSheet.create({
      },
      header: {
           paddingHorizontal: spacing.screenPadding,
-          paddingTop: spacing.xs,
-          paddingBottom: spacing.sm,
+          paddingBottom: spacing.xs
      },
      headerTop: {
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'flex-start',
+          marginBottom: spacing.xxs
      },
      greetingContainer: {
-          marginRight: spacing.md,
+          flex: 1,
+          marginRight: spacing.md
      },
      title: {
-          fontSize: 28,
-          fontWeight: 'bold',
-          color: '#1E293B',
+          fontSize: typography.sizes.xxl,
+          fontWeight: typography.weights.extraBold,
+          color: colors.textPrimary,
+          letterSpacing: -0.5
      },
      subtitle: {
-          fontSize: 15,
-          color: '#64748B',
-          marginTop: 4,
+          fontSize: typography.sizes.base,
+          color: colors.textSecondary,
+          marginTop: 2
      },
      listContent: {
           paddingHorizontal: spacing.screenPadding,
@@ -382,27 +374,80 @@ const styles = StyleSheet.create({
           color: colors.primary,
      },
      horizontalScroll: {
-          gap: 14,
-          paddingRight: 4,
+          paddingHorizontal: spacing.screenPadding,
+          paddingRight: 32,
+          paddingBottom: 8,
+     },
+
+     // Shadowing Video Card Styles
+     shadowingCard: {
+          width: 260,
+          marginRight: 16,
+          backgroundColor: colors.white,
+          borderRadius: 16,
+          overflow: 'hidden',
+          borderWidth: 1,
+          borderColor: '#E2E8F0',
+     },
+     videoThumbnail: {
+          width: '100%',
+          aspectRatio: 16 / 9,
+          backgroundColor: '#F8FAFC',
+          position: 'relative',
+     },
+     thumbnailPlaceholder: {
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+     },
+     durationBadge: {
+          position: 'absolute',
+          bottom: 8,
+          right: 8,
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          paddingHorizontal: 6,
+          paddingVertical: 2,
+          borderRadius: 4,
+     },
+     durationText: {
+          color: colors.white,
+          fontSize: 11,
+          fontWeight: 'bold',
+     },
+     videoContent: {
+          padding: 12,
+     },
+     videoTitle: {
+          fontSize: 15,
+          fontWeight: 'bold',
+          color: '#1E293B',
+          lineHeight: 20,
+          marginBottom: 4,
+     },
+     videoMeta: {
+          fontSize: 12,
+          color: '#64748B',
      },
 
      // Unified Section Card Styles
      sectionCard: {
           backgroundColor: colors.white,
-          borderRadius: 20,
+          borderRadius: 16,
           padding: 16,
           width: 280,
           borderWidth: 1,
-          borderColor: '#F1F5F9',
-          flexDirection: 'column',
+          borderColor: '#E2E8F0',
+          flexDirection: 'row',
+          marginRight: 16,
+          alignItems: 'center',
      },
      cardIconContainer: {
-          marginBottom: 12,
+          marginRight: 14,
      },
      cardIcon: {
-          width: 56,
-          height: 56,
-          borderRadius: 16,
+          width: 52,
+          height: 52,
+          borderRadius: 12,
           alignItems: 'center',
           justifyContent: 'center',
      },
@@ -410,11 +455,11 @@ const styles = StyleSheet.create({
           flex: 1,
      },
      cardMainTitle: {
-          fontSize: 16,
+          fontSize: 15,
           fontWeight: 'bold',
           color: '#1E293B',
-          marginBottom: 8,
-          lineHeight: 22,
+          marginBottom: 4,
+          lineHeight: 20,
      },
      cardDefinition: {
           fontSize: 13,
@@ -426,7 +471,6 @@ const styles = StyleSheet.create({
           alignItems: 'center',
           gap: 4,
           marginTop: 4,
-          flexWrap: 'wrap',
      },
      cardMetaText: {
           fontSize: 11,
@@ -441,14 +485,12 @@ const styles = StyleSheet.create({
           marginHorizontal: 4,
      },
      cardPlayButton: {
-          position: 'absolute',
-          bottom: 16,
-          right: 16,
-          width: 36,
-          height: 36,
-          borderRadius: 18,
+          width: 32,
+          height: 32,
+          borderRadius: 16,
           alignItems: 'center',
           justifyContent: 'center',
+          marginLeft: 8,
      },
 
      // Conversation specific badges
