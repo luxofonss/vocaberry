@@ -152,18 +152,16 @@ const SubtitleItem = React.memo<SubtitleItemProps>(({
      onScorePress
 }) => {
      return (
-          <View
+          <TouchableOpacity
+               onPress={onSeek}
+               activeOpacity={0.7}
                style={[
                     styles.subItem,
                     isActive && styles.subItemActive,
                     hasRecording && styles.subItemRecorded
                ]}
           >
-               <TouchableOpacity
-                    style={styles.subContent}
-                    onPress={onSeek}
-                    activeOpacity={0.7}
-               >
+               <View style={styles.subContent}>
                     <View style={[styles.subIndex, isActive && styles.subIndexActive]}>
                          <Text style={[styles.subIndexText, isActive && styles.subIndexTextActive]}>{index + 1}</Text>
                     </View>
@@ -196,7 +194,7 @@ const SubtitleItem = React.memo<SubtitleItemProps>(({
                               </TouchableOpacity>
                          )}
                     </View>
-               </TouchableOpacity>
+               </View>
 
                <View style={styles.itemActions}>
                     <TouchableOpacity
@@ -223,7 +221,7 @@ const SubtitleItem = React.memo<SubtitleItemProps>(({
                          </TouchableOpacity>
                     )}
                </View>
-          </View>
+          </TouchableOpacity>
      );
 });
 
