@@ -306,13 +306,23 @@ export const ShadowingPracticeScreen: React.FC = () => {
           setCurrentTime(timeInSeconds);
 
           // Check for auto-stop point (for Play Segment functionality)
+          // Check for auto-stop point (for Play Segment functionality)
           if (stopAtRef.current !== null && timeInSeconds >= stopAtRef.current) {
                // Reached end of segment
                videoRef.current?.pauseAsync();
+
+               // Auto-seek back to start to keep the item active and ready for replay/recording
+               // Find the subtitle that ends at this stop point
+               const currentSub = subtitles.find(s => Math.abs(s.end - (stopAtRef.current || 0)) < 0.5);
+               if (currentSub) {
+                    videoRef.current?.setPositionAsync(currentSub.start * 1000);
+                    setCurrentTime(currentSub.start);
+               }
+
                stopAtRef.current = null;
                setIsPlayingAll(false); // Stop "Play My Recordings" loop if active
           }
-     }, []);
+     }, [subtitles]);
 
      // Simplified Play Segment
      const playSegment = useCallback(async (sub: Subtitle): Promise<void> => {
@@ -1045,5 +1055,10 @@ const styles = StyleSheet.create({
      mainMicBtnActive: {
           backgroundColor: '#EF4444',
           shadowColor: '#EF4444',
+     },
+     mainMicBtnDisabled: {
+          backgroundColor: '#CBD5E1', // Gray color
+          shadowColor: 'transparent',
+          elevation: 0,
      },
 });
