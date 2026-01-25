@@ -134,7 +134,7 @@ const normalizeSubtitles = (subtitles: Subtitle[]): Subtitle[] => {
      return normalized;
 };
 
-const SUBTITLES: Subtitle[] = RAW_SUBTITLES;
+const SUBTITLES: Subtitle[] = normalizeSubtitles(RAW_SUBTITLES);
 
 const SubtitleItem = React.memo<SubtitleItemProps>(({
      sub,
@@ -245,7 +245,9 @@ export const ShadowingPracticeScreen: React.FC = () => {
      const isProcessingRef = useRef<boolean>(false);
 
      const [status, setStatus] = useState<AVPlaybackStatus>({} as AVPlaybackStatus);
-     const [currentTime, setCurrentTime] = useState<number>(0);
+     const [activeSubId, setActiveSubId] = useState<number | null>(null);
+     const activeSubIdRef = useRef<number | null>(null);
+
      const [subtitles, setSubtitles] = useState<Subtitle[]>(SUBTITLES);
      const [stopAt, setStopAt] = useState<number | null>(null);
      const [isVideoReady, setIsVideoReady] = useState<boolean>(false);
@@ -330,7 +332,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
      const [detailModalVisible, setDetailModalVisible] = useState<boolean>(false);
      const [selectedPronunciation, setSelectedPronunciation] = useState<PronunciationData | null>(null);
 
-     const currentSubtitle = subtitles.find(sub => currentTime >= sub.start && currentTime < sub.end);
+     const currentSubtitle = subtitles.find(s => s.id === activeSubId);
 
      useEffect(() => {
           setupAudioMode();
@@ -367,24 +369,33 @@ export const ShadowingPracticeScreen: React.FC = () => {
           if (isSeekingRef.current) return;
 
           const timeInSeconds = newStatus.positionMillis / 1000;
-          setCurrentTime(timeInSeconds);
 
-          // Check for auto-stop point (for Play Segment functionality)
-          // Check for auto-stop point (for Play Segment functionality)
+          // 1. Check for Active Subtitle Change (Optimization: Only setState when ID changes)
+          const foundSub = subtitles.find(s => timeInSeconds >= s.start && timeInSeconds < s.end);
+          const foundId = foundSub ? foundSub.id : null;
+
+          if (foundId !== activeSubIdRef.current) {
+               activeSubIdRef.current = foundId;
+               setActiveSubId(foundId);
+          }
+
+          // 2. Check for auto-stop point (for Play Segment functionality)
           if (stopAtRef.current !== null && timeInSeconds >= stopAtRef.current) {
                // Reached end of segment
                videoRef.current?.pauseAsync();
 
-               // Auto-seek back to start to keep the item active and ready for replay/recording
-               // Find the subtitle that ends at this stop point
+               // Auto-seek back to start
                const currentSub = subtitles.find(s => Math.abs(s.end - (stopAtRef.current || 0)) < 0.5);
                if (currentSub) {
-                    videoRef.current?.setPositionAsync(currentSub.start * 1000);
-                    setCurrentTime(currentSub.start);
+                    // Add small buffer (100ms) to ensure we land inside the subtitle timeframe, avoiding floating point precision issues
+                    videoRef.current?.setPositionAsync(currentSub.start * 1000 + 100);
+                    // Update active state manually
+                    activeSubIdRef.current = currentSub.id;
+                    setActiveSubId(currentSub.id);
                }
 
                stopAtRef.current = null;
-               setIsPlayingAll(false); // Stop "Play My Recordings" loop if active
+               setIsPlayingAll(false);
           }
      }, [subtitles]);
 
@@ -393,7 +404,8 @@ export const ShadowingPracticeScreen: React.FC = () => {
           if (!videoRef.current || isProcessingRef.current) return;
 
           // Optimistic UI: Update active state immediately
-          setCurrentTime(sub.start);
+          activeSubIdRef.current = sub.id;
+          setActiveSubId(sub.id);
 
           try {
                isProcessingRef.current = true;
@@ -405,8 +417,8 @@ export const ShadowingPracticeScreen: React.FC = () => {
                     await videoRef.current.pauseAsync();
                }
 
-               // 2. Seek securely
-               await videoRef.current.setPositionAsync(sub.start * 1000, {
+               // 2. Seek securely with buffer
+               await videoRef.current.setPositionAsync(sub.start * 1000 + 100, {
                     toleranceMillisBefore: 0,
                     toleranceMillisAfter: 0
                });
@@ -429,7 +441,8 @@ export const ShadowingPracticeScreen: React.FC = () => {
           if (!videoRef.current || isProcessingRef.current) return;
 
           // Optimistic UI: Update active state immediately
-          setCurrentTime(sub.start);
+          activeSubIdRef.current = sub.id;
+          setActiveSubId(sub.id);
 
           try {
                isProcessingRef.current = true;
@@ -441,14 +454,11 @@ export const ShadowingPracticeScreen: React.FC = () => {
                     await videoRef.current.pauseAsync();
                }
 
-               // 2. Seek securely
-               await videoRef.current.setPositionAsync(sub.start * 1000, {
+               // 2. Seek securely with buffer
+               await videoRef.current.setPositionAsync(sub.start * 1000 + 100, {
                     toleranceMillisBefore: 0,
                     toleranceMillisAfter: 0
                });
-
-               // Force update current time immediately for UI responsiveness
-               setCurrentTime(sub.start);
 
           } catch (error) {
                console.error('Seek failed:', error);
@@ -461,13 +471,14 @@ export const ShadowingPracticeScreen: React.FC = () => {
      }, [status]);
 
      useEffect(() => {
-          if (currentSubtitle && flatListRef.current && !isPlayingAll) {
-               const index = subtitles.findIndex(s => s.id === currentSubtitle.id);
+          // Auto-scroll to active subtitle
+          if (activeSubId && flatListRef.current && !isPlayingAll) {
+               const index = subtitles.findIndex(s => s.id === activeSubId);
                if (index !== -1) {
                     flatListRef.current.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
                }
           }
-     }, [currentSubtitle?.id, isPlayingAll]);
+     }, [activeSubId, isPlayingAll]);
 
      const cleanupRecorder = async (): Promise<void> => {
           if (audioRecorder.current) {
@@ -815,6 +826,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
                               useNativeControls
                               resizeMode={ResizeMode.CONTAIN}
                               isLooping={false}
+                              volume={1.0}
                               onPlaybackStatusUpdate={onPlaybackStatusUpdate}
                               onLoad={() => setIsVideoReady(true)}
                          />
