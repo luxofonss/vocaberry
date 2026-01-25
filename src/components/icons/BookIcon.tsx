@@ -18,7 +18,7 @@ export const BookIcon: React.FC<BookIconProps> = ({
 }) => {
      return (
           <Image
-               source={require('../../../assets/book.webp')}
+               source={require('../../../assets/book.png')}
                style={[
                     { width: size, height: size },
                     tintColor ? { tintColor } : null,

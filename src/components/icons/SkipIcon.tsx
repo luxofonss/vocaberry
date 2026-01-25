@@ -18,7 +18,7 @@ export const SkipIcon: React.FC<SkipIconProps> = ({
 }) => {
      return (
           <Image
-               source={require('../../../assets/skip.webp')}
+               source={require('../../../assets/skip.png')}
                style={[
                     { width: size, height: size },
                     tintColor ? { tintColor } : null,

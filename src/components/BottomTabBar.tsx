@@ -9,10 +9,10 @@ import { RocketIcon } from './icons/RocketIcon';
 
 // Icon assets
 const ICONS = {
-  home: require('../../assets/house.webp'),
-  search: require('../../assets/magnifier.webp'),
-  practice: require('../../assets/Scholarcap scroll.webp'),
-  discover: require('../../assets/survey.webp'),
+  home: require('../../assets/house.png'),
+  search: require('../../assets/magnifier.png'),
+  practice: require('../../assets/Scholarcap scroll.png'),
+  discover: require('../../assets/survey.png'),
 };
 
 interface BottomTabBarProps {

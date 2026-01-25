@@ -18,7 +18,7 @@ export const CoinIcon: React.FC<CoinIconProps> = ({
 }) => {
      return (
           <Image
-               source={require('../../../assets/coin.webp')}
+               source={require('../../../assets/coin.png')}
                style={[
                     { width: size, height: size },
                     tintColor ? { tintColor } : null,

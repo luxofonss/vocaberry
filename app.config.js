@@ -12,7 +12,7 @@ module.exports = {
     newArchEnabled: true,
     jsEngine: "hermes",
     splash: {
-      image: "./assets/splash-icon.webp",
+      image: "./assets/splash-icon.png",
       resizeMode: "contain",
       backgroundColor: "#ffffff"
     },
@@ -43,8 +43,8 @@ module.exports = {
         "expo-build-properties",
         {
           android: {
-            enableProguardInReleaseBuilds: true, // Minify code
-            enableShrinkResourcesInReleaseBuilds: true // Xóa resource thừa
+            enableProguardInReleaseBuilds: true,
+            enableShrinkResourcesInReleaseBuilds: true
           }
         }
       ]

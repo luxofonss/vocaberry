@@ -18,7 +18,7 @@ export const CameraIcon: React.FC<CameraIconProps> = ({
 }) => {
      return (
           <Image
-               source={require('../../../assets/camera.webp')}
+               source={require('../../../assets/camera.png')}
                style={[
                     { width: size, height: size },
                     tintColor ? { tintColor } : null,

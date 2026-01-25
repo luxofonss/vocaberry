@@ -18,7 +18,7 @@ export const MicroIcon: React.FC<MicroIconProps> = ({
 }) => {
      return (
           <Image
-               source={require('../../../assets/micro.webp')}
+               source={require('../../../assets/micro.png')}
                style={[
                     { width: size, height: size },
                     tintColor ? { tintColor } : null,

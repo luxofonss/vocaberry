@@ -18,7 +18,7 @@ export const KeyboardIcon: React.FC<KeyboardIconProps> = ({
 }) => {
      return (
           <Image
-               source={require('../../../assets/keyboard.webp')}
+               source={require('../../../assets/keyboard.png')}
                style={[
                     { width: size, height: size },
                     tintColor ? { tintColor } : null,

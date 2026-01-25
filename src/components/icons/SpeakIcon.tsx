@@ -18,7 +18,7 @@ export const SpeakIcon: React.FC<SpeakIconProps> = ({
 }) => {
      return (
           <Image
-               source={require('../../../assets/loa.webp')}
+               source={require('../../../assets/loa.png')}
                style={[
                     { width: size, height: size },
                     tintColor ? { tintColor } : null,
