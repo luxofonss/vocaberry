@@ -176,23 +176,23 @@ export const ShadowingListScreen: React.FC = () => {
                                              <Ionicons name="videocam" size={28} color="white" />
                                         </View>
                                         <View style={{ flex: 1 }}>
-                                             <Text style={styles.headerTitle}>Luyện shadowing</Text>
-                                             <Text style={styles.headerSubtitle}>Học theo video native</Text>
+                                             <Text style={styles.headerTitle}>Shadowing Practice</Text>
+                                             <Text style={styles.headerSubtitle}>Learn with native videos</Text>
                                         </View>
                                    </View>
 
                                    <View style={styles.statsRow}>
                                         <View style={styles.statItem}>
                                              <Text style={styles.statValue}>150</Text>
-                                             <Text style={styles.statLabel}>Video</Text>
+                                             <Text style={styles.statLabel}>Videos</Text>
                                         </View>
                                         <View style={styles.statItem}>
                                              <Text style={styles.statValue}>38%</Text>
-                                             <Text style={styles.statLabel}>Hoàn thành</Text>
+                                             <Text style={styles.statLabel}>Completed</Text>
                                         </View>
                                         <View style={styles.statItem}>
                                              <Text style={styles.statValue}>5</Text>
-                                             <Text style={styles.statLabel}>Sao vàng</Text>
+                                             <Text style={styles.statLabel}>Gold Stars</Text>
                                         </View>
                                    </View>
                               </LinearGradient>
@@ -203,8 +203,8 @@ export const ShadowingListScreen: React.FC = () => {
                                    <View style={[styles.progressCard, shadows.claySoft]}>
                                         <View style={styles.progressCardHeader}>
                                              <View>
-                                                  <Text style={styles.progressLabel}>Tiến độ của bạn</Text>
-                                                  <Text style={styles.progressValue}>57/150 video</Text>
+                                                  <Text style={styles.progressLabel}>Your Progress</Text>
+                                                  <Text style={styles.progressValue}>57/150 videos</Text>
                                              </View>
                                              <LinearGradient
                                                   colors={['#22C55E', '#10B981']}
@@ -221,7 +221,7 @@ export const ShadowingListScreen: React.FC = () => {
                                         </View>
                                    </View>
 
-                                   <Text style={styles.sectionTitle}>Danh sách video</Text>
+                                   <Text style={styles.sectionTitle}>Video List</Text>
 
                                    <View style={styles.listContainer}>
                                         {LESSONS.map((lesson, index) => {
@@ -303,7 +303,7 @@ export const ShadowingListScreen: React.FC = () => {
 
                                                                       <View style={styles.viewsRow}>
                                                                            <Ionicons name="trending-up" size={12} color="#6B7280" />
-                                                                           <Text style={styles.viewsText}>{lesson.views} lượt xem</Text>
+                                                                           <Text style={styles.viewsText}>{lesson.views} views</Text>
                                                                       </View>
                                                                  </View>
                                                             </View>
