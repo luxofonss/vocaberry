@@ -77,6 +77,18 @@ export const HomeScreen: React.FC = () => {
   const notificationAnim = useRef(new Animated.Value(-150)).current;
   const autoDismissTimer = useRef<NodeJS.Timeout | null>(null);
 
+  // Mock suggested sentences from system
+  const [suggestedSentences] = useState<string[]>([
+    'The quick brown fox jumps over the lazy dog',
+    'Practice makes perfect',
+    'A journey of a thousand miles begins with a single step',
+    'Knowledge is power',
+    'Time flies when you are having fun',
+    'Actions speak louder than words',
+    'Better late than never',
+    'Every cloud has a silver lining',
+  ]);
+
   // -- Effects --
   useEffect(() => {
     const initData = async () => {
@@ -338,6 +350,14 @@ export const HomeScreen: React.FC = () => {
     );
   }, [practicingConversations, conversationSearch]);
 
+  // Filter suggested sentences to exclude already saved ones
+  const availableSuggestedSentences = useMemo(() => {
+    const savedTexts = sentences.map(s => s.text.toLowerCase().trim());
+    return suggestedSentences.filter(suggested =>
+      !savedTexts.includes(suggested.toLowerCase().trim())
+    );
+  }, [suggestedSentences, sentences]);
+
   // -- Render Components --
   const renderHeader = useCallback(() => {
     const greetingName = userName || 'there';
@@ -564,6 +584,42 @@ export const HomeScreen: React.FC = () => {
                 </TouchableOpacity>
               </View>
 
+              {/* Suggested Sentences Slide */}
+              {availableSuggestedSentences.length > 0 && (
+                <View style={styles.suggestedSection}>
+                  <View style={styles.suggestedHeader}>
+                    <Text style={styles.suggestedTitle}>💡 Suggested for you</Text>
+                  </View>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.suggestedScroll}
+                  >
+                    {availableSuggestedSentences.map((suggested, index) => (
+                      <View key={index} style={styles.suggestedCard}>
+                        <TouchableOpacity
+                          style={styles.suggestedTextContainer}
+                          onPress={() => {
+                            navigation.navigate('SentencePractice', { customText: suggested });
+                          }}
+                        >
+                          <Text style={styles.suggestedText} numberOfLines={2}>{suggested}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.suggestedAddBtn}
+                          onPress={async () => {
+                            const updatedSentences = await StorageService.addSentence(suggested);
+                            setSentences(updatedSentences);
+                          }}
+                        >
+                          <Ionicons name="add" size={18} color={colors.primary} />
+                        </TouchableOpacity>
+                      </View>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
               <View style={styles.recentListHeader}>
                 <View style={[styles.recentListTitleRow, { flex: 1 }]}>
                   <Text style={styles.recentListTitle}>Your examples</Text>
@@ -622,7 +678,7 @@ export const HomeScreen: React.FC = () => {
                         {sent.totalScore !== undefined && sent.totalScore > 0 && (
                           <View style={[styles.practiceBadge, { backgroundColor: '#FFF7ED' }]}>
                             <CoinIcon size={14} style={{ marginRight: 4 }} />
-                            <Text style={[styles.practiceBadgeText, { color: '#EA580C' }]}>{sent.totalScore}</Text>
+                            <Text style={[styles.practiceBadgeText, { color: '#EA580C' }]}>{Math.ceil(sent.totalScore)}</Text>
                           </View>
                         )}
                       </View>
@@ -650,7 +706,7 @@ export const HomeScreen: React.FC = () => {
 
               <View style={styles.recentListHeader}>
                 <View style={[styles.recentListTitleRow, { flex: 1 }]}>
-                  <Text style={styles.recentListTitle}>Your conversations</Text>
+                  <Text style={styles.recentListTitle}>Yours</Text>
                   <View style={styles.sentenceCountBadge}>
                     <Text style={styles.sentenceCountBadgeText}>{filteredConversations.length}</Text>
                   </View>
@@ -665,6 +721,14 @@ export const HomeScreen: React.FC = () => {
                     }}
                   >
                     <Ionicons name={isConversationSearchActive ? "close" : "search"} size={20} color={colors.textSecondary} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.browseBtn}
+                    onPress={() => navigation.navigate('ConversationList')}
+                  >
+                    <Ionicons name="grid-outline" size={16} color={colors.primary} />
+                    <Text style={styles.browseBtnText}>Browse</Text>
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -1217,6 +1281,20 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: 'rgba(0,0,0,0.03)',
   },
+  browseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+  },
+  browseBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.primary,
+  },
   sentenceInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1325,5 +1403,53 @@ const styles = StyleSheet.create({
   },
   wordsFlatList: {
     flex: 1,
+  },
+  // Suggested Sentences Styles
+  suggestedSection: {
+    marginBottom: spacing.lg,
+  },
+  suggestedHeader: {
+    marginBottom: spacing.sm,
+  },
+  suggestedTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.textSecondary,
+    letterSpacing: 0.5,
+  },
+  suggestedScroll: {
+    gap: spacing.sm,
+    paddingRight: spacing.screenPadding,
+  },
+  suggestedCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 10,
+    paddingLeft: spacing.sm,
+    paddingRight: 6,
+    paddingVertical: spacing.sm,
+    width: 200,
+    height: 56,
+    borderWidth: 1,
+    borderColor: 'rgba(124, 58, 237, 0.1)',
+    gap: spacing.xs,
+  },
+  suggestedTextContainer: {
+    flex: 1,
+  },
+  suggestedText: {
+    fontSize: 13,
+    color: colors.textPrimary,
+    lineHeight: 18,
+    fontWeight: '500',
+  },
+  suggestedAddBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: 'rgba(124, 58, 237, 0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

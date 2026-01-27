@@ -59,6 +59,7 @@ export const SentencePracticeScreen: React.FC = () => {
      // Final results
      const [results, setResults] = useState<any[]>([]);
      const [showReview, setShowReview] = useState(false);
+     const [sentenceAdded, setSentenceAdded] = useState(false);
 
      const currentSentence = sentences[currentIndex];
 
@@ -480,6 +481,20 @@ export const SentencePracticeScreen: React.FC = () => {
                setIsPlayingNative(false);
           }
      }, [sentences, currentIndex]);
+
+     // -- Handle Add to My List --
+     const handleAddToMyList = useCallback(async () => {
+          if (!currentSentence || currentSentence.id !== 'temp') return;
+          try {
+               await StorageService.addSentence(currentSentence.text);
+               setSentenceAdded(true);
+               Alert.alert('Added!', 'Sentence added to your list successfully.');
+          } catch (error) {
+               console.error('Failed to add sentence:', error);
+               Alert.alert('Error', 'Failed to add sentence to your list.');
+          }
+     }, [currentSentence]);
+
      // -- Render Helpers --
      const renderWordWithFeedback = (text: string, isCorrectStr: string) => {
           return text.split('').map((char, index) => {
@@ -599,9 +614,19 @@ export const SentencePracticeScreen: React.FC = () => {
                                         <Ionicons name="chevron-back" size={28} color={colors.textPrimary} />
                                    </TouchableOpacity>
                                    <Text style={styles.headerTitle}>Practice Speaking</Text>
-                                   <View style={styles.progressBadge}>
-                                        <Text style={styles.progressText}>{currentIndex + 1}/{sentences.length}</Text>
-                                   </View>
+                                   {currentSentence?.id === 'temp' && !sentenceAdded ? (
+                                        <TouchableOpacity
+                                             style={styles.addToListBtn}
+                                             onPress={handleAddToMyList}
+                                        >
+                                             <Ionicons name="add-circle" size={24} color={colors.primary} />
+                                             <Text style={styles.addToListText}>Add</Text>
+                                        </TouchableOpacity>
+                                   ) : (
+                                        <View style={styles.progressBadge}>
+                                             <Text style={styles.progressText}>{currentIndex + 1}/{sentences.length}</Text>
+                                        </View>
+                                   )}
                               </View>
 
                               <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -752,6 +777,20 @@ const styles = StyleSheet.create({
           borderRadius: 100,
      },
      progressText: {
+          fontSize: 14,
+          fontWeight: '700',
+          color: colors.primary,
+     },
+     addToListBtn: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
+          backgroundColor: 'rgba(124, 58, 237, 0.1)',
+          paddingHorizontal: 12,
+          paddingVertical: 6,
+          borderRadius: 100,
+     },
+     addToListText: {
           fontSize: 14,
           fontWeight: '700',
           color: colors.primary,

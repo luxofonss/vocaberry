@@ -63,7 +63,8 @@ export const DictionaryService = {
      lookup: async (
           wordText: string,
           userExamples: string[] = [],
-          customMainImage?: string
+          customMainImage?: string,
+          autoSave: boolean = true
      ): Promise<{ word: Word; isNew: boolean; originalText: string } | null> => {
           const inputWord = wordText.trim().toLowerCase();
           console.log(`[DictionaryService] 🔍 Looking up word: "${inputWord}"...`);
@@ -119,15 +120,19 @@ export const DictionaryService = {
 
                const mergedWord = DictionaryService.mergeWithLocalData(serverWord, localData);
 
-               // Save to local
-               await StorageService.addWord(mergedWord);
-               console.log(`[DictionaryService] 💾 Saved word to local storage with id: "${mergedWord.id}"`);
+               // Save to local only if autoSave is true
+               if (autoSave) {
+                    await StorageService.addWord(mergedWord);
+                    console.log(`[DictionaryService] 💾 Saved word to local storage with id: "${mergedWord.id}"`);
 
-               // If still processing, start background polling
-               // IMPORTANT: Use mergedWord.id (normalized from server) not inputWord (user input)
-               if (status === 'PROCESSING' || isWordLoading(mergedWord)) {
-                    console.log(`[DictionaryService] ⏳ Starting background poll for normalized word: "${mergedWord.id}"`);
-                    DictionaryService.pollUntilReady(mergedWord.id);
+                    // If still processing, start background polling
+                    // IMPORTANT: Use mergedWord.id (normalized from server) not inputWord (user input)
+                    if (status === 'PROCESSING' || isWordLoading(mergedWord)) {
+                         console.log(`[DictionaryService] ⏳ Starting background poll for normalized word: "${mergedWord.id}"`);
+                         DictionaryService.pollUntilReady(mergedWord.id);
+                    }
+               } else {
+                    console.log(`[DictionaryService] ⏭️ Skipping auto-save (autoSave=false)`);
                }
 
                return {

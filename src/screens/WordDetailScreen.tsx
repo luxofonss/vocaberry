@@ -88,6 +88,7 @@ export const WordDetailScreen: React.FC = () => {
   const [viewingImageUrl, setViewingImageUrl] = useState<string | null>(null);
   const [viewingImageType, setViewingImageType] = useState<'main' | 'meaning' | null>(null);
   const [viewingMeaningId, setViewingMeaningId] = useState<string | undefined>(undefined);
+  const [isWordSaved, setIsWordSaved] = useState(false);
 
   useEffect(() => {
     loadWord();
@@ -181,14 +182,23 @@ export const WordDetailScreen: React.FC = () => {
     try {
       if (isPreviewMode && previewData) {
         setWord(previewData);
+        setIsWordSaved(false);
         setLoading(false);
         return;
       }
 
       const loadedWord = await StorageService.getWordById(wordId);
       setWord(loadedWord || null);
+
+      // Check if word is saved in library
+      if (loadedWord) {
+        setIsWordSaved(true);
+      } else {
+        setIsWordSaved(false);
+      }
     } catch (error) {
       console.error('[WordDetail] Error loading word:', error);
+      setIsWordSaved(false);
     } finally {
       setLoading(false);
     }
@@ -200,6 +210,7 @@ export const WordDetailScreen: React.FC = () => {
       await StorageService.addWord(word);
       Alert.alert(DETAIL_TEXTS.saved, DETAIL_TEXTS.addedToLibrary.replace('{word}', word.word));
       setIsPreviewMode(false); // Switch to normal view
+      setIsWordSaved(true); // Mark as saved
     } catch (error: any) {
       Alert.alert(DETAIL_TEXTS.error, error.message || DETAIL_TEXTS.cannotSave);
     }
@@ -566,9 +577,16 @@ export const WordDetailScreen: React.FC = () => {
           <View style={{ flex: 1 }}>
             <View style={styles.wordTitleRow}>
               <Text style={styles.wordTitle}>{displayWord.word}</Text>
-
             </View>
           </View>
+          {!isWordSaved && !loading && (
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={handleAddToLibrary}
+            >
+              <Ionicons name="add-circle" size={28} color={colors.primary} />
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.fixedHeader}>
@@ -660,7 +678,7 @@ export const WordDetailScreen: React.FC = () => {
             <TouchableOpacity style={styles.doneButton} onPress={handleDone}>
               <TargetIcon size={34} />
             </TouchableOpacity>
-            <TouchableOpacity style={styles.primaryButton} onPress={handleGotIt}>
+            <TouchableOpacity style={styles.primaryButtonLight} onPress={handleGotIt}>
               <CheckIcon size={34} />
             </TouchableOpacity>
           </View>
@@ -716,6 +734,11 @@ const styles = StyleSheet.create({
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  addButton: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    marginRight: spacing.md,
   },
   backIcon: { fontSize: typography.sizes.xl, color: colors.textPrimary, fontWeight: typography.weights.semibold },
 
@@ -825,6 +848,14 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     backgroundColor: colors.primary,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonLight: {
+    width: 48,
+    height: 48,
+    backgroundColor: colors.primaryLighter,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',

@@ -52,15 +52,6 @@ export const WordPreviewModal: React.FC<WordPreviewModalProps> = ({
     setCurrentWordData(wordData);
   }, [wordData]);
 
-  // Requirements: Auto-navigate if word already exists in library
-  useEffect(() => {
-    if (visible && !isNew && wordData && onGoToDetail) {
-      console.log(`[WordPreviewModal] 🚀 Word exists locally, navigating to detail: ${wordData.word}`);
-      onGoToDetail(wordData.id);
-      onClose();
-    }
-  }, [visible, isNew, wordData, onGoToDetail, onClose]);
-
   // Listen event wordImageUpdated để update image khi được generate
   useEffect(() => {
     if (!currentWordData?.id || !visible) return;
@@ -225,32 +216,28 @@ export const WordPreviewModal: React.FC<WordPreviewModalProps> = ({
 
                     <View style={styles.footerSpacing} />
 
-                    {/* Action Button */}
-                    {isNew ? (
-                      onSave && (
-                        <TouchableOpacity
-                          style={styles.saveButton}
-                          onPress={() => currentWordData && onSave(currentWordData)}
-                        >
-                          <Text style={styles.buttonIcon}>➕</Text>
-                          <Text style={styles.buttonText}>{WORD_PREVIEW_TEXTS.addToLibrary}</Text>
-                        </TouchableOpacity>
-                      )
-                    ) : (
-                      onGoToDetail && (
-                        <TouchableOpacity
-                          style={[styles.saveButton, styles.viewButton]}
-                          onPress={() => {
-                            if (currentWordData) {
-                              onClose();
-                              onGoToDetail(currentWordData.id);
-                            }
-                          }}
-                        >
-                          <Text style={[styles.buttonText, styles.viewButtonText]}>{WORD_PREVIEW_TEXTS.viewFullDetails}</Text>
-                        </TouchableOpacity>
-                      )
-                    )}
+                    {/* Action Button - Prioritize onGoToDetail over onSave */}
+                    {onGoToDetail ? (
+                      <TouchableOpacity
+                        style={[styles.saveButton, styles.viewButton]}
+                        onPress={() => {
+                          if (currentWordData) {
+                            onClose();
+                            onGoToDetail(currentWordData.id);
+                          }
+                        }}
+                      >
+                        <Text style={[styles.buttonText, styles.viewButtonText]}>{WORD_PREVIEW_TEXTS.viewFullDetails}</Text>
+                      </TouchableOpacity>
+                    ) : isNew && onSave ? (
+                      <TouchableOpacity
+                        style={styles.saveButton}
+                        onPress={() => currentWordData && onSave(currentWordData)}
+                      >
+                        <Text style={styles.buttonIcon}>➕</Text>
+                        <Text style={styles.buttonText}>{WORD_PREVIEW_TEXTS.addToLibrary}</Text>
+                      </TouchableOpacity>
+                    ) : null}
                   </View>
                 </>
               ) : null}

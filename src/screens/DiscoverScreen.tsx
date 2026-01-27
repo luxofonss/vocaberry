@@ -20,7 +20,8 @@ import { ConversationService } from '../services/ConversationService';
 import { DictionaryService } from '../services/DictionaryService';
 import { StorageService } from '../services/StorageService';
 import { ApiClient } from '../services/ApiClient';
-import { WordPreviewModal, WordCard } from '../components';
+import { DiscoverApiService } from '../services/DiscoverApiService';
+import { WordCard } from '../components';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Word } from '../types';
 
@@ -29,16 +30,10 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export const DiscoverScreen: React.FC = () => {
      const navigation = useNavigation<NavigationProp>();
      const [conversations, setConversations] = useState<Conversation[]>([]);
+     const [shadowingLessons, setShadowingLessons] = useState<any[]>([]);
      const [suggestedWords, setSuggestedWords] = useState<{ id: string, word: string, definition: string, imageUrl?: string }[]>([]);
      const [loading, setLoading] = useState(true);
      const [refreshing, setRefreshing] = useState(false);
-
-     // Lookup state
-     const [modalVisible, setModalVisible] = useState(false);
-     const [selectedWordData, setSelectedWordData] = useState<any>(null);
-     const [isSelectedWordNew, setIsSelectedWordNew] = useState(false);
-     const [isLookupLoading, setIsLookupLoading] = useState(false);
-     const [lookupStatus, setLookupStatus] = useState('');
 
      // Dictionary pagination state
      const [dictionaryPage, setDictionaryPage] = useState(0);
@@ -55,12 +50,18 @@ export const DiscoverScreen: React.FC = () => {
                const response = await ApiClient.getDictionaryWords(page, 20);
 
                if (response && response.data) {
-                    const mappedWords = response.data.map((item: any) => ({
-                         id: item.word.id,
-                         word: item.word.word,
-                         definition: item.word.meanings?.[0]?.definition || 'No definition available',
-                         imageUrl: item.word.imageUrl
-                    }));
+                    // Get existing words to filter out
+                    const existingWords = await StorageService.getWords();
+                    const existingWordTexts = new Set(existingWords.map(w => w.word.toLowerCase()));
+
+                    const mappedWords = response.data
+                         .filter((item: any) => !existingWordTexts.has(item.word.word.toLowerCase()))
+                         .map((item: any) => ({
+                              id: item.word.id,
+                              word: item.word.word,
+                              definition: item.word.meanings?.[0]?.definition || 'No definition available',
+                              imageUrl: item.word.imageUrl
+                         }));
 
                     if (shouldRefresh) {
                          setSuggestedWords(mappedWords);
@@ -89,8 +90,12 @@ export const DiscoverScreen: React.FC = () => {
 
      const loadData = useCallback(async () => {
           try {
-               // Load conversations and initial dictionary words
-               const convs = await ConversationService.getConversations();
+               // Load shadowing lessons from API with caching
+               const lessons = await DiscoverApiService.getShadowingLessons();
+               setShadowingLessons(lessons);
+
+               // Load conversations from API with caching
+               const convs = await DiscoverApiService.getConversations();
                setConversations(convs);
 
                // Load first page of dictionary
@@ -113,36 +118,34 @@ export const DiscoverScreen: React.FC = () => {
      };
 
      const handleWordPress = async (word: string) => {
-          setIsLookupLoading(true);
-          setLookupStatus('Checking library...');
+          console.log('[DiscoverScreen] handleWordPress called for:', word);
 
           try {
                const existingWords = await StorageService.getWords();
                const existing = existingWords.find(w => w.word.toLowerCase() === word.toLowerCase());
 
                if (existing) {
-                    setIsLookupLoading(false);
+                    console.log('[DiscoverScreen] Word exists, navigating to detail');
                     navigation.navigate('WordDetail', { wordId: existing.id });
                     return;
                }
 
-               setModalVisible(true);
-               setLookupStatus('Looking up...');
+               console.log('[DiscoverScreen] Calling API with autoSave=true...');
 
+               // Lookup with autoSave=true (default) - will save automatically
                const data = await DictionaryService.lookup(word);
+               console.log('[DiscoverScreen] Lookup result:', data ? 'Success' : 'Failed');
+
                if (data) {
-                    setSelectedWordData(data.word);
-                    setIsSelectedWordNew(true);
-                    setLookupStatus('');
+                    // Word has been saved, navigate to detail
+                    console.log('[DiscoverScreen] Navigating to WordDetail:', data.word.id);
+                    navigation.navigate('WordDetail', { wordId: data.word.id });
                } else {
                     Alert.alert("Notice", `Could not find details for "${word}".`);
-                    setModalVisible(false);
                }
           } catch (error) {
-               console.error('Lookup error:', error);
-               setModalVisible(false);
-          } finally {
-               setIsLookupLoading(false);
+               console.error('[DiscoverScreen] Lookup error:', error);
+               Alert.alert("Error", "Failed to lookup word. Please try again.");
           }
      };
 
@@ -279,12 +282,7 @@ export const DiscoverScreen: React.FC = () => {
                                         showsHorizontalScrollIndicator={false}
                                         contentContainerStyle={styles.horizontalScroll}
                                    >
-                                        {[
-                                             { id: 1, title: 'Daily Morning Routine', channel: 'English with Emma', duration: '3:45', level: 'Beginner', difficulty: 'Easy', completed: true, stars: 3, thumbnail: '🌅', accent: 'American', views: '1.2M' },
-                                             { id: 2, title: 'Coffee Shop Conversation', channel: 'Real English', duration: '4:20', level: 'Beginner', difficulty: 'Easy', completed: true, stars: 2, thumbnail: '☕', accent: 'British', views: '850K' },
-                                             { id: 3, title: 'At the Restaurant', channel: 'Speak Easy', duration: '5:10', level: 'Intermediate', difficulty: 'Medium', completed: false, stars: 0, thumbnail: '🍽️', accent: 'American', views: '620K' },
-                                             { id: 4, title: 'Job Interview Tips', channel: 'Business English', duration: '6:30', level: 'Advanced', difficulty: 'Hard', completed: false, stars: 0, thumbnail: '💼', accent: 'British', views: '980K' },
-                                        ].map(lesson => renderShadowingCard(lesson))}
+                                        {shadowingLessons.slice(0, 6).map(lesson => renderShadowingCard(lesson))}
                                    </ScrollView>
                               </View>
 
@@ -350,22 +348,6 @@ export const DiscoverScreen: React.FC = () => {
                               )}
                          </View>
                     }
-               />
-
-               <WordPreviewModal
-                    visible={modalVisible}
-                    wordData={selectedWordData}
-                    isNew={isSelectedWordNew}
-                    isLoading={isLookupLoading}
-                    statusText={lookupStatus}
-                    onClose={() => setModalVisible(false)}
-                    onSave={(newWord) => {
-                         setIsSelectedWordNew(false);
-                         setSelectedWordData(newWord);
-                    }}
-                    onGoToDetail={(wordId) => {
-                         navigation.navigate('WordDetail', { wordId });
-                    }}
                />
           </SafeAreaView>
      );
