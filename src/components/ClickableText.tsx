@@ -32,7 +32,8 @@ export const ClickableText: React.FC<ClickableTextProps> = ({ text, onWordPress,
   // Translation State
   const [translation, setTranslation] = useState<string | null>(null);
   const [loadingTranslation, setLoadingTranslation] = useState(false);
-  const [mode, setMode] = useState<'MENU' | 'TRANSLATION'>('MENU');
+  const [loadingLookup, setLoadingLookup] = useState(false);
+  const [mode, setMode] = useState<'MENU' | 'TRANSLATION' | 'LOOKUP'>('MENU');
 
   const handleWordPress = (word: string, event: any) => {
     const cleanWord = word.toLowerCase().replace(/[^a-z0-9]/gi, '');
@@ -74,12 +75,20 @@ export const ClickableText: React.FC<ClickableTextProps> = ({ text, onWordPress,
     }
   };
 
-  const executeLookup = () => {
-    if (selectedWord) {
-      onWordPress(selectedWord);
+  const executeLookup = async () => {
+    if (!selectedWord) return;
+
+    setMode('LOOKUP');
+    setLoadingLookup(true);
+
+    try {
+      // Call the lookup function and wait for it
+      await onWordPress(selectedWord);
+    } finally {
+      setLoadingLookup(false);
+      setPopupVisible(false);
+      setSelectedWord(null);
     }
-    setPopupVisible(false);
-    setSelectedWord(null);
   };
 
   // Close popup
@@ -142,6 +151,14 @@ export const ClickableText: React.FC<ClickableTextProps> = ({ text, onWordPress,
               </View>
             )}
 
+            {/* MODE: LOOKUP LOADING */}
+            {mode === 'LOOKUP' && (
+              <View style={styles.translationContainer}>
+                <ActivityIndicator size="small" color={colors.white} />
+                <Text style={[styles.translationText, { marginLeft: 8, fontSize: 12 }]}>Looking up...</Text>
+              </View>
+            )}
+
             <View style={styles.popupTriangle} />
           </View>
         </TouchableOpacity>
@@ -193,6 +210,7 @@ const styles = StyleSheet.create({
     marginVertical: 6,
   },
   translationContainer: {
+    flexDirection: 'row',
     backgroundColor: colors.primary,
     paddingHorizontal: spacing.md,
     paddingVertical: 6,
