@@ -24,12 +24,14 @@ import { StorageService } from '../services/StorageService';
 import { WordPreviewModal } from '../components/WordPreviewModal';
 import { PronunciationDetailView } from '../components/PronunciationDetailView';
 import * as FileSystem from 'expo-file-system/legacy';
+import { ShadowingService } from '../services/ShadowingService';
+import { ShadowingLesson, ShadowingSubtitle } from '../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'ShadowingPractice'>;
 type RouteProps = RouteProp<RootStackParamList, 'ShadowingPractice'>;
 
 interface Subtitle {
-     id: number;
+     id: number | string;
      start: number;
      end: number;
      text: string;
@@ -52,7 +54,7 @@ interface SubtitleItemProps {
      score: number | undefined;
      isAnalyzing: boolean;
      isPlayingThis: boolean;
-     pronunciations: Record<number, PronunciationData>;
+     pronunciations: Record<string | number, PronunciationData>;
      onSeek: () => void;
      onPlay: () => void;
      onPlayRecording: () => void;
@@ -60,55 +62,20 @@ interface SubtitleItemProps {
      onScorePress: () => void;
 }
 
-const RAW_SUBTITLES: Subtitle[] = [
-     { id: 1, start: 2.35, end: 4.99, text: "What's stopping you? Are you too tired?" },
-     { id: 2, start: 5.509, end: 7.629, text: "Didn't get enough sleep?" },
-     { id: 3, start: 7.629, end: 10.38, text: "Don't have enough energy?" },
-     { id: 4, start: 10.38, end: 12.98, text: "Don't have enough time? Is that what's stopping you right now?" },
-     { id: 5, start: 13.58, end: 21.449, text: "Don't have enough money? Is that the thing? Or is the thing that's stopping you?" },
-     { id: 6, start: 22.78, end: 26.239, text: "You." },
-     { id: 7, start: 26.239, end: 30.66, text: "Excuses sound best to the person that's making them up." },
-     { id: 8, start: 31.469, end: 35.27, text: "Stop feeling sorry for yourself. Get off the pity potty." },
-     { id: 9, start: 36.14, end: 43.06, text: "Telling everybody your sad and soft stories trying to get people to show up to your pity potty's and your pity parades." },
-     { id: 10, start: 43.659, end: 50.14, text: "If you ever see me in a Rolls Royce, a six or seven star hotel living my life to the fullest," },
-     { id: 11, start: 50.659, end: 52.659, text: "don't get jealous of me" },
-     { id: 12, start: 52.7, end: 55.299, text: "because I worked my ass off to get it." },
-     { id: 13, start: 56.049, end: 58.049, text: "Nobody handed me nothing." },
-     { id: 14, start: 58.289, end: 62.59, text: "Wake your ass up." },
-     { id: 15, start: 62.75, end: 64.75, text: "Awaken the beast inside." },
-     { id: 16, start: 65.189, end: 67.319, text: "It's game on." },
-     { id: 17, start: 67.359, end: 69.219, text: "It's golf season." },
-     { id: 18, start: 69.219, end: 74.26, text: "It's time for you to take advantage of the access and the resources that you have" },
-     { id: 19, start: 74.739, end: 79.099, text: "in your country and your community. You got a problem with your life?" },
-     { id: 20, start: 79.659, end: 82.109, text: "You got a problem with your environment?" },
-     { id: 21, start: 82.79, end: 87.379, text: "Do something about it. If you want it, go get it." },
-     { id: 22, start: 89.26, end: 92.939, text: "Recognize the excuses are not valid." },
-     { id: 23, start: 95.14, end: 97.9, text: "Conjured up. They're fabricated. They're lies." },
-     { id: 24, start: 98.5, end: 104.859, text: "And how do you stop the lies? You stop the lies with the truth. That the truth is you have time." },
-     { id: 25, start: 105.42, end: 113.219, text: "You have the skill. You have the knowledge and the support and the willpower and the discipline" },
-     { id: 26, start: 113.62, end: 115.379, text: "to get it done." },
-     { id: 27, start: 115.379, end: 119.54, text: "The fruit of everything good in life" },
-     { id: 28, start: 120.489, end: 122.579, text: "begins with the challenge." },
-     { id: 29, start: 122.78, end: 124.78, text: "Everything is a pill that's worth a lot." },
-     { id: 30, start: 124.78, end: 129.9, text: "And it's not going to come to you and it's not going to fall in your lap and it's not going to be" },
-     { id: 31, start: 129.9, end: 135.58, text: "something that, oh my God, it just was so simple. It's always going to be difficult." },
-     { id: 32, start: 135.659, end: 146, text: "This is your chance. This is your shot. This is your moment. This is your time. This is your place." },
-     { id: 33, start: 146.24, end: 148.24, text: "This is your opportunity." },
-     { id: 34, start: 148.24, end: 153.759, text: "This is my time. This is my moment. Tomorrow, tomorrow, tomorrow. Ain't no such thing as tomorrow." },
-     { id: 35, start: 153.759, end: 159.439, text: "We only got today. It's your dream. If you want it to happen, get your butt up and make it happen." },
-     { id: 36, start: 159.439, end: 162.319, text: "If you want it to happen, rise and grind." },
-     { id: 37, start: 162.319, end: 169.86, text: "You still got work to do. Stay on that basketball court. Stay on that football field. It's grind season, homie." },
-];
+
 
 const normalizeSubtitles = (subtitles: Subtitle[]): Subtitle[] => {
-     if (subtitles.length === 0) return [];
+     if (!subtitles || subtitles.length === 0) return [];
 
+     // Convert API subtitles to local format if needed (API format matches mostly)
      const normalized = subtitles.map(sub => ({ ...sub }));
 
-     normalized[0] = {
-          ...normalized[0],
-          start: normalized[0].start / 2,
-     };
+     if (normalized.length > 0) {
+          normalized[0] = {
+               ...normalized[0],
+               start: normalized[0].start / 2,
+          };
+     }
 
      for (let i = 1; i < normalized.length; i++) {
           const prevItem = normalized[i - 1];
@@ -133,8 +100,6 @@ const normalizeSubtitles = (subtitles: Subtitle[]): Subtitle[] => {
 
      return normalized;
 };
-
-const SUBTITLES: Subtitle[] = normalizeSubtitles(RAW_SUBTITLES);
 
 const SubtitleItem = React.memo<SubtitleItemProps>(({
      sub,
@@ -230,7 +195,15 @@ SubtitleItem.displayName = 'SubtitleItem';
 export const ShadowingPracticeScreen: React.FC = () => {
      const navigation = useNavigation<NavigationProp>();
      const route = useRoute<RouteProps>();
-     const lesson = route.params;
+
+     // Handle params whether from legacy navigators or new API flow
+     // @ts-ignore
+     const { lessonId: paramLessonId, initialData, id: legacyId } = route.params;
+     const lessonId = paramLessonId || legacyId?.toString();
+
+     const [lessonDetail, setLessonDetail] = useState<ShadowingLesson | null>(initialData || null);
+     const [loading, setLoading] = useState(!initialData);
+     const [error, setError] = useState<string | null>(null);
 
      const videoRef = useRef<Video>(null);
      const flatListRef = useRef<FlatList<Subtitle>>(null);
@@ -246,10 +219,10 @@ export const ShadowingPracticeScreen: React.FC = () => {
      const isProcessingRef = useRef<boolean>(false);
 
      const [status, setStatus] = useState<AVPlaybackStatus>({} as AVPlaybackStatus);
-     const [activeSubId, setActiveSubId] = useState<number | null>(null);
-     const activeSubIdRef = useRef<number | null>(null);
+     const [activeSubId, setActiveSubId] = useState<number | string | null>(null);
+     const activeSubIdRef = useRef<number | string | null>(null);
 
-     const [subtitles, setSubtitles] = useState<Subtitle[]>(SUBTITLES);
+     const [subtitles, setSubtitles] = useState<Subtitle[]>([]);
      const [stopAt, setStopAt] = useState<number | null>(null);
      const [isVideoReady, setIsVideoReady] = useState<boolean>(false);
      const [isSeeking, setIsSeeking] = useState<boolean>(false);
@@ -257,12 +230,45 @@ export const ShadowingPracticeScreen: React.FC = () => {
      const [showSpeedModal, setShowSpeedModal] = useState<boolean>(false);
 
      const [isRecording, setIsRecording] = useState<boolean>(false);
-     const [analyzingId, setAnalyzingId] = useState<number | null>(null);
-     const [userRecordings, setUserRecordings] = useState<Record<number, string>>({});
-     const [scores, setScores] = useState<Record<number, number>>({});
-     const [pronunciations, setPronunciations] = useState<Record<number, PronunciationData>>({});
-     const [playingUserAudioId, setPlayingUserAudioId] = useState<number | null>(null);
+     const [analyzingId, setAnalyzingId] = useState<number | string | null>(null);
+     const [userRecordings, setUserRecordings] = useState<Record<string | number, string>>({});
+     const [scores, setScores] = useState<Record<string | number, number>>({});
+     const [pronunciations, setPronunciations] = useState<Record<string | number, PronunciationData>>({});
+     const [playingUserAudioId, setPlayingUserAudioId] = useState<number | string | null>(null);
      const [isPlayingAll, setIsPlayingAll] = useState<boolean>(false);
+
+     useEffect(() => {
+          const fetchDetail = async () => {
+               if (!lessonId) return;
+
+               try {
+                    setLoading(true);
+                    const data = await ShadowingService.getLessonById(lessonId);
+                    setLessonDetail(data);
+
+                    if (data.subtitles) {
+                         // Helper locally defined above or just inline mapping? 
+                         // normalizeSubtitles was defined locally.
+                         // Map API subtitles to local format
+                         const mappedSubtitles: Subtitle[] = data.subtitles.map(s => ({
+                              id: s.id,
+                              start: s.start,
+                              end: s.end,
+                              text: s.text
+                         }));
+                         setSubtitles(normalizeSubtitles(mappedSubtitles));
+                    }
+               } catch (err) {
+                    console.error('Error fetching lesson:', err);
+                    setError('Failed to load lesson details. Please try again.');
+                    Alert.alert('Error', 'Failed to load lesson details.');
+               } finally {
+                    setLoading(false);
+               }
+          };
+
+          fetchDetail();
+     }, [lessonId]);
 
      // --- Manual Video Controls ---
      const handlePlayPause = async () => {
@@ -435,7 +441,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
                     isProcessingRef.current = false;
                }, 100);
           }
-     }, []);
+     }, [status]);
 
      // Simplified Seek To Subtitle
      const seekToSubtitle = useCallback(async (sub: Subtitle): Promise<void> => {
@@ -460,6 +466,9 @@ export const ShadowingPracticeScreen: React.FC = () => {
                     toleranceMillisBefore: 0,
                     toleranceMillisAfter: 0
                });
+
+               // 3. Play
+               await videoRef.current.playAsync();
 
           } catch (error) {
                console.error('Seek failed:', error);
@@ -613,7 +622,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
           }
      };
 
-     const analyzePronunciation = async (id: number, text: string, uri: string): Promise<void> => {
+     const analyzePronunciation = async (id: string | number, text: string, uri: string): Promise<void> => {
           setAnalyzingId(id);
           try {
                const base64Audio = await FileSystem.readAsStringAsync(uri, {
@@ -648,7 +657,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
           }
      };
 
-     const playUserRecording = async (id: number): Promise<void> => {
+     const playUserRecording = async (id: string | number): Promise<void> => {
           const uri = userRecordings[id];
           if (!uri) return;
 
@@ -674,7 +683,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
      const playAllRecordings = async (): Promise<void> => {
           shouldStopPlayingAll.current = false;
           setIsPlayingAll(true);
-          const recordingIds = Object.keys(userRecordings).map(Number).sort((a, b) => a - b);
+          const recordingIds = Object.keys(userRecordings);
 
           if (recordingIds.length === 0) {
                Alert.alert("No recordings", "You haven't recorded anything yet.");
@@ -682,11 +691,14 @@ export const ShadowingPracticeScreen: React.FC = () => {
                return;
           }
 
-          for (const id of recordingIds) {
+          for (const rawId of recordingIds) {
                // Check ref instead of state to properly break the loop
                if (shouldStopPlayingAll.current) break;
 
-               const index = subtitles.findIndex(s => s.id === id);
+               // Try to treat as number if possible for consistent lookup, otherwise keep string
+               const id = isNaN(Number(rawId)) ? rawId : Number(rawId);
+
+               const index = subtitles.findIndex(s => s.id == id);
                if (index !== -1 && flatListRef.current) {
                     flatListRef.current.scrollToIndex({ index, animated: true, viewPosition: 0.3 });
                }
@@ -810,7 +822,6 @@ export const ShadowingPracticeScreen: React.FC = () => {
           analyzingId,
           playingUserAudioId,
           pronunciations,
-          isSeeking,
           seekToSubtitle,
           playSegment,
           playUserRecording,
@@ -836,8 +847,8 @@ export const ShadowingPracticeScreen: React.FC = () => {
                               <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                          </TouchableOpacity>
                          <View style={styles.headerInfo}>
-                              <Text style={styles.headerTitle} numberOfLines={1}>{lesson.title}</Text>
-                              <Text style={styles.headerSubtitle} numberOfLines={1}>{lesson.channel} • {lesson.level}</Text>
+                              <Text style={styles.headerTitle} numberOfLines={1}>{lessonDetail?.title || 'Loading...'}</Text>
+                              <Text style={styles.headerSubtitle} numberOfLines={1}>{lessonDetail?.category || lessonDetail?.channel || 'Shadowing'} • {lessonDetail?.difficulty || lessonDetail?.level || 'Practice'}</Text>
                          </View>
                     </View>
 
@@ -845,7 +856,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
                          <Video
                               ref={videoRef}
                               style={styles.video}
-                              source={{ uri: 'https://d19o3szqkvjryx.cloudfront.net/videos/video.mp4' }}
+                              source={{ uri: lessonDetail?.video_url || 'https://d19o3szqkvjryx.cloudfront.net/videos/video.mp4' }}
                               useNativeControls
                               resizeMode={ResizeMode.CONTAIN}
                               isLooping={false}
@@ -894,87 +905,66 @@ export const ShadowingPracticeScreen: React.FC = () => {
                          <TouchableOpacity
                               style={styles.playAllBtn}
                               onPress={isPlayingAll ? stopPlayingAll : playAllRecordings}
+                              disabled={Object.keys(userRecordings).length === 0}
                          >
-                              <Ionicons name={isPlayingAll ? "square" : "play-circle"} size={20} color={colors.primary} />
-                              <Text style={styles.playAllText}>
-                                   {isPlayingAll ? "Stop Playback" : "Play My Recordings"}
+                              <Ionicons
+                                   name={isPlayingAll ? "stop" : "play-circle"}
+                                   size={18}
+                                   color={Object.keys(userRecordings).length === 0 ? colors.textSecondary : colors.primary}
+                              />
+                              <Text style={[
+                                   styles.playAllText,
+                                   Object.keys(userRecordings).length === 0 && { color: colors.textSecondary }
+                              ]}>
+                                   {isPlayingAll ? 'Stop Info' : 'Play My Recordings'}
                               </Text>
                          </TouchableOpacity>
                     </View>
 
-                    <FlatList<Subtitle>
+                    {/* Subtitles List */}
+                    <FlatList
                          ref={flatListRef}
                          data={subtitles}
-                         style={styles.transcriptList}
-                         contentContainerStyle={styles.transcriptContent}
-                         showsVerticalScrollIndicator={false}
-                         keyExtractor={keyExtractor}
-                         renderItem={renderItem}
-                         getItemLayout={getItemLayout}
-                         removeClippedSubviews={true}
-                         maxToRenderPerBatch={10}
-                         windowSize={11}
+                         style={styles.list}
+                         contentContainerStyle={styles.listContent}
                          initialNumToRender={10}
-                         onScrollToIndexFailed={info => {
-                              const wait = new Promise(resolve => setTimeout(resolve, 500));
-                              wait.then(() => {
-                                   flatListRef.current?.scrollToIndex({
-                                        index: info.index,
-                                        animated: true,
-                                        viewPosition: 0.3
-                                   });
-                              });
-                         }}
+                         maxToRenderPerBatch={10}
+                         windowSize={10}
+                         removeClippedSubviews={true}
+                         showsVerticalScrollIndicator={false}
+                         getItemLayout={getItemLayout}
+                         renderItem={renderItem}
+                         keyExtractor={keyExtractor}
                     />
 
-                    <View style={styles.bottomControls}>
-                         <View style={styles.recordContainer}>
-                              <TouchableOpacity
-                                   style={[styles.mainMicBtn, isRecording && styles.mainMicBtnActive]}
-                                   onPressIn={startRecording}
-                                   onPressOut={stopRecording}
-                                   disabled={!currentSubtitle}
-                              >
-                                   <Ionicons name="mic" size={32} color="white" />
-                              </TouchableOpacity>
-                         </View>
+                    {/* Recording Button */}
+                    <View style={styles.recordContainer}>
+                         <TouchableOpacity
+                              onPressIn={startRecording}
+                              onPressOut={stopRecording}
+                              activeOpacity={0.8}
+                              style={[
+                                   styles.recordButton,
+                                   isRecording && styles.recordButtonActive,
+                                   !currentSubtitle && styles.recordButtonDisabled
+                              ]}
+                         >
+                              <View style={[
+                                   styles.recordInner,
+                                   isRecording && styles.recordInnerActive
+                              ]} />
+                         </TouchableOpacity>
+                         <Text style={styles.recordHint}>
+                              {isRecording ? "Listening..." : "Hold to Record"}
+                         </Text>
                     </View>
 
-                    <WordPreviewModal
-                         visible={modalVisible}
-                         wordData={selectedWordData}
-                         isNew={isSelectedWordNew}
-                         onClose={() => setModalVisible(false)}
-                         onSave={handleSaveNewWord}
-                         onGoToDetail={handleGoToDetail}
-                    />
-
+                    {/* Speed Control Modal */}
                     <Modal
-                         visible={detailModalVisible}
-                         animationType="slide"
-                         presentationStyle="pageSheet"
-                         onRequestClose={() => setDetailModalVisible(false)}
-                    >
-                         {selectedPronunciation && (
-                              <PronunciationDetailView
-                                   recognizedText={selectedPronunciation.recognizedText}
-                                   accuracyScore={selectedPronunciation.accuracyScore}
-                                   fluencyScore={selectedPronunciation.fluencyScore}
-                                   completenessScore={selectedPronunciation.completenessScore}
-                                   pronScore={selectedPronunciation.pronScore}
-                                   words={selectedPronunciation.words}
-                                   onClose={() => setDetailModalVisible(false)}
-                                   compact={false}
-                              />
-                         )}
-                    </Modal>
-
-                    {/* Speed Selection Modal */}
-                    <Modal
-                         visible={showSpeedModal}
                          transparent={true}
-                         animationType="fade"
+                         visible={showSpeedModal}
                          onRequestClose={() => setShowSpeedModal(false)}
+                         animationType="fade"
                     >
                          <TouchableOpacity
                               style={styles.modalOverlay}
@@ -983,20 +973,63 @@ export const ShadowingPracticeScreen: React.FC = () => {
                          >
                               <View style={styles.speedModalContent}>
                                    <Text style={styles.speedModalTitle}>Playback Speed</Text>
-                                   {[0.5, 0.75, 1.0, 1.25].map((s) => (
+                                   {[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map((speed) => (
                                         <TouchableOpacity
-                                             key={s}
-                                             style={[styles.speedOption, rate === s && styles.speedOptionActive]}
-                                             onPress={() => handleSpeedSelect(s)}
+                                             key={speed}
+                                             style={[
+                                                  styles.speedOption,
+                                                  rate === speed && styles.speedOptionSelected
+                                             ]}
+                                             onPress={() => handleSpeedSelect(speed)}
                                         >
-                                             <Text style={[styles.speedOptionText, rate === s && styles.speedOptionTextActive]}>
-                                                  {s}x
+                                             <Text style={[
+                                                  styles.speedOptionText,
+                                                  rate === speed && styles.speedOptionTextSelected
+                                             ]}>
+                                                  {speed}x
                                              </Text>
-                                             {rate === s && <Ionicons name="checkmark" size={18} color={colors.primary} />}
+                                             {rate === speed && (
+                                                  <Ionicons name="checkmark" size={20} color={colors.primary} />
+                                             )}
                                         </TouchableOpacity>
                                    ))}
                               </View>
                          </TouchableOpacity>
+                    </Modal>
+
+                    {/* Word Preview Modal */}
+                    <WordPreviewModal
+                         visible={modalVisible}
+                         wordData={selectedWordData}
+                         isNew={isSelectedWordNew}
+                         onClose={() => setModalVisible(false)}
+                         onSave={handleSaveNewWord}
+                         onGoToDetail={() => selectedWordData && handleGoToDetail(selectedWordData.id)}
+                    />
+
+                    {/* Pronunciation Detail Modal */}
+                    <Modal
+                         animationType="slide"
+                         transparent={true}
+                         visible={detailModalVisible}
+                         onRequestClose={() => setDetailModalVisible(false)}
+                    >
+                         <View style={styles.detailModalOverlay}>
+                              <View style={styles.detailModalContent}>
+                                   <View style={styles.detailModalHeader}>
+                                        <Text style={styles.detailModalTitle}>Pronunciation Feedback</Text>
+                                        <TouchableOpacity onPress={() => setDetailModalVisible(false)}>
+                                             <Ionicons name="close" size={24} color={colors.textPrimary} />
+                                        </TouchableOpacity>
+                                   </View>
+
+                                   {selectedPronunciation && (
+                                        <PronunciationDetailView
+                                             {...selectedPronunciation}
+                                        />
+                                   )}
+                              </View>
+                         </View>
                     </Modal>
 
                </SafeAreaView>
@@ -1007,7 +1040,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
 const styles = StyleSheet.create({
      container: {
           flex: 1,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: '#F8FAFC',
      },
      safeArea: {
           flex: 1,
@@ -1015,13 +1048,14 @@ const styles = StyleSheet.create({
      header: {
           flexDirection: 'row',
           alignItems: 'center',
-          paddingHorizontal: spacing.screenPadding,
-          paddingVertical: spacing.sm,
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          backgroundColor: colors.white,
           borderBottomWidth: 1,
-          borderBottomColor: '#F1F5F9',
+          borderBottomColor: '#E2E8F0',
      },
      backButton: {
-          marginRight: spacing.sm,
+          marginRight: 16,
           padding: 4,
      },
      headerInfo: {
@@ -1029,7 +1063,7 @@ const styles = StyleSheet.create({
      },
      headerTitle: {
           fontSize: 16,
-          fontWeight: '700',
+          fontWeight: 'bold',
           color: colors.textPrimary,
      },
      headerSubtitle: {
@@ -1039,71 +1073,114 @@ const styles = StyleSheet.create({
      videoWrapper: {
           width: '100%',
           aspectRatio: 16 / 9,
-          backgroundColor: '#000',
+          backgroundColor: 'black',
      },
      video: {
           flex: 1,
+     },
+     controlsRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: 20,
+          paddingVertical: 12,
+          backgroundColor: colors.white,
+          borderBottomWidth: 1,
+          borderBottomColor: '#F1F5F9',
+     },
+     centerControls: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 24,
+     },
+     controlBtn: {
+          padding: 8,
+     },
+     playPauseBtn: {
+          width: 48,
+          height: 48,
+          borderRadius: 24,
+          backgroundColor: colors.primary,
+          alignItems: 'center',
+          justifyContent: 'center',
+          shadowColor: colors.primary,
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 4,
+     },
+     speedBtn: {
+          paddingHorizontal: 10,
+          paddingVertical: 4,
+          backgroundColor: '#F1F5F9',
+          borderRadius: 8,
+     },
+     speedText: {
+          fontSize: 12,
+          fontWeight: 'bold',
+          color: colors.textPrimary,
      },
      transcriptHeaderRow: {
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
-          paddingHorizontal: spacing.screenPadding,
+          paddingHorizontal: 20,
           paddingVertical: 12,
           backgroundColor: '#F8FAFC',
-          borderBottomWidth: 1,
-          borderBottomColor: '#E2E8F0',
      },
      sectionHeader: {
-          fontSize: 16,
-          fontWeight: '700',
-          color: colors.textPrimary,
+          fontSize: 14,
+          fontWeight: 'bold',
+          color: colors.textSecondary,
+          textTransform: 'uppercase',
+          letterSpacing: 0.5,
      },
      playAllBtn: {
           flexDirection: 'row',
           alignItems: 'center',
           gap: 6,
-          paddingHorizontal: 10,
-          paddingVertical: 4,
-          backgroundColor: '#EFF6FF',
-          borderRadius: 20,
      },
      playAllText: {
-          fontSize: 12,
-          fontWeight: '600',
+          fontSize: 14,
           color: colors.primary,
+          fontWeight: '600',
      },
-     transcriptList: {
+     list: {
           flex: 1,
           backgroundColor: '#F8FAFC',
      },
-     transcriptContent: {
-          paddingHorizontal: spacing.screenPadding,
-          paddingTop: 16,
-          paddingBottom: 100,
+     listContent: {
+          paddingBottom: 120, // Space for recording button
      },
      subItem: {
           flexDirection: 'row',
-          alignItems: 'center',
-          padding: 12,
-          backgroundColor: 'white',
+          paddingHorizontal: 16,
+          paddingVertical: 12,
+          backgroundColor: colors.white,
+          marginVertical: 4,
+          marginHorizontal: 16,
           borderRadius: 12,
-          marginBottom: 10,
           borderWidth: 1,
-          borderColor: '#E2E8F0',
+          borderColor: 'transparent',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 1 },
+          shadowOpacity: 0.05,
+          shadowRadius: 2,
+          elevation: 1,
      },
      subItemActive: {
           borderColor: colors.primary,
-          backgroundColor: '#EFF6FF',
-          borderWidth: 1.5,
+          backgroundColor: '#F0FDF4',
+          transform: [{ scale: 1.02 }],
      },
      subItemRecorded: {
-          borderColor: '#BBF7D0',
+          borderLeftWidth: 4,
+          borderLeftColor: colors.primary,
      },
      subContent: {
           flex: 1,
           flexDirection: 'row',
-          alignItems: 'flex-start',
+          gap: 12,
      },
      subIndex: {
           width: 24,
@@ -1112,27 +1189,26 @@ const styles = StyleSheet.create({
           backgroundColor: '#F1F5F9',
           alignItems: 'center',
           justifyContent: 'center',
-          marginRight: 10,
           marginTop: 2,
      },
      subIndexActive: {
           backgroundColor: colors.primary,
      },
      subIndexText: {
-          fontSize: 11,
-          fontWeight: '700',
-          color: '#64748B',
+          fontSize: 10,
+          fontWeight: 'bold',
+          color: colors.textSecondary,
      },
      subIndexTextActive: {
-          color: 'white',
+          color: colors.white,
      },
      subBody: {
           flex: 1,
      },
      subText: {
-          fontSize: 15,
+          fontSize: 16,
           color: '#334155',
-          lineHeight: 22,
+          lineHeight: 24,
      },
      subActiveText: {
           fontWeight: '600',
@@ -1141,8 +1217,8 @@ const styles = StyleSheet.create({
      analyzingRow: {
           flexDirection: 'row',
           alignItems: 'center',
-          marginTop: 4,
-          gap: 6,
+          marginTop: 8,
+          gap: 8,
      },
      analyzingText: {
           fontSize: 12,
@@ -1150,161 +1226,157 @@ const styles = StyleSheet.create({
           fontStyle: 'italic',
      },
      scoreBadge: {
-          alignSelf: 'flex-start',
           flexDirection: 'row',
           alignItems: 'center',
-          gap: 4,
-          marginTop: 6,
+          alignSelf: 'flex-start',
+          marginTop: 8,
           paddingHorizontal: 8,
-          paddingVertical: 2,
-          borderRadius: 6,
+          paddingVertical: 4,
+          borderRadius: 12,
+          backgroundColor: '#F1F5F9',
      },
-     scoreHigh: { backgroundColor: '#DCFCE7' },
-     scoreMid: { backgroundColor: '#FEF9C3' },
-     scoreLow: { backgroundColor: '#FEE2E2' },
      scoreText: {
-          fontSize: 11,
-          fontWeight: '700',
+          fontSize: 12,
+          fontWeight: 'bold',
           color: '#334155',
      },
+     scoreHigh: {
+          backgroundColor: '#DCFCE7',
+     },
+     scoreMid: {
+          backgroundColor: '#FEF9C3',
+     },
+     scoreLow: {
+          backgroundColor: '#FEE2E2',
+     },
      itemActions: {
-          flexDirection: 'row',
-          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingLeft: 12,
+          borderLeftWidth: 1,
+          borderLeftColor: '#F1F5F9',
           marginLeft: 8,
-          gap: 2,
      },
      miniActionBtn: {
-          width: 26,
-          height: 26,
-          borderRadius: 20,
-          backgroundColor: '#F1F5F9',
-          alignItems: 'center',
-          justifyContent: 'center',
+          padding: 8,
      },
-     bottomControls: {
+     recordContainer: {
           position: 'absolute',
           bottom: 0,
           left: 0,
           right: 0,
-          backgroundColor: 'white',
-          paddingVertical: 16,
-          paddingHorizontal: 20,
-          borderTopLeftRadius: 24,
-          borderTopRightRadius: 24,
+          backgroundColor: colors.white,
+          paddingBottom: 30, // Safe area
+          paddingTop: 16,
           alignItems: 'center',
+          borderTopWidth: 1,
+          borderTopColor: '#E2E8F0',
           shadowColor: '#000',
           shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.1,
-          shadowRadius: 4,
+          shadowOpacity: 0.05,
+          shadowRadius: 8,
           elevation: 10,
      },
-     recordContainer: {
-          alignItems: 'center',
-          width: '100%',
-     },
-     mainMicBtn: {
-          width: 64,
-          height: 64,
-          borderRadius: 32,
-          backgroundColor: colors.primary,
-          alignItems: 'center',
-          justifyContent: 'center',
-          shadowColor: colors.primary,
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.3,
-          shadowRadius: 8,
-          elevation: 6,
-     },
-     mainMicBtnActive: {
-          backgroundColor: '#EF4444',
-          shadowColor: '#EF4444',
-     },
-     mainMicBtnDisabled: {
-          backgroundColor: '#CBD5E1', // Gray color
-          shadowColor: 'transparent',
-          elevation: 0,
-     },
-     // Control Styles
-     controlsRow: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          paddingHorizontal: spacing.screenPadding,
-          paddingVertical: 8, // Reduced padding
-          backgroundColor: 'white',
-          borderBottomWidth: 1,
-          borderBottomColor: '#F1F5F9',
-     },
-     centerControls: {
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 24, // Increased spacing between compact buttons
-     },
-     controlBtn: {
-          padding: 6,
-     },
-     playPauseBtn: {
-          width: 44, // Smaller size
-          height: 44,
-          borderRadius: 22,
-          backgroundColor: colors.accent3,
-          alignItems: 'center',
-          justifyContent: 'center',
-          ...shadows.subtle,
-     },
-     speedBtn: {
-          paddingHorizontal: 10,
-          paddingVertical: 6,
-          borderRadius: 16,
+     recordButton: {
+          width: 72,
+          height: 72,
+          borderRadius: 36,
           backgroundColor: '#F1F5F9',
           alignItems: 'center',
           justifyContent: 'center',
+          borderWidth: 4,
+          borderColor: colors.white,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 8,
+          elevation: 4,
      },
-     speedText: {
+     recordButtonActive: {
+          backgroundColor: '#FEE2E2',
+          transform: [{ scale: 1.1 }],
+     },
+     recordButtonDisabled: {
+          opacity: 0.5,
+     },
+     recordInner: {
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          backgroundColor: colors.primary,
+     },
+     recordInnerActive: {
+          backgroundColor: colors.error,
+          width: 32,
+          height: 32,
+          borderRadius: 4,
+     },
+     recordHint: {
+          marginTop: 8,
           fontSize: 12,
-          fontWeight: '600',
-          color: colors.textPrimary,
+          color: colors.textSecondary,
+          fontWeight: '500',
      },
-     // Speed Modal Styles
      modalOverlay: {
           flex: 1,
-          backgroundColor: 'rgba(0,0,0,0.4)',
+          backgroundColor: 'rgba(0,0,0,0.5)',
           justifyContent: 'center',
           alignItems: 'center',
      },
      speedModalContent: {
-          width: 200,
-          backgroundColor: 'white',
-          borderRadius: 16,
-          padding: 16,
-          ...shadows.medium,
+          backgroundColor: colors.white,
+          borderRadius: 24,
+          padding: 24,
+          width: 280,
      },
      speedModalTitle: {
-          fontSize: 14,
-          fontWeight: '700',
-          color: colors.textSecondary,
-          marginBottom: 12,
+          fontSize: 18,
+          fontWeight: 'bold',
+          color: colors.textPrimary,
+          marginBottom: 16,
           textAlign: 'center',
      },
      speedOption: {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
-          paddingVertical: 10,
+          paddingVertical: 12,
           borderBottomWidth: 1,
           borderBottomColor: '#F1F5F9',
      },
-     speedOptionActive: {
-          backgroundColor: '#EFF6FF',
-          marginHorizontal: -16,
-          paddingHorizontal: 16,
+     speedOptionSelected: {
+          backgroundColor: '#F0FDF4',
+          marginHorizontal: -24,
+          paddingHorizontal: 24,
      },
      speedOptionText: {
-          fontSize: 15,
+          fontSize: 16,
           color: colors.textPrimary,
      },
-     speedOptionTextActive: {
-          fontWeight: '700',
+     speedOptionTextSelected: {
           color: colors.primary,
+          fontWeight: '600',
+     },
+     detailModalOverlay: {
+          flex: 1,
+          justifyContent: 'flex-end',
+          backgroundColor: 'rgba(0,0,0,0.5)',
+     },
+     detailModalContent: {
+          backgroundColor: colors.white,
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          padding: 20,
+          minHeight: '60%',
+     },
+     detailModalHeader: {
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: 20,
+     },
+     detailModalTitle: {
+          fontSize: 20,
+          fontWeight: 'bold',
+          color: colors.textPrimary,
      },
 });

@@ -160,21 +160,26 @@ export const DiscoverScreen: React.FC = () => {
                key={lesson.id}
                style={styles.shadowingCard}
                activeOpacity={0.9}
-               onPress={() => navigation.navigate('ShadowingPractice', lesson)}
+               onPress={() => {
+                    (navigation as any).navigate('ShadowingPractice', {
+                         lessonId: lesson.id,
+                         initialData: lesson
+                    });
+               }}
           >
                <View style={styles.videoThumbnail}>
                     <View style={[styles.thumbnailPlaceholder, { backgroundColor: '#F1F5F9' }]}>
-                         <Text style={{ fontSize: 40 }}>{lesson.thumbnail}</Text>
+                         <Text style={{ fontSize: 40 }}>🎬</Text>
                     </View>
                     <View style={styles.durationBadge}>
-                         <Text style={styles.durationText}>{lesson.duration}</Text>
+                         <Text style={styles.durationText}>{lesson.duration || '0:00'}</Text>
                     </View>
                </View>
 
                <View style={styles.videoContent}>
                     <Text style={styles.videoTitle} numberOfLines={2}>{lesson.title}</Text>
                     <Text style={styles.videoMeta} numberOfLines={1}>
-                         {lesson.channel} • {lesson.views} views • {lesson.level}
+                         {lesson.category || 'General'} • {lesson.views} views • {lesson.difficulty || 'Easy'}
                     </Text>
                </View>
           </TouchableOpacity>

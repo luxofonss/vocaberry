@@ -39,6 +39,7 @@ export const ConversationDetailScreen: React.FC = () => {
 
      const [conversation, setConversation] = useState<Conversation | null>(null);
      const [loading, setLoading] = useState(true);
+     const [error, setError] = useState<string | null>(null);
      const [isFollowing, setIsFollowing] = useState(false);
      const [showTranslations, setShowTranslations] = useState(false);
 
@@ -98,17 +99,27 @@ export const ConversationDetailScreen: React.FC = () => {
 
      useEffect(() => {
           const fetchConversation = async () => {
-               const [data, practicing] = await Promise.all([
-                    ConversationService.getConversationById(conversationId),
-                    StorageService.getPracticingConversations()
-               ]);
+               try {
+                    setLoading(true);
+                    setError(null);
+                    const [data, practicing] = await Promise.all([
+                         ConversationService.getConversationById(conversationId),
+                         StorageService.getPracticingConversations()
+                    ]);
 
-               if (data) {
-                    setConversation(data);
-                    const isPracticing = practicing.some(c => c.id === conversationId);
-                    setIsFollowing(isPracticing);
+                    if (data) {
+                         setConversation(data);
+                         const isPracticing = practicing.some(c => c.id === conversationId);
+                         setIsFollowing(isPracticing);
+                    } else {
+                         setError('Conversation not found');
+                    }
+               } catch (err) {
+                    console.error('[ConversationDetail] Error fetching:', err);
+                    setError('Failed to load conversation details. Please try again.');
+               } finally {
+                    setLoading(false);
                }
-               setLoading(false);
           };
           fetchConversation();
 
@@ -407,10 +418,41 @@ export const ConversationDetailScreen: React.FC = () => {
           }
      };
 
-     if (loading || !conversation) {
+     if (loading) {
           return (
                <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={colors.primary} />
+               </View>
+          );
+     }
+
+     if (error || !conversation) {
+          return (
+               <View style={styles.loadingContainer}>
+                    <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
+                    <Text style={{ marginTop: 12, fontSize: 16, color: colors.textSecondary, marginBottom: 20 }}>
+                         {error || 'Conversation not found'}
+                    </Text>
+                    <TouchableOpacity
+                         style={{
+                              paddingHorizontal: 24,
+                              paddingVertical: 12,
+                              backgroundColor: colors.primary,
+                              borderRadius: 12
+                         }}
+                         onPress={() => {
+
+                              navigation.replace('ConversationDetail', { conversationId });
+                         }}
+                    >
+                         <Text style={{ color: 'white', fontWeight: 'bold' }}>Retry</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                         style={{ marginTop: 20, padding: 10 }}
+                         onPress={() => navigation.goBack()}
+                    >
+                         <Text style={{ color: colors.textSecondary }}>Go Back</Text>
+                    </TouchableOpacity>
                </View>
           );
      }

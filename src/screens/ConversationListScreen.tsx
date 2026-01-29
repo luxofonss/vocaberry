@@ -6,6 +6,7 @@ import {
      TouchableOpacity,
      ScrollView,
      Animated,
+     ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -22,18 +23,31 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 export const ConversationListScreen: React.FC = () => {
      const navigation = useNavigation<NavigationProp>();
      const [conversations, setConversations] = useState<Conversation[]>([]);
+     const [loading, setLoading] = useState(true);
+     const [error, setError] = useState<string | null>(null);
 
      // Animation for list items
      const fadeAnims = React.useRef<Animated.Value[]>([]).current;
      const [ready, setReady] = useState(false);
 
      useEffect(() => {
-          ConversationService.getConversations().then(data => {
-               setConversations(data);
-               // Initialize animations
-               data.forEach(() => fadeAnims.push(new Animated.Value(0)));
-               setReady(true);
-          });
+          const fetchConversations = async () => {
+               try {
+                    setLoading(true);
+                    setError(null);
+                    const data = await ConversationService.getConversations();
+                    setConversations(data);
+                    // Initialize animations
+                    data.forEach(() => fadeAnims.push(new Animated.Value(0)));
+                    setReady(true);
+               } catch (err) {
+                    console.error('Failed to fetch conversations:', err);
+                    setError('Failed to load conversations. Please try again.');
+               } finally {
+                    setLoading(false);
+               }
+          };
+          fetchConversations();
      }, []);
 
      useEffect(() => {
@@ -131,46 +145,79 @@ export const ConversationListScreen: React.FC = () => {
 
                                    <Text style={styles.sectionTitle}>Topics</Text>
 
-                                   <View style={styles.listContainer}>
-                                        {conversations.map((item, index) => {
-                                             const diffStyle = getDifficultyColor(item.difficulty);
-                                             return (
-                                                  <Animated.View
-                                                       key={item.id}
-                                                       style={{ opacity: fadeAnims[index], transform: [{ translateX: fadeAnims[index].interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }}
-                                                  >
-                                                       <TouchableOpacity
-                                                            style={[styles.convCard, shadows.claySoft]}
-                                                            onPress={() => navigation.navigate('ConversationDetail', { conversationId: item.id })}
+                                   {loading ? (
+                                        <View style={styles.loadingContainer}>
+                                             <ActivityIndicator size="large" color="#F97316" />
+                                             <Text style={styles.loadingText}>Loading conversations...</Text>
+                                        </View>
+                                   ) : error ? (
+                                        <View style={styles.errorContainer}>
+                                             <Ionicons name="alert-circle-outline" size={48} color="#DC2626" />
+                                             <Text style={styles.errorText}>{error}</Text>
+                                             <TouchableOpacity
+                                                  style={styles.retryButton}
+                                                  onPress={async () => {
+                                                       try {
+                                                            setLoading(true);
+                                                            setError(null);
+                                                            const data = await ConversationService.getConversations();
+                                                            setConversations(data);
+                                                            setReady(true);
+                                                       } catch (err) {
+                                                            console.error('Failed to fetch conversations:', err);
+                                                            setError('Failed to load conversations. Please try again.');
+                                                       } finally {
+                                                            setLoading(false);
+                                                       }
+                                                  }}
+                                             >
+                                                  <Text style={styles.retryButtonText}>Retry</Text>
+                                             </TouchableOpacity>
+                                        </View>
+                                   ) : (
+                                        <View style={styles.listContainer}>
+                                             {conversations.map((item, index) => {
+                                                  const diffStyle = getDifficultyColor(item.difficulty);
+                                                  return (
+                                                       <Animated.View
+                                                            key={item.id}
+                                                            style={{ opacity: fadeAnims[index], transform: [{ translateX: fadeAnims[index].interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }}
                                                        >
-                                                            <View style={styles.cardHeader}>
-                                                                 <View style={styles.categoryBadge}>
-                                                                      <Text style={styles.categoryText}>{item.category}</Text>
+                                                            <TouchableOpacity
+                                                                 style={[styles.convCard, shadows.claySoft]}
+                                                                 onPress={() => navigation.navigate('ConversationDetail', { conversationId: item.id })}
+                                                            >
+                                                                 <View style={styles.cardHeader}>
+                                                                      <View style={styles.categoryBadge}>
+                                                                           <Text style={styles.categoryText}>{item.category}</Text>
+                                                                      </View>
+                                                                      <View style={[styles.diffBadge, { backgroundColor: diffStyle.bg }]}>
+                                                                           <Text style={[styles.diffText, { color: diffStyle.text }]}>{item.difficulty}</Text>
+                                                                      </View>
                                                                  </View>
-                                                                 <View style={[styles.diffBadge, { backgroundColor: diffStyle.bg }]}>
-                                                                      <Text style={[styles.diffText, { color: diffStyle.text }]}>{item.difficulty}</Text>
-                                                                 </View>
-                                                            </View>
 
-                                                            <Text style={styles.convTitle}>{item.title}</Text>
-                                                            <Text style={styles.convDesc} numberOfLines={2}>{item.description}</Text>
+                                                                 <Text style={styles.convTitle}>{item.title}</Text>
+                                                                 <Text style={styles.convDesc} numberOfLines={2}>{item.description}</Text>
 
-                                                            <View style={styles.cardFooter}>
-                                                                 <View style={styles.metaItem}>
-                                                                      <Ionicons name="chatbubble-outline" size={14} color="#6B7280" />
-                                                                      <Text style={styles.metaText}>{item.messages.length}</Text>
+                                                                 <View style={styles.cardFooter}>
+                                                                      {item.messages.length > 0 && (
+                                                                           <View style={styles.metaItem}>
+                                                                                <Ionicons name="chatbubble-outline" size={14} color="#6B7280" />
+                                                                                <Text style={styles.metaText}>{item.messages.length}</Text>
+                                                                           </View>
+                                                                      )}
+                                                                      <View style={styles.metaItem}>
+                                                                           <Ionicons name="people-outline" size={14} color="#6B7280" />
+                                                                           <Text style={styles.metaText}>{item.practiceCount} practices</Text>
+                                                                      </View>
+                                                                      <Ionicons name="arrow-forward-circle" size={24} color="#F97316" style={{ marginLeft: 'auto' }} />
                                                                  </View>
-                                                                 <View style={styles.metaItem}>
-                                                                      <Ionicons name="people-outline" size={14} color="#6B7280" />
-                                                                      <Text style={styles.metaText}>{item.practiceCount} practices</Text>
-                                                                 </View>
-                                                                 <Ionicons name="arrow-forward-circle" size={24} color="#F97316" style={{ marginLeft: 'auto' }} />
-                                                            </View>
-                                                       </TouchableOpacity>
-                                                  </Animated.View>
-                                             );
-                                        })}
-                                   </View>
+                                                            </TouchableOpacity>
+                                                       </Animated.View>
+                                                  );
+                                             })}
+                                        </View>
+                                   )}
                               </View>
                          </ScrollView>
                     </SafeAreaView>
@@ -360,5 +407,39 @@ const styles = StyleSheet.create({
      metaText: {
           fontSize: 12,
           color: '#6B7280',
+     },
+     loadingContainer: {
+          paddingVertical: 60,
+          alignItems: 'center',
+          justifyContent: 'center',
+     },
+     loadingText: {
+          marginTop: 12,
+          fontSize: 14,
+          color: '#6B7280',
+     },
+     errorContainer: {
+          paddingVertical: 60,
+          alignItems: 'center',
+          justifyContent: 'center',
+     },
+     errorText: {
+          marginTop: 12,
+          fontSize: 14,
+          color: '#DC2626',
+          textAlign: 'center',
+          paddingHorizontal: 20,
+     },
+     retryButton: {
+          marginTop: 16,
+          paddingHorizontal: 24,
+          paddingVertical: 12,
+          backgroundColor: '#F97316',
+          borderRadius: 12,
+     },
+     retryButtonText: {
+          color: 'white',
+          fontSize: 14,
+          fontWeight: '600',
      },
 });

@@ -155,3 +155,32 @@ export interface Conversation {
      lastPracticedAt?: string;
      totalScore?: number;
 }
+
+export interface ShadowingSubtitle {
+     id: string;
+     start: number;
+     end: number;
+     text: string;
+}
+
+export interface ShadowingLesson {
+     id: string;
+     title: string;
+     description: string;
+     difficulty: string; // 'beginner' | 'intermediate' | 'advanced'
+     thumbnail: string;
+     category: string;
+     views: number;
+     video_url: string;
+     created_at: string;
+     updated_at: string;
+     subtitles?: ShadowingSubtitle[];
+     // Computed/Local fields
+     duration?: string;
+     channel?: string; // Not in API, maybe derive or remove?
+     level?: string; // Map from difficulty
+     accent?: string;
+     completed?: boolean;
+     locked?: boolean;
+     stars?: number;
+}

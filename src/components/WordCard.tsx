@@ -119,7 +119,11 @@ const WordCardComponent: React.FC<WordCardProps> = ({
           isPressed && styles.imageContainerPressed
         ]}>
           {!hasValidImage ? (
-            <SkeletonLoader width="100%" height="100%" borderRadius={borderRadius.clayCard} />
+            <Image
+              source={require('../../assets/noimage.jpg')}
+              style={styles.image}
+              resizeMode="cover"
+            />
           ) : (
             <Image
               source={{ uri: displayImageUrl }}

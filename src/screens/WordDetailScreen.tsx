@@ -480,7 +480,15 @@ export const WordDetailScreen: React.FC = () => {
           <View style={styles.exampleCard}>
             <View style={styles.exampleImageWrapper}>
               {!item.exampleImageUrl || item.exampleImageUrl.trim() === '' ? (
-                <SkeletonLoader width="100%" height="100%" borderRadius={0} />
+                <>
+                  <Image source={require('../../assets/noimage.jpg')} style={styles.exampleImage} resizeMode="cover" />
+                  <TouchableOpacity
+                    style={styles.editImageBtnMini}
+                    onPress={() => handleEditMeaningImage(item.id)}
+                  >
+                    <CameraIcon size={24} />
+                  </TouchableOpacity>
+                </>
               ) : (
                 <>
                   <TouchableOpacity
@@ -595,7 +603,7 @@ export const WordDetailScreen: React.FC = () => {
               <SkeletonLoader width="100%" height="100%" borderRadius={0} />
             ) : (
               !displayImageUrl || displayImageUrl.trim() === '' ? (
-                <SkeletonLoader width="100%" height="100%" borderRadius={0} />
+                <Image source={require('../../assets/noimage.jpg')} style={styles.headerImage} resizeMode="cover" />
               ) : (
                 <TouchableOpacity
                   activeOpacity={0.9}

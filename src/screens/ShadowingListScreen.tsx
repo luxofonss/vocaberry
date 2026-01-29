@@ -19,133 +19,67 @@ import { RootStackParamList } from '../types';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-// Mock Data
-const LESSONS = [
-     {
-          id: 1,
-          title: 'Daily Morning Routine',
-          channel: 'English with Emma',
-          duration: '3:45',
-          level: 'Beginner',
-          difficulty: 'Easy',
-          completed: true,
-          stars: 3,
-          thumbnail: '🌅',
-          accent: 'American',
-          views: '1.2M',
-     },
-     {
-          id: 2,
-          title: 'Coffee Shop Conversation',
-          channel: 'Real English',
-          duration: '4:20',
-          level: 'Beginner',
-          difficulty: 'Easy',
-          completed: true,
-          stars: 2,
-          thumbnail: '☕',
-          accent: 'British',
-          views: '850K',
-     },
-     {
-          id: 3,
-          title: 'Job Interview Tips',
-          channel: 'Business English',
-          duration: '5:30',
-          level: 'Intermediate',
-          difficulty: 'Medium',
-          completed: false,
-          stars: 0,
-          thumbnail: '💼',
-          accent: 'American',
-          views: '2.1M',
-     },
-     {
-          id: 4,
-          title: 'Travel Vlog - New York',
-          channel: 'Travel with Alex',
-          duration: '6:15',
-          level: 'Intermediate',
-          difficulty: 'Medium',
-          completed: false,
-          stars: 0,
-          thumbnail: '🗽',
-          accent: 'American',
-          views: '3.5M',
-     },
-     {
-          id: 5,
-          title: 'Cooking Recipe Tutorial',
-          channel: 'Chef\'s English',
-          duration: '4:50',
-          level: 'Intermediate',
-          difficulty: 'Medium',
-          completed: false,
-          stars: 0,
-          thumbnail: '👨🍳',
-          accent: 'British',
-          views: '950K',
-     },
-     {
-          id: 6,
-          title: 'Technology News Report',
-          channel: 'Tech Today',
-          duration: '5:00',
-          level: 'Advanced',
-          difficulty: 'Hard',
-          completed: false,
-          stars: 0,
-          thumbnail: '📱',
-          accent: 'American',
-          views: '1.8M',
-     },
-     {
-          id: 7,
-          title: 'TED Talk - Innovation',
-          channel: 'TED Talks',
-          duration: '8:30',
-          level: 'Advanced',
-          difficulty: 'Hard',
-          completed: false,
-          stars: 0,
-          locked: true,
-          thumbnail: '🎤',
-          accent: 'American',
-          views: '5.2M',
-     },
-];
+// Use API Data
+import { ShadowingService } from '../services/ShadowingService';
+import { ShadowingLesson } from '../types';
 
 export const ShadowingListScreen: React.FC = () => {
      const navigation = useNavigation<NavigationProp>();
 
-     // Animation for list items
-     const fadeAnims = React.useRef(LESSONS.map(() => new Animated.Value(0))).current;
+     const [lessons, setLessons] = useState<ShadowingLesson[]>([]);
+     const [loading, setLoading] = useState(true);
+     const fadeAnims = React.useRef<Animated.Value[]>([]).current;
 
      React.useEffect(() => {
-          Animated.stagger(100, fadeAnims.map(anim => Animated.timing(anim, {
-               toValue: 1,
-               duration: 500,
-               useNativeDriver: true,
-          }))).start();
+          const fetchLessons = async () => {
+               try {
+                    setLoading(true);
+                    const data = await ShadowingService.getLessons();
+                    setLessons(data);
+
+                    // Reset and populate animations
+                    fadeAnims.length = 0;
+                    data.forEach(() => fadeAnims.push(new Animated.Value(0)));
+
+                    Animated.stagger(100, fadeAnims.map(anim => Animated.timing(anim, {
+                         toValue: 1,
+                         duration: 500,
+                         useNativeDriver: true,
+                    }))).start();
+
+               } catch (error) {
+                    console.error('Failed to fetch shadowing lessons:', error);
+               } finally {
+                    setLoading(false);
+               }
+          };
+
+          fetchLessons();
      }, []);
 
      const getDifficultyColorStyles = (difficulty: string) => {
-          switch (difficulty) {
-               case 'Easy':
-                    return { bg: '#DCFCE7', text: '#15803D' }; // green-100, green-700
-               case 'Medium':
-                    return { bg: '#FEF9C3', text: '#A16207' }; // yellow-100, yellow-700
-               case 'Hard':
-                    return { bg: '#FEE2E2', text: '#B91C1C' }; // red-100, red-700
-               default:
-                    return { bg: '#F3F4F6', text: '#374151' };
+          const diff = (difficulty || '').toLowerCase();
+          if (diff === 'easy' || diff === 'beginner') {
+               return { bg: '#DCFCE7', text: '#15803D' };
+          } else if (diff === 'medium' || diff === 'intermediate') {
+               return { bg: '#FEF9C3', text: '#A16207' };
+          } else {
+               return { bg: '#FEE2E2', text: '#B91C1C' }; // Hard / Advanced
           }
      };
 
-     const handleLessonPress = (lesson: typeof LESSONS[0]) => {
-          if (lesson.locked) return;
-          navigation.navigate('ShadowingPractice', { ...lesson });
+     const handleLessonPress = (lesson: ShadowingLesson) => {
+          // Cast navigation to any to avoid type mismatch until index.ts is fixed
+          (navigation as any).navigate('ShadowingPractice', {
+               lessonId: lesson.id,
+               initialData: lesson
+          });
      };
+
+     const totalLessons = lessons.length;
+     const completedLessons = lessons.filter(l => l.completed).length;
+     const completionRate = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+     const totalStars = lessons.reduce((acc, lesson) => acc + (lesson.stars || 0), 0);
 
      return (
           <View style={styles.container}>
@@ -183,15 +117,15 @@ export const ShadowingListScreen: React.FC = () => {
 
                                    <View style={styles.statsRow}>
                                         <View style={styles.statItem}>
-                                             <Text style={styles.statValue}>150</Text>
+                                             <Text style={styles.statValue}>{totalLessons}</Text>
                                              <Text style={styles.statLabel}>Videos</Text>
                                         </View>
                                         <View style={styles.statItem}>
-                                             <Text style={styles.statValue}>38%</Text>
+                                             <Text style={styles.statValue}>{completionRate}%</Text>
                                              <Text style={styles.statLabel}>Completed</Text>
                                         </View>
                                         <View style={styles.statItem}>
-                                             <Text style={styles.statValue}>5</Text>
+                                             <Text style={styles.statValue}>{totalStars}</Text>
                                              <Text style={styles.statLabel}>Gold Stars</Text>
                                         </View>
                                    </View>
@@ -204,19 +138,19 @@ export const ShadowingListScreen: React.FC = () => {
                                         <View style={styles.progressCardHeader}>
                                              <View>
                                                   <Text style={styles.progressLabel}>Your Progress</Text>
-                                                  <Text style={styles.progressValue}>57/150 videos</Text>
+                                                  <Text style={styles.progressValue}>{completedLessons}/{totalLessons} videos</Text>
                                              </View>
                                              <LinearGradient
                                                   colors={['#22C55E', '#10B981']}
                                                   style={styles.progressCircle}
                                              >
-                                                  <Text style={styles.progressPercentage}>38%</Text>
+                                                  <Text style={styles.progressPercentage}>{completionRate}%</Text>
                                              </LinearGradient>
                                         </View>
                                         <View style={styles.progressBarBg}>
                                              <LinearGradient
                                                   colors={['#22C55E', '#10B981']}
-                                                  style={[styles.progressBarFill, { width: '38%' }]}
+                                                  style={[styles.progressBarFill, { width: `${completionRate}%` }]}
                                              />
                                         </View>
                                    </View>
@@ -224,93 +158,101 @@ export const ShadowingListScreen: React.FC = () => {
                                    <Text style={styles.sectionTitle}>Video List</Text>
 
                                    <View style={styles.listContainer}>
-                                        {LESSONS.map((lesson, index) => {
-                                             const diffStyles = getDifficultyColorStyles(lesson.difficulty);
+                                        {loading ? (
+                                             <View style={{ padding: 20, alignItems: 'center' }}>
+                                                  <Text>Loading lessons...</Text>
+                                             </View>
+                                        ) : (
+                                             lessons.map((lesson, index) => {
+                                                  const diffStyles = getDifficultyColorStyles(lesson.difficulty);
 
-                                             return (
-                                                  <Animated.View
-                                                       key={lesson.id}
-                                                       style={{ opacity: fadeAnims[index], transform: [{ translateX: fadeAnims[index].interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }}
-                                                  >
-                                                       <TouchableOpacity
-                                                            activeOpacity={lesson.locked ? 1 : 0.7}
-                                                            onPress={() => handleLessonPress(lesson)}
-                                                            style={[
-                                                                 styles.lessonCard,
-                                                                 shadows.claySoft,
-                                                                 lesson.locked && styles.cardLocked
-                                                            ]}
+                                                  return (
+                                                       <Animated.View
+                                                            key={lesson.id}
+                                                            style={{ opacity: fadeAnims[index], transform: [{ translateX: fadeAnims[index].interpolate({ inputRange: [0, 1], outputRange: [-20, 0] }) }] }}
                                                        >
-                                                            <View style={styles.cardContent}>
-                                                                 {/* Thumbnail */}
-                                                                 <View style={styles.thumbnailContainer}>
-                                                                      <LinearGradient
-                                                                           colors={['#DCFCE7', '#D1FAE5']}
-                                                                           style={styles.thumbnailGradient}
-                                                                      >
-                                                                           <Text style={{ fontSize: 32 }}>{lesson.thumbnail}</Text>
-                                                                      </LinearGradient>
+                                                            <TouchableOpacity
+                                                                 activeOpacity={lesson.locked ? 1 : 0.7}
+                                                                 onPress={() => handleLessonPress(lesson)}
+                                                                 style={[
+                                                                      styles.lessonCard,
+                                                                      shadows.claySoft,
+                                                                      lesson.locked && styles.cardLocked
+                                                                 ]}
+                                                            >
+                                                                 <View style={styles.cardContent}>
+                                                                      {/* Thumbnail */}
+                                                                      <View style={styles.thumbnailContainer}>
+                                                                           <LinearGradient
+                                                                                colors={['#DCFCE7', '#D1FAE5']}
+                                                                                style={styles.thumbnailGradient}
+                                                                           >
+                                                                                <Text style={{ fontSize: 32 }}>🎬</Text>
+                                                                           </LinearGradient>
 
-                                                                      {lesson.locked ? (
-                                                                           <View style={styles.lockOverlay}>
-                                                                                <Ionicons name="lock-closed" size={24} color="white" />
-                                                                           </View>
-                                                                      ) : (
-                                                                           <View style={styles.playOverlay}>
-                                                                                <View style={styles.playCircle}>
-                                                                                     <Ionicons name="play" size={16} color="white" style={{ marginLeft: 2 }} />
+                                                                           {lesson.locked ? (
+                                                                                <View style={styles.lockOverlay}>
+                                                                                     <Ionicons name="lock-closed" size={24} color="white" />
                                                                                 </View>
-                                                                           </View>
-                                                                      )}
+                                                                           ) : (
+                                                                                <View style={styles.playOverlay}>
+                                                                                     <View style={styles.playCircle}>
+                                                                                          <Ionicons name="play" size={16} color="white" style={{ marginLeft: 2 }} />
+                                                                                     </View>
+                                                                                </View>
+                                                                           )}
 
-                                                                      <View style={styles.durationBadge}>
-                                                                           <Text style={styles.durationText}>{lesson.duration}</Text>
-                                                                      </View>
-
-                                                                      {lesson.completed && !lesson.locked && (
-                                                                           <View style={styles.checkBadge}>
-                                                                                <Ionicons name="checkmark" size={12} color="white" />
-                                                                           </View>
-                                                                      )}
-                                                                 </View>
-
-                                                                 {/* Details */}
-                                                                 <View style={styles.lessonInfo}>
-                                                                      <Text style={styles.lessonTitle} numberOfLines={2}>{lesson.title}</Text>
-                                                                      <Text style={styles.channelName}>{lesson.channel}</Text>
-
-                                                                      <View style={styles.tagsRow}>
-                                                                           <View style={[styles.tag, { backgroundColor: diffStyles.bg }]}>
-                                                                                <Text style={[styles.tagText, { color: diffStyles.text }]}>{lesson.difficulty}</Text>
-                                                                           </View>
-                                                                           <View style={[styles.tag, { backgroundColor: '#DBEAFE' }]}>
-                                                                                <Text style={[styles.tagText, { color: '#1D4ED8' }]}>{lesson.accent}</Text>
+                                                                           <View style={styles.durationBadge}>
+                                                                                <Text style={styles.durationText}>{lesson.duration || '0:00'}</Text>
                                                                            </View>
 
-                                                                           {lesson.completed && (
-                                                                                <View style={styles.starsRow}>
-                                                                                     {[...Array(3)].map((_, i) => (
-                                                                                          <Ionicons
-                                                                                               key={i}
-                                                                                               name="star"
-                                                                                               size={12}
-                                                                                               color={i < lesson.stars ? '#FACC15' : '#D1D5DB'}
-                                                                                          />
-                                                                                     ))}
+                                                                           {lesson.completed && !lesson.locked && (
+                                                                                <View style={styles.checkBadge}>
+                                                                                     <Ionicons name="checkmark" size={12} color="white" />
                                                                                 </View>
                                                                            )}
                                                                       </View>
 
-                                                                      <View style={styles.viewsRow}>
-                                                                           <Ionicons name="trending-up" size={12} color="#6B7280" />
-                                                                           <Text style={styles.viewsText}>{lesson.views} views</Text>
+                                                                      {/* Details */}
+                                                                      <View style={styles.lessonInfo}>
+                                                                           <Text style={styles.lessonTitle} numberOfLines={2}>{lesson.title}</Text>
+                                                                           <Text style={styles.channelName}>{lesson.category}</Text>
+
+                                                                           <View style={styles.tagsRow}>
+                                                                                <View style={[styles.tag, { backgroundColor: diffStyles.bg }]}>
+                                                                                     <Text style={[styles.tagText, { color: diffStyles.text }]}>{lesson.difficulty}</Text>
+                                                                                </View>
+                                                                                {lesson.category && (
+                                                                                     <View style={[styles.tag, { backgroundColor: '#DBEAFE' }]}>
+                                                                                          <Text style={[styles.tagText, { color: '#1D4ED8' }]}>{lesson.category}</Text>
+                                                                                     </View>
+                                                                                )}
+
+                                                                                {(lesson.stars !== undefined && lesson.stars > 0) && (
+                                                                                     <View style={styles.starsRow}>
+                                                                                          {[...Array(3)].map((_, i) => (
+                                                                                               <Ionicons
+                                                                                                    key={i}
+                                                                                                    name="star"
+                                                                                                    size={12}
+                                                                                                    color={i < (lesson.stars || 0) ? '#FACC15' : '#D1D5DB'}
+                                                                                               />
+                                                                                          ))}
+                                                                                     </View>
+                                                                                )}
+                                                                           </View>
+
+                                                                           <View style={styles.viewsRow}>
+                                                                                <Ionicons name="trending-up" size={12} color="#6B7280" />
+                                                                                <Text style={styles.viewsText}>{lesson.views} views</Text>
+                                                                           </View>
                                                                       </View>
                                                                  </View>
-                                                            </View>
-                                                       </TouchableOpacity>
-                                                  </Animated.View>
-                                             );
-                                        })}
+                                                            </TouchableOpacity>
+                                                       </Animated.View>
+                                                  );
+                                             })
+                                        )}
                                    </View>
                               </View>
                          </ScrollView>

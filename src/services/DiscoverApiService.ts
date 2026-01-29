@@ -1,5 +1,6 @@
 // DiscoverApiService - Mock API for Shadowing and Conversations with caching
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ShadowingService } from './ShadowingService';
 
 const CACHE_KEYS = {
      SHADOWING: '@discover_shadowing_cache',
@@ -211,19 +212,14 @@ export const DiscoverApiService = {
       */
      async getShadowingLessons(): Promise<any[]> {
           try {
-               // Simulate API call
-               await simulateDelay(800);
-
-               // Simulate random API failure (20% chance)
-               if (Math.random() < 0.2) {
-                    throw new Error('API timeout or network error');
-               }
+               // Real API Call
+               const data = await ShadowingService.getLessons();
 
                // API success - cache the data
-               await AsyncStorage.setItem(CACHE_KEYS.SHADOWING, JSON.stringify(MOCK_SHADOWING));
+               await AsyncStorage.setItem(CACHE_KEYS.SHADOWING, JSON.stringify(data));
                await AsyncStorage.setItem(CACHE_KEYS.SHADOWING_TIMESTAMP, Date.now().toString());
 
-               return MOCK_SHADOWING;
+               return data;
           } catch (error) {
                console.log('[DiscoverApi] Shadowing API failed, trying cache...', error);
 
