@@ -238,6 +238,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
      const playbackSound = useRef<Audio.Sound | null>(null);
      const recordingStartTime = useRef<number>(0);
      const shouldBeRecording = useRef<boolean>(false);
+     const shouldStopPlayingAll = useRef<boolean>(false);
 
      // Video Control Refs
      const isSeekingRef = useRef<boolean>(false); // Blocks status updates during seek
@@ -671,6 +672,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
      };
 
      const playAllRecordings = async (): Promise<void> => {
+          shouldStopPlayingAll.current = false;
           setIsPlayingAll(true);
           const recordingIds = Object.keys(userRecordings).map(Number).sort((a, b) => a - b);
 
@@ -681,7 +683,8 @@ export const ShadowingPracticeScreen: React.FC = () => {
           }
 
           for (const id of recordingIds) {
-               if (!isPlayingAll) break;
+               // Check ref instead of state to properly break the loop
+               if (shouldStopPlayingAll.current) break;
 
                const index = subtitles.findIndex(s => s.id === id);
                if (index !== -1 && flatListRef.current) {
@@ -706,7 +709,27 @@ export const ShadowingPracticeScreen: React.FC = () => {
                     }
                });
                setPlayingUserAudioId(null);
+
+               // Check again before delay
+               if (shouldStopPlayingAll.current) break;
                await new Promise(r => setTimeout(r, 500));
+          }
+
+          // Cleanup
+          if (playbackSound.current) {
+               await playbackSound.current.unloadAsync();
+               playbackSound.current = null;
+          }
+          setIsPlayingAll(false);
+          setPlayingUserAudioId(null);
+     };
+
+     const stopPlayingAll = async (): Promise<void> => {
+          shouldStopPlayingAll.current = true;
+          if (playbackSound.current) {
+               await playbackSound.current.stopAsync();
+               await playbackSound.current.unloadAsync();
+               playbackSound.current = null;
           }
           setIsPlayingAll(false);
           setPlayingUserAudioId(null);
@@ -870,7 +893,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
                          <Text style={styles.sectionHeader}>Transcript ({subtitles.length})</Text>
                          <TouchableOpacity
                               style={styles.playAllBtn}
-                              onPress={isPlayingAll ? () => setIsPlayingAll(false) : playAllRecordings}
+                              onPress={isPlayingAll ? stopPlayingAll : playAllRecordings}
                          >
                               <Ionicons name={isPlayingAll ? "square" : "play-circle"} size={20} color={colors.primary} />
                               <Text style={styles.playAllText}>

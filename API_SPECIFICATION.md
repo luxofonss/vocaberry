@@ -42,17 +42,10 @@ Authorization: Bearer {access_token}
       "id": "shadow-1",
       "title": "Daily Morning Routine",
       "description": "Learn common phrases used in morning routines",
-      "channel": "English with Emma",
-      "duration": "3:45",
-      "durationSeconds": 225,
-      "level": "beginner",
       "difficulty": "easy",
       "thumbnail": "https://cdn.vocaberry.com/thumbnails/shadow-1.jpg",
-      "thumbnailEmoji": "🌅",
-      "accent": "american",
       "category": "daily-life",
       "views": 1200000,
-      "viewsFormatted": "1.2M",
       "videoUrl": "https://cdn.vocaberry.com/videos/shadow-1.mp4",
       "subtitles": [
         {
@@ -60,16 +53,8 @@ Authorization: Bearer {access_token}
           "startTime": 0.0,
           "endTime": 3.5,
           "text": "Good morning! It's time to wake up.",
-          "translation": "Chào buổi sáng! Đã đến giờ thức dậy rồi."
         }
       ],
-      "completed": false,
-      "stars": 0,
-      "userProgress": {
-        "lastPracticedAt": null,
-        "completionRate": 0,
-        "bestScore": 0
-      },
       "createdAt": "2024-01-15T10:00:00Z",
       "updatedAt": "2024-01-15T10:00:00Z"
     }
@@ -116,9 +101,6 @@ Authorization: Bearer {access_token}
       "category": "daily-life",
       "difficulty": "beginner",
       "thumbnail": "https://cdn.vocaberry.com/thumbnails/conv-1.jpg",
-      "thumbnailEmoji": "🍽️",
-      "messageCount": 8,
-      "estimatedDuration": "5:00",
       "messages": [
         {
           "id": "msg-1",
@@ -137,9 +119,6 @@ Authorization: Bearer {access_token}
           "order": 2
         }
       ],
-      "practiceCount": 0,
-      "totalScore": 0,
-      "lastPracticedAt": null,
       "createdAt": "2024-01-10T08:00:00Z",
       "updatedAt": "2024-01-10T08:00:00Z"
     }
@@ -186,9 +165,7 @@ Authorization: Bearer {access_token}
       "category": "practice",
       "phonetic": "/ðə kwɪk braʊn fɒks dʒʌmps ˈəʊvə ðə ˈleɪzi dɒɡ/",
       "audioUrl": "https://cdn.vocaberry.com/audio/sent-suggest-1.mp3",
-      "difficulty": "easy",
-      "wordCount": 9,
-      "isSaved": false
+      "difficulty": "easy"
     }
   ]
 }
