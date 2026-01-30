@@ -130,6 +130,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
   // -- Sound Effects --
   const successSound = useRef<Audio.Sound | null>(null);
   const errorSound = useRef<Audio.Sound | null>(null);
+  const shouldBeRecording = useRef<boolean>(false);
 
   // -- ScrollView Ref for auto-scroll --
   const quizScrollRef = useRef<ScrollView>(null);
@@ -563,152 +564,91 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
   }, []);
 
 
-  const handleMicPress = useCallback(async () => {
-    if (isRecording) {
-      setIsRecording(false);
-      stopPulse();
+  const startRecording = async () => {
+    try {
+      shouldBeRecording.current = true;
+      setPronunciationResult(null);
+      setUserAudioUri(null);
+      setUserAnswer(''); // Clear text input when starting audio recording
 
-      try {
-        if (!audioRecorder.current) {
-          throw new Error('No active recording');
-        }
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        shouldDuckAndroid: true,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+        staysActiveInBackground: false,
+        playThroughEarpieceAndroid: false,
+      });
 
-
-        const status = await audioRecorder.current.getStatusAsync();
-        await audioRecorder.current.stopAndUnloadAsync();
-        const uri = audioRecorder.current.getURI();
-
-        if (!uri) {
-          throw new Error('No recording URI - recording may have failed');
-        }
-
-        if (status.durationMillis) {
-          // check logic removed - relies on auto-stop now
-        }
-
-        setUserAudioUri(uri);
-      } catch (error: any) {
-        console.error('Recording stop error:', error);
-        Alert.alert('Recording Error', error.message || 'Failed to stop recording');
-      } finally {
-        audioRecorder.current = null;
-        // Reset audio mode after recording to ensure playback uses speaker at full volume on iOS
-        Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-          staysActiveInBackground: false,
-          playThroughEarpieceAndroid: false,
-        }).catch(err => console.log('Error resetting audio mode:', err));
+      const { status } = await Audio.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Microphone access is required for practice.');
+        shouldBeRecording.current = false;
+        return;
       }
-    } else {
-      setUserAudioUri(null); // Clear previous recording when starting new
-      try {
-        const { status } = await Audio.requestPermissionsAsync();
-        if (status !== 'granted') {
-          throw new Error('Microphone permission not granted');
-        }
 
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-          shouldDuckAndroid: true,
-          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-          staysActiveInBackground: false,
-          playThroughEarpieceAndroid: false,
-        });
+      if (!shouldBeRecording.current) return;
 
-        // CLEANUP previous recorder if any
-        if (audioRecorder.current) {
-          try {
-            await audioRecorder.current.stopAndUnloadAsync();
-          } catch (e) {
-            // ignore
-          }
-          audioRecorder.current = null;
-        }
-
-        audioRecorder.current = new Audio.Recording();
-
-        const recordingOptions: any = {
-          android: {
-            extension: '.wav',
-            outputFormat: Audio.AndroidOutputFormat.THREE_GPP,
-            audioEncoder: Audio.AndroidAudioEncoder.AMR_WB,
-            sampleRate: 16000,
-            numberOfChannels: 1,
-            bitRate: 128000,
-          },
-          ios: {
-            extension: '.wav',
-            audioQuality: Audio.IOSAudioQuality.HIGH,
-            sampleRate: 16000,
-            numberOfChannels: 1,
-            bitRate: 128000,
-            linearPCMBitDepth: 16,
-            linearPCMIsBigEndian: false,
-            linearPCMIsFloat: false,
-          },
-          web: {
-            mimeType: 'audio/wav',
-            bitsPerSecond: 128000,
-          },
-        };
-
-        await audioRecorder.current.prepareToRecordAsync(recordingOptions);
-        await audioRecorder.current.startAsync();
-
-        // START AUTO-STOP TIMER
-        const currentWord = quizList[currentIndex];
-        const wordCount = currentWord.word.split(' ').length;
-        const maxDurationMs = (wordCount * 1500) + 3000;
-
-        recordingTimerRef.current = setTimeout(async () => {
-          if (audioRecorder.current) {
-            try {
-              stopPulse();
-              setIsRecording(false);
-              await audioRecorder.current.stopAndUnloadAsync();
-              const uri = audioRecorder.current.getURI();
-              audioRecorder.current = null;
-
-              // Delete the file since it's invalid (too long)
-              if (uri) {
-                await FileSystem.deleteAsync(uri, { idempotent: true });
-              }
-
-              Alert.alert('Recording Canceled', 'Time limit exceeded.');
-            } catch (err) {
-              console.log('Auto-stop error:', err);
-            }
-          }
-        }, maxDurationMs);
-
-        setUserAnswer('');
-        setPronunciationResult(null);
-        setIsRecording(true);
-        startPulse();
-      } catch (error: any) {
-        console.error('Failed to start recording:', error);
-
-        if (error.message?.includes('permission') || error.message?.includes('Permission')) {
-          Alert.alert(
-            MESSAGES.errors.permissionDenied,
-            'We need microphone access to analyze your pronunciation.'
-          );
-        } else {
-          Alert.alert('Start Recording Error', error.message || 'Failed to start recording');
-        }
-        setIsRecording(false);
-        if (audioRecorder.current) {
-          audioRecorder.current = null;
-        }
+      const recording = new Audio.Recording();
+      await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await recording.startAsync();
+      audioRecorder.current = recording;
+      setIsRecording(true);
+      startPulse();
+    } catch (error: any) {
+      console.error('Failed to start recording', error);
+      Alert.alert('Recording Error', error.message || 'Failed to start recording');
+      setIsRecording(false);
+      shouldBeRecording.current = false;
+      if (audioRecorder.current) {
+        audioRecorder.current = null;
       }
     }
-  }, [isRecording, stopPulse, startPulse, quizList, currentIndex, checkAnswer, playSound]);
+  };
+
+  const stopRecording = async () => {
+    if (!shouldBeRecording.current) return; // If recording was never properly started or already stopped
+    shouldBeRecording.current = false;
+    setIsRecording(false);
+    stopPulse();
+
+    try {
+      if (!audioRecorder.current) return;
+
+      const status = await audioRecorder.current.getStatusAsync();
+      await audioRecorder.current.stopAndUnloadAsync();
+      const uri = audioRecorder.current.getURI();
+      audioRecorder.current = null;
+
+      if (uri && status.durationMillis && status.durationMillis > 500) { // Require minimum 0.5s recording
+        setUserAudioUri(uri);
+        // We don't auto-check in PracticeScreen, user clicks check button usually
+        // or we can auto-trigger it if needed. For now, just set the URI.
+      } else {
+        if (uri) await FileSystem.deleteAsync(uri, { idempotent: true });
+        Alert.alert('Hold to record', 'Please hold the mic button while speaking.');
+      }
+    } catch (error: any) {
+      console.error('Stop recording error:', error);
+      Alert.alert('Recording Error', error.message || 'Failed to stop recording');
+    } finally {
+      Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        shouldDuckAndroid: true,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+        staysActiveInBackground: false,
+        playThroughEarpieceAndroid: false,
+      }).catch(err => console.log('Error resetting audio mode:', err));
+    }
+  };
+
+  const handleMicPress = useCallback(() => {
+    // This function is now deprecated and replaced by onPressIn/onPressOut
+    // The logic has been moved to startRecording and stopRecording.
+  }, []);
 
   const handleNext = useCallback(() => {
     if (currentIndex < quizList.length - 1) {
@@ -1135,9 +1075,10 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
                       isProcessing && styles.micButtonProcessing,
                       shadows.clayStrong
                     ]}
-                    onPress={handleMicPress}
-                    disabled={isProcessing}
+                    onPressIn={startRecording}
+                    onPressOut={stopRecording}
                     activeOpacity={0.8}
+                    disabled={isProcessing}
                   >
                     {isProcessing ? (
                       <ActivityIndicator color={colors.white} />
@@ -1151,7 +1092,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
                   </TouchableOpacity>
                 </View>
                 <Text style={styles.speechStatus}>
-                  {isRecording ? PRACTICE_TEXTS.listening : (isProcessing ? PRACTICE_TEXTS.thinking : (userAudioUri ? 'Ready to check' : 'Tap to Speak'))}
+                  {isRecording ? PRACTICE_TEXTS.listening : (isProcessing ? PRACTICE_TEXTS.thinking : "Hold to Speak")}
                 </Text>
 
                 {userAudioUri && !isRecording && (

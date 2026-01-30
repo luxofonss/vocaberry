@@ -53,6 +53,7 @@ export const ConversationDetailScreen: React.FC = () => {
      const [detailModalVisible, setDetailModalVisible] = useState(false);
      const [selectedPronunciation, setSelectedPronunciation] = useState<any>(null);
      const audioRecorder = useRef<Audio.Recording | null>(null);
+     const shouldBeRecording = useRef<boolean>(false);
 
      // Refs for auto-saving on unmount
      const accuraciesRef = useRef(messageAccuracies);
@@ -346,76 +347,78 @@ export const ConversationDetailScreen: React.FC = () => {
           }
      };
 
-     const handleMicPress = async (msgId: string, text: string) => {
-          if (recordingId === msgId) {
-               setRecordingId(null);
-               try {
-                    if (!audioRecorder.current) return;
-                    await audioRecorder.current.stopAndUnloadAsync();
-                    const uri = audioRecorder.current.getURI();
-                    if (uri) {
-                         analyzeSpeech(msgId, text, uri);
-                    }
-               } catch (e) {
-                    console.error('Stop recording error:', e);
-               } finally {
-                    audioRecorder.current = null;
-                    // Reset audio mode after recording
-                    Audio.setAudioModeAsync({
-                         allowsRecordingIOS: false,
-                         playsInSilentModeIOS: true,
-                         interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-                         shouldDuckAndroid: true,
-                         interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-                         staysActiveInBackground: false,
-                         playThroughEarpieceAndroid: false,
-                    }).catch(err => console.log('Error resetting audio mode:', err));
-               }
-          } else {
+     const startRecording = async (msgId: string) => {
+          try {
+               shouldBeRecording.current = true;
                setRecordingId(msgId);
-               try {
-                    const { status } = await Audio.requestPermissionsAsync();
-                    if (status !== 'granted') return;
 
-                    await Audio.setAudioModeAsync({
-                         allowsRecordingIOS: true,
-                         playsInSilentModeIOS: true,
-                         interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-                         shouldDuckAndroid: true,
-                         interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-                         staysActiveInBackground: false,
-                         playThroughEarpieceAndroid: false,
-                    });
+               await Audio.setAudioModeAsync({
+                    allowsRecordingIOS: true,
+                    playsInSilentModeIOS: true,
+                    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+                    shouldDuckAndroid: true,
+                    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+                    staysActiveInBackground: false,
+                    playThroughEarpieceAndroid: false,
+               });
 
-                    audioRecorder.current = new Audio.Recording();
-                    const recordingOptions: any = {
-                         android: {
-                              extension: '.wav',
-                              outputFormat: Audio.AndroidOutputFormat.THREE_GPP,
-                              audioEncoder: Audio.AndroidAudioEncoder.AMR_WB,
-                              sampleRate: 16000,
-                              numberOfChannels: 1,
-                              bitRate: 128000,
-                         },
-                         ios: {
-                              extension: '.wav',
-                              audioQuality: Audio.IOSAudioQuality.HIGH,
-                              sampleRate: 16000,
-                              numberOfChannels: 1,
-                              bitRate: 128000,
-                              linearPCMBitDepth: 16,
-                              linearPCMIsBigEndian: false,
-                              linearPCMIsFloat: false,
-                         },
-                    };
-
-                    await audioRecorder.current.prepareToRecordAsync(recordingOptions);
-                    await audioRecorder.current.startAsync();
-               } catch (e) {
-                    console.error('Start recording error:', e);
+               const { status } = await Audio.requestPermissionsAsync();
+               if (status !== 'granted') {
+                    Alert.alert('Permission denied', 'Microphone access is required for practice.');
+                    shouldBeRecording.current = false;
                     setRecordingId(null);
+                    return;
                }
+
+               if (!shouldBeRecording.current) return;
+
+               const recording = new Audio.Recording();
+               await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+               await recording.startAsync();
+               audioRecorder.current = recording;
+          } catch (e) {
+               console.error('Start recording error:', e);
+               shouldBeRecording.current = false;
+               setRecordingId(null);
           }
+     };
+
+     const stopRecording = async (msgId: string, text: string) => {
+          if (!shouldBeRecording.current) return;
+          shouldBeRecording.current = false;
+          setRecordingId(null);
+
+          try {
+               if (!audioRecorder.current) return;
+
+               const status = await audioRecorder.current.getStatusAsync();
+               await audioRecorder.current.stopAndUnloadAsync();
+               const uri = audioRecorder.current.getURI();
+               audioRecorder.current = null;
+
+               if (uri && status.durationMillis && status.durationMillis > 500) {
+                    analyzeSpeech(msgId, text, uri);
+               } else {
+                    if (uri) await FileSystem.deleteAsync(uri, { idempotent: true });
+                    Alert.alert('Hold to record', 'Please hold the mic button while speaking.');
+               }
+          } catch (e) {
+               console.error('Stop recording error:', e);
+          } finally {
+               Audio.setAudioModeAsync({
+                    allowsRecordingIOS: false,
+                    playsInSilentModeIOS: true,
+                    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+                    shouldDuckAndroid: true,
+                    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+                    staysActiveInBackground: false,
+                    playThroughEarpieceAndroid: false,
+               }).catch(() => { });
+          }
+     };
+
+     const handleMicPress = async (msgId: string, text: string) => {
+          // Handled by In/Out
      };
 
      if (loading) {
@@ -524,7 +527,8 @@ export const ConversationDetailScreen: React.FC = () => {
 
                                                   <TouchableOpacity
                                                        style={[styles.actionIconBtn, recordingId === msg.id && styles.micBtnActive]}
-                                                       onPress={() => handleMicPress(msg.id, msg.text)}
+                                                       onPressIn={() => startRecording(msg.id)}
+                                                       onPressOut={() => stopRecording(msg.id, msg.text)}
                                                   >
                                                        <Ionicons
                                                             name={recordingId === msg.id ? "stop" : "mic-outline"}

@@ -93,6 +93,7 @@ export const SentencePracticeScreen: React.FC = () => {
      const userAudioSound = useRef<Audio.Sound | null>(null);
      const successSound = useRef<Audio.Sound | null>(null);
      const errorSound = useRef<Audio.Sound | null>(null);
+     const shouldBeRecording = useRef<boolean>(false);
      const pulseAnim = useRef(new Animated.Value(1)).current;
      const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -308,125 +309,84 @@ export const SentencePracticeScreen: React.FC = () => {
      }, [sentences, currentIndex]);
 
      // -- Audio Interaction --
-     const handleMicPress = useCallback(async () => {
-          if (isRecording) {
-               // STOP RECORDING
-               setIsRecording(false);
-               stopPulse();
-               try {
-                    if (!audioRecorder.current) return;
-
-                    const status = await audioRecorder.current.getStatusAsync();
-                    await audioRecorder.current.stopAndUnloadAsync();
-                    const uri = audioRecorder.current.getURI();
-
-                    if (uri) {
-                         setUserAudioUri(uri);
-                         analyzeSpeech(uri); // AUTO CALL
-                    }
-               } catch (error) {
-                    console.error('Stop recording error:', error);
-               } finally {
-                    audioRecorder.current = null;
-                    Audio.setAudioModeAsync({
-                         allowsRecordingIOS: false,
-                         playsInSilentModeIOS: true,
-                         interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-                         shouldDuckAndroid: true,
-                         interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-                         staysActiveInBackground: false,
-                         playThroughEarpieceAndroid: false,
-                    }).catch(() => { });
-               }
-          } else {
-               // START RECORDING
+     const startRecording = async () => {
+          try {
+               shouldBeRecording.current = true;
                setResult(null);
                setUserAudioUri(null);
-               try {
-                    const { status } = await Audio.requestPermissionsAsync();
-                    if (status !== 'granted') {
-                         Alert.alert('Permission denied', 'Microphone access is required for practice.');
-                         return;
-                    }
 
-                    await Audio.setAudioModeAsync({
-                         allowsRecordingIOS: true,
-                         playsInSilentModeIOS: true,
-                         interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-                         shouldDuckAndroid: true,
-                         interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-                         staysActiveInBackground: false,
-                         playThroughEarpieceAndroid: false,
-                    });
-
-                    // CLEANUP previous recorder if any
-                    if (audioRecorder.current) {
-                         try {
-                              await audioRecorder.current.stopAndUnloadAsync();
-                         } catch (e) {
-                              // ignore
-                         }
-                         audioRecorder.current = null;
-                    }
-
-                    audioRecorder.current = new Audio.Recording();
-                    const recordingOptions: any = {
-                         android: {
-                              extension: '.wav',
-                              outputFormat: Audio.AndroidOutputFormat.THREE_GPP,
-                              audioEncoder: Audio.AndroidAudioEncoder.AMR_WB,
-                              sampleRate: 16000,
-                              numberOfChannels: 1,
-                              bitRate: 128000,
-                         },
-                         ios: {
-                              extension: '.wav',
-                              audioQuality: Audio.IOSAudioQuality.HIGH,
-                              sampleRate: 16000,
-                              numberOfChannels: 1,
-                              bitRate: 128000,
-                              linearPCMBitDepth: 16,
-                              linearPCMIsBigEndian: false,
-                              linearPCMIsFloat: false,
-                         },
-                    };
-
-                    await audioRecorder.current.prepareToRecordAsync(recordingOptions);
-                    await audioRecorder.current.startAsync();
-
-                    // START AUTO-STOP TIMER
-                    const wordCount = currentSentence.text.split(' ').length;
-                    const maxDurationMs = (wordCount * 1500) + 3000;
-
-                    recordingTimerRef.current = setTimeout(async () => {
-                         if (audioRecorder.current) {
-                              try {
-                                   stopPulse();
-                                   setIsRecording(false);
-                                   await audioRecorder.current.stopAndUnloadAsync();
-                                   const uri = audioRecorder.current.getURI();
-                                   audioRecorder.current = null;
-
-                                   // Delete the file since it's invalid (too long)
-                                   if (uri) {
-                                        await FileSystem.deleteAsync(uri, { idempotent: true });
-                                   }
-
-                                   Alert.alert('Recording Canceled', 'Time limit exceeded.');
-                              } catch (err) {
-                                   console.log('Auto-stop error:', err);
-                              }
-                         }
-                    }, maxDurationMs);
-
-                    setIsRecording(true);
-                    startPulse();
-               } catch (error) {
-                    console.error('Start recording error:', error);
-                    setIsRecording(false);
+               const { status } = await Audio.requestPermissionsAsync();
+               if (status !== 'granted') {
+                    Alert.alert('Permission denied', 'Microphone access is required for practice.');
+                    shouldBeRecording.current = false;
+                    return;
                }
+
+               await Audio.setAudioModeAsync({
+                    allowsRecordingIOS: true,
+                    playsInSilentModeIOS: true,
+                    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+                    shouldDuckAndroid: true,
+                    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+                    staysActiveInBackground: false,
+                    playThroughEarpieceAndroid: false,
+               });
+
+               if (!shouldBeRecording.current) return;
+
+               const recording = new Audio.Recording();
+               await recording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+               await recording.startAsync();
+               audioRecorder.current = recording;
+               setIsRecording(true);
+               startPulse();
+
+          } catch (error) {
+               console.error('Start recording error:', error);
+               setIsRecording(false);
+               shouldBeRecording.current = false;
           }
-     }, [isRecording, stopPulse, startPulse, analyzeSpeech]);
+     };
+
+     const stopRecording = async () => {
+          if (!shouldBeRecording.current) return;
+          shouldBeRecording.current = false;
+          setIsRecording(false);
+          stopPulse();
+
+          try {
+               if (!audioRecorder.current) return;
+
+               const status = await audioRecorder.current.getStatusAsync();
+               await audioRecorder.current.stopAndUnloadAsync();
+               const uri = audioRecorder.current.getURI();
+               audioRecorder.current = null;
+
+               if (uri && status.durationMillis && status.durationMillis > 600) {
+                    setUserAudioUri(uri);
+                    analyzeSpeech(uri);
+               } else {
+                    if (uri) await FileSystem.deleteAsync(uri, { idempotent: true });
+                    Alert.alert('Hold to record', 'Please hold the mic button while speaking.');
+               }
+          } catch (error) {
+               console.error('Stop recording error:', error);
+          } finally {
+               Audio.setAudioModeAsync({
+                    allowsRecordingIOS: false,
+                    playsInSilentModeIOS: true,
+                    interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+                    shouldDuckAndroid: true,
+                    interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+                    staysActiveInBackground: false,
+                    playThroughEarpieceAndroid: false,
+               }).catch(() => { });
+          }
+     };
+
+     const handleMicPress = useCallback(() => {
+          // Handled by onPressIn/Out
+     }, []);
 
      const handlePlayBack = useCallback(async () => {
           if (!userAudioUri) return;
@@ -711,7 +671,8 @@ export const SentencePracticeScreen: React.FC = () => {
                                                        { transform: [{ scale: pulseAnim }], opacity: isRecording ? 0.3 : 0 }
                                                   ]} />
                                                   <TouchableOpacity
-                                                       onPress={handleMicPress}
+                                                       onPressIn={startRecording}
+                                                       onPressOut={stopRecording}
                                                        disabled={isProcessing}
                                                        style={[
                                                             styles.micBtnLarge,
@@ -729,7 +690,7 @@ export const SentencePracticeScreen: React.FC = () => {
                                                   </TouchableOpacity>
                                              </View>
                                              <Text style={styles.micStatusTextLarge}>
-                                                  {isRecording ? "Recording..." : (userAudioUri ? "Re-record" : "Tap to Speak")}
+                                                  {isRecording ? "Recording..." : "Hold to Speak"}
                                              </Text>
                                         </View>
                                    </View>

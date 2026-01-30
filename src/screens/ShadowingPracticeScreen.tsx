@@ -62,8 +62,6 @@ interface SubtitleItemProps {
      onScorePress: () => void;
 }
 
-
-
 const normalizeSubtitles = (subtitles: Subtitle[]): Subtitle[] => {
      if (!subtitles || subtitles.length === 0) return [];
 
@@ -350,6 +348,7 @@ export const ShadowingPracticeScreen: React.FC = () => {
           };
      }, []);
 
+
      const setupAudioMode = async (): Promise<void> => {
           try {
                await Audio.setAudioModeAsync({
@@ -467,8 +466,8 @@ export const ShadowingPracticeScreen: React.FC = () => {
                     toleranceMillisAfter: 0
                });
 
-               // 3. Play
-               await videoRef.current.playAsync();
+               // 3. Just seek, don't play
+               // await videoRef.current.playAsync();
 
           } catch (error) {
                console.error('Seek failed:', error);
