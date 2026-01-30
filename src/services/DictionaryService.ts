@@ -209,6 +209,14 @@ export const DictionaryService = {
                await delay(POLLING_CONFIG.INTERVAL_MS);
 
                try {
+                    // CRITICAL: Check if word still exists locally before processing
+                    // If it was deleted, stop polling and don't re-add it
+                    const currentLocal = await StorageService.getWordById(wordId);
+                    if (!currentLocal) {
+                         console.log(`[DictionaryService] 🛑 Word "${wordId}" was deleted locally. Stopping poll.`);
+                         return;
+                    }
+
                     const response = await ApiClient.getWordStatus(wordId);
                     if (!response.success || !response.data?.word) {
                          throw new Error('Invalid server response');
@@ -217,7 +225,6 @@ export const DictionaryService = {
                     const serverWord = response.data.word;
                     const status = response.data.status;
 
-                    const currentLocal = await StorageService.getWordById(wordId);
                     const updatedWord = DictionaryService.mergeWithLocalData(serverWord, currentLocal);
 
                     await StorageService.addWord(updatedWord);

@@ -478,35 +478,31 @@ export const WordDetailScreen: React.FC = () => {
 
         {item.example && (
           <View style={styles.exampleCard}>
-            <View style={styles.exampleImageWrapper}>
-              {!item.exampleImageUrl || item.exampleImageUrl.trim() === '' ? (
-                <>
-                  <Image source={require('../../assets/noimage.jpg')} style={styles.exampleImage} resizeMode="cover" />
-                  <TouchableOpacity
-                    style={styles.editImageBtnMini}
-                    onPress={() => handleEditMeaningImage(item.id)}
-                  >
-                    <CameraIcon size={24} />
-                  </TouchableOpacity>
-                </>
-              ) : (
-                <>
-                  <TouchableOpacity
-                    activeOpacity={0.9}
-                    onPress={() => handleViewImage(item.exampleImageUrl || '', 'meaning', item.id)}
-                    style={{ width: '100%', height: '100%' }}
-                  >
-                    <Image source={{ uri: item.exampleImageUrl }} style={styles.exampleImage} resizeMode="cover" />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={styles.editImageBtnMini}
-                    onPress={() => handleEditMeaningImage(item.id)}
-                  >
-                    <CameraIcon size={24} />
-                  </TouchableOpacity>
-                </>
-              )}
-            </View>
+            {item.exampleImageUrl && item.exampleImageUrl.trim() !== '' ? (
+              <View style={styles.exampleImageWrapper}>
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  onPress={() => handleViewImage(item.exampleImageUrl || '', 'meaning', item.id)}
+                  style={{ width: '100%', height: '100%' }}
+                >
+                  <Image source={{ uri: item.exampleImageUrl }} style={styles.exampleImage} resizeMode="cover" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.editImageBtnMini}
+                  onPress={() => handleEditMeaningImage(item.id)}
+                >
+                  <CameraIcon size={24} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.addPhotoBtnSmall}
+                onPress={() => handleEditMeaningImage(item.id)}
+              >
+                <Ionicons name="camera-outline" size={18} color={colors.textSecondary} />
+                <Text style={styles.addPhotoTextSmall}>Add example photo</Text>
+              </TouchableOpacity>
+            )}
             <View style={styles.exampleContent}>
               <View style={styles.exampleTextRow}>
                 <ClickableText
@@ -598,13 +594,13 @@ export const WordDetailScreen: React.FC = () => {
         </View>
 
         <View style={styles.fixedHeader}>
-          <View style={styles.headerImageWrapper}>
-            {loading ? (
+          {loading ? (
+            <View style={styles.headerImageWrapper}>
               <SkeletonLoader width="100%" height="100%" borderRadius={0} />
-            ) : (
-              !displayImageUrl || displayImageUrl.trim() === '' ? (
-                <Image source={require('../../assets/noimage.jpg')} style={styles.headerImage} resizeMode="cover" />
-              ) : (
+            </View>
+          ) : (
+            displayImageUrl && displayImageUrl.trim() !== '' ? (
+              <View style={styles.headerImageWrapper}>
                 <TouchableOpacity
                   activeOpacity={0.9}
                   onPress={() => handleViewImage(displayImageUrl, 'main')}
@@ -612,15 +608,20 @@ export const WordDetailScreen: React.FC = () => {
                 >
                   <Image source={{ uri: displayImageUrl }} style={styles.headerImage} resizeMode="cover" />
                 </TouchableOpacity>
-              )
-            )}
-
-            {!loading && (
-              <TouchableOpacity style={styles.editImageBtn} onPress={handleEditMainImage}>
-                <CameraIcon size={32} />
+                <TouchableOpacity style={styles.editImageBtn} onPress={handleEditMainImage}>
+                  <CameraIcon size={32} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={styles.addPhotoBtnLarge}
+                onPress={handleEditMainImage}
+              >
+                <Ionicons name="camera-outline" size={22} color={colors.textSecondary} />
+                <Text style={styles.addPhotoText}>Add illustration</Text>
               </TouchableOpacity>
-            )}
-          </View>
+            )
+          )}
 
         </View>
         <View style={styles.divider} />
@@ -955,5 +956,43 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     lineHeight: 18,
     flex: 1,
+  },
+
+  // Add photo buttons
+  addPhotoBtnLarge: {
+    height: 54,
+    backgroundColor: 'transparent',
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.borderMedium,
+    borderStyle: 'dashed',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  addPhotoBtnSmall: {
+    paddingVertical: spacing.sm,
+    backgroundColor: 'transparent',
+    borderRadius: borderRadius.sm,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderStyle: 'dashed',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    marginVertical: spacing.xs,
+  },
+  addPhotoText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.medium,
+    color: colors.textSecondary,
+  },
+  addPhotoTextSmall: {
+    fontSize: typography.sizes.xs,
+    fontWeight: typography.weights.medium,
+    color: colors.textSecondary,
   },
 });

@@ -283,7 +283,7 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
     setUserAnswer('');
     setIsAnswered(false);
     setIsCorrect(false);
-    setShowHint(false);
+    setShowHint(true);
     setIsRecording(false);
     setIsProcessing(false);
     setPronunciationResult(null);
@@ -1003,41 +1003,34 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
 
     const currentWord = quizList[currentIndex];
 
-    const renderMeaningContent = (meaning: any, index: number) => (
-      <View key={meaning.id} style={styles.meaningSlide}>
-        <View style={styles.clueImageWrapper}>
-          {((meaning.exampleImageUrl && meaning.exampleImageUrl.trim() !== '') || (currentWord.imageUrl && currentWord.imageUrl.trim() !== '')) ? (
-            <TouchableOpacity
-              activeOpacity={0.9}
-              onPress={() => {
-                const imgUrl = meaning.exampleImageUrl || currentWord.imageUrl;
-                if (imgUrl) {
-                  setViewingImageUrl(imgUrl);
-                  setImageViewerVisible(true);
-                }
-              }}
-            >
-              <Image
-                source={{ uri: meaning.exampleImageUrl || currentWord.imageUrl }}
-                style={styles.clueImage}
-                resizeMode="cover"
-              />
-            </TouchableOpacity>
-          ) : (
-            <View style={[styles.clueImage, { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.backgroundSoft }]}>
-              <ActivityIndicator size="large" color={colors.primary} />
+    const renderMeaningContent = (meaning: any, index: number) => {
+      const hasImage = (meaning.exampleImageUrl && meaning.exampleImageUrl.trim() !== '') || (currentWord.imageUrl && currentWord.imageUrl.trim() !== '');
+
+      return (
+        <View key={meaning.id} style={styles.meaningSlide}>
+          {hasImage && (
+            <View style={styles.clueImageWrapper}>
+              <TouchableOpacity
+                activeOpacity={0.9}
+                onPress={() => {
+                  const imgUrl = meaning.exampleImageUrl || currentWord.imageUrl;
+                  if (imgUrl) {
+                    setViewingImageUrl(imgUrl);
+                    setImageViewerVisible(true);
+                  }
+                }}
+              >
+                <Image
+                  source={{ uri: meaning.exampleImageUrl || currentWord.imageUrl }}
+                  style={styles.clueImage}
+                  resizeMode="cover"
+                />
+              </TouchableOpacity>
             </View>
           )}
-        </View>
 
-        {!showHint ? (
-          <TouchableOpacity style={styles.hintButton} onPress={() => setShowHint(true)}>
-            <Text style={styles.hintIcon}>💡</Text>
-            <Text style={styles.hintText}>{PRACTICE_TEXTS.showHint}</Text>
-          </TouchableOpacity>
-        ) : (
           <ScrollView
-            style={{ width: '100%', maxHeight: SCREEN_HEIGHT * 0.3 }}
+            style={{ width: '100%', maxHeight: SCREEN_HEIGHT * 0.35 }}
             contentContainerStyle={styles.hintContent}
             nestedScrollEnabled={true}
             showsVerticalScrollIndicator={true}
@@ -1050,9 +1043,9 @@ export const PracticeScreen: React.FC<PracticeScreenProps> = ({ onQuizStateChang
               </Text>
             )}
           </ScrollView>
-        )}
-      </View>
-    );
+        </View>
+      );
+    };
 
     const displayedMeanings = [...currentWord.meanings].reverse();
     const cardInnerWidth = SCREEN_WIDTH - (spacing.lg * 4);
