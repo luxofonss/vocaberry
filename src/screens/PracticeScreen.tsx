@@ -2435,7 +2435,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   topPopupEmoji: {
-    fontSize: 32,
+    fontSize: 24,
     marginRight: spacing.md,
   },
   topPopupTitle: {

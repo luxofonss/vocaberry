@@ -21,7 +21,8 @@ import { isValidImageUrl, isWordLoading } from '../utils/imageUtils';
 // ============================================
 
 const POLLING_CONFIG = {
-     INTERVAL_MS: 4000,      // Poll every 4 seconds (between 3-5s as per requirements)
+     MIN_INTERVAL_MS: 4000,  // Minimum 4 seconds
+     MAX_INTERVAL_MS: 10000, // Maximum 10 seconds
      TIMEOUT_MS: 60000,      // Stop polling after 60 seconds
      MAX_RETRIES: 3,         // Retry up to 3 times on failure
      RETRY_DELAY_MS: 2000,   // Wait 2 seconds before retry
@@ -206,7 +207,11 @@ export const DictionaryService = {
                     return;
                }
 
-               await delay(POLLING_CONFIG.INTERVAL_MS);
+               const randomDelay = Math.floor(
+                    Math.random() * (POLLING_CONFIG.MAX_INTERVAL_MS - POLLING_CONFIG.MIN_INTERVAL_MS + 1)
+               ) + POLLING_CONFIG.MIN_INTERVAL_MS;
+
+               await delay(randomDelay);
 
                try {
                     // CRITICAL: Check if word still exists locally before processing
@@ -232,8 +237,10 @@ export const DictionaryService = {
                     console.log(`[DictionaryService] 📡 Poll update for "${wordId}" (status: ${status})`);
                     EventBus.emit('wordImageUpdated', { wordId: updatedWord.id, word: updatedWord });
 
-                    if (status === 'COMPLETED' && !isWordLoading(updatedWord)) {
-                         console.log(`[DictionaryService] ✅ Word "${wordId}" processing complete`);
+                    // Stop if server says COMPLETED (even if image failed to generate)
+                    // OR if we already have all the images we need
+                    if (status === 'COMPLETED' || !isWordLoading(updatedWord)) {
+                         console.log(`[DictionaryService] ✅ Word "${wordId}" processing complete (status: ${status})`);
                          return;
                     }
                     retryCount = 0;

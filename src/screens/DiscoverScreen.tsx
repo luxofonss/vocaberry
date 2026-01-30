@@ -42,9 +42,10 @@ export const DiscoverScreen: React.FC = () => {
 
      const fetchDictionaryWords = async (page: number, shouldRefresh = false) => {
           try {
-               if (!shouldRefresh && (isFetchingMoreWords || !hasMoreWords)) return;
+               if (isFetchingMoreWords) return;
+               if (!shouldRefresh && !hasMoreWords) return;
 
-               if (!shouldRefresh) setIsFetchingMoreWords(true);
+               setIsFetchingMoreWords(true);
 
                // API default size is 5 as requested
                const response = await ApiClient.getDictionaryWords(page, 20);
@@ -150,7 +151,7 @@ export const DiscoverScreen: React.FC = () => {
      };
 
      const handleLoadMoreWords = () => {
-          if (hasMoreWords && !isFetchingMoreWords) {
+          if (!loading && hasMoreWords && !isFetchingMoreWords && suggestedWords.length > 0) {
                fetchDictionaryWords(dictionaryPage + 1);
           }
      };
