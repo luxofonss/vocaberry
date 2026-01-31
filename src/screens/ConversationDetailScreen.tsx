@@ -26,6 +26,7 @@ import { StorageService } from '../services/StorageService';
 import { AiService } from '../services/AiService';
 import { SpeechService } from '../services/SpeechService';
 import { DictionaryService } from '../services/DictionaryService';
+import { TranslateService } from '../services/TranslateService';
 import { WordPreviewModal } from '../components/WordPreviewModal';
 import { PronunciationDetailView } from '../components/PronunciationDetailView';
 
@@ -48,6 +49,10 @@ export const ConversationDetailScreen: React.FC = () => {
      const [isProcessingId, setIsProcessingId] = useState<string | null>(null);
      const [pronunciations, setPronunciations] = useState<{ [msgId: string]: any }>({});
      const [messageAccuracies, setMessageAccuracies] = useState<{ [msgId: string]: number }>({});
+
+     // Translation state
+     const [isTranslating, setIsTranslating] = useState(false);
+     const [dynamicTranslations, setDynamicTranslations] = useState<Record<string, string>>({});
 
      // Detail modal state
      const [detailModalVisible, setDetailModalVisible] = useState(false);
@@ -188,6 +193,44 @@ export const ConversationDetailScreen: React.FC = () => {
      const handleSpeak = (text: string) => {
           SpeechService.speakSentence(text);
      };
+
+     const handleToggleTranslation = useCallback(async () => {
+          if (!conversation) return;
+
+          // If already shown and we have translations, just toggle off
+          if (showTranslations) {
+               setShowTranslations(false);
+               return;
+          }
+
+          // If we already have dynamic translations, just show them
+          if (Object.keys(dynamicTranslations).length > 0) {
+               setShowTranslations(true);
+               return;
+          }
+
+          // Otherwise, start translating
+          setIsTranslating(true);
+          try {
+               const motherLang = await StorageService.getMotherLanguage() || 'vi';
+               const newTranslations: Record<string, string> = {};
+
+               await Promise.all(conversation.messages.map(async (msg) => {
+                    const translated = await TranslateService.translate(msg.text, 'en', motherLang);
+                    if (translated) {
+                         newTranslations[msg.id] = translated;
+                    }
+               }));
+
+               setDynamicTranslations(newTranslations);
+               setShowTranslations(true);
+          } catch (error) {
+               console.error('[ConversationDetail] Translation failed:', error);
+               Alert.alert('Error', 'Could not translate the conversation.');
+          } finally {
+               setIsTranslating(false);
+          }
+     }, [conversation, showTranslations, dynamicTranslations]);
 
      const handleWordPress = useCallback(async (text: string) => {
           try {
@@ -467,8 +510,16 @@ export const ConversationDetailScreen: React.FC = () => {
                          <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                     </TouchableOpacity>
                     <Text style={styles.headerTitle} numberOfLines={1}>{conversation.title}</Text>
-                    <TouchableOpacity onPress={() => setShowTranslations(!showTranslations)} style={styles.actionBtn}>
-                         <Ionicons name={showTranslations ? "eye-off-outline" : "eye-outline"} size={24} color={colors.primary} />
+                    <TouchableOpacity
+                         onPress={handleToggleTranslation}
+                         style={[styles.translateBtn, (showTranslations || isTranslating) && styles.translateBtnActive]}
+                         disabled={isTranslating}
+                    >
+                         {isTranslating ? (
+                              <Ionicons name="sync" size={18} color="white" />
+                         ) : (
+                              <Ionicons name="language" size={18} color={showTranslations ? "white" : colors.primary} />
+                         )}
                     </TouchableOpacity>
                </View>
 
@@ -506,8 +557,13 @@ export const ConversationDetailScreen: React.FC = () => {
                                              feedback={pronunciations[msg.id]}
                                         />
 
-                                        {showTranslations && msg.translation && (
-                                             <Text style={styles.translationText}>{msg.translation}</Text>
+                                        {showTranslations && (msg.translation || dynamicTranslations[msg.id]) && (
+                                             <Text style={[
+                                                  styles.translationText,
+                                                  msg.role === 'user' ? styles.userTranslationText : styles.assistantTranslationText
+                                             ]}>
+                                                  {dynamicTranslations[msg.id] || msg.translation}
+                                             </Text>
                                         )}
 
                                         {isProcessingId === msg.id ? (
@@ -659,8 +715,16 @@ const styles = StyleSheet.create({
           textAlign: 'center',
           marginHorizontal: spacing.md,
      },
-     actionBtn: {
-          padding: 4,
+     translateBtn: {
+          width: 32,
+          height: 32,
+          borderRadius: 16,
+          backgroundColor: colors.primarySoft,
+          alignItems: 'center',
+          justifyContent: 'center',
+     },
+     translateBtnActive: {
+          backgroundColor: colors.primary,
      },
      scrollContent: {
           padding: spacing.screenPadding,
@@ -737,9 +801,14 @@ const styles = StyleSheet.create({
      translationText: {
           marginTop: 8,
           fontSize: 14,
-          color: 'rgba(0,0,0,0.5)',
           fontStyle: 'italic',
           paddingRight: 10,
+     },
+     userTranslationText: {
+          color: 'rgba(255, 255, 255, 0.7)',
+     },
+     assistantTranslationText: {
+          color: 'rgba(0, 0, 0, 0.45)',
      },
      actionBtnsContainer: {
           position: 'absolute',
