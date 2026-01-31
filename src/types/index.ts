@@ -19,6 +19,12 @@ export interface ServerMeaning {
      imageDescription: string;
 }
 
+export interface Verb {
+     id: number;
+     type: string;
+     text: string;
+}
+
 /**
  * Server word structure returned from API
  */
@@ -28,6 +34,7 @@ export interface ServerWord {
      phonetic: string;
      audioUrl: string;
      imageUrl: string;
+     verbs?: Verb[];
      meanings: ServerMeaning[];
      createdAt: string;
      updatedAt: string;
@@ -65,6 +72,7 @@ export interface Word {
      phonetic?: string;
      audioUrl?: string; // Primary pronunciation
      imageUrl: string;
+     verbs?: Verb[];
      meanings: Meaning[];
 
      // User customization fields

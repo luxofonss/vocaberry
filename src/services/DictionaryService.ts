@@ -169,6 +169,7 @@ export const DictionaryService = {
                phonetic: serverWord.phonetic || `/${serverWord.word}/`,
                audioUrl: serverWord.audioUrl || getGoogleAudioUrl(serverWord.word),
                imageUrl: serverWord.imageUrl || '',
+               verbs: serverWord.verbs || [],
                meanings: meanings,
                createdAt: serverWord.createdAt || new Date().toISOString(),
 

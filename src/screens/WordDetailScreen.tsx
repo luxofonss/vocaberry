@@ -623,6 +623,24 @@ export const WordDetailScreen: React.FC = () => {
             )
           )}
 
+          {/* Verbs Section - Requirement: Display word verbs compactly */}
+          {displayWord.verbs && displayWord.verbs.length > 0 && (
+            <View style={styles.verbsContainer}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.verbsScrollContent}
+              >
+                {displayWord.verbs.map((verb) => (
+                  <View key={verb.id} style={styles.verbChip}>
+                    <Text style={styles.verbTypeText}>{verb.type}</Text>
+                    <Text style={styles.verbText}>{verb.text}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+          )}
+
         </View>
         <View style={styles.divider} />
       </View>
@@ -994,5 +1012,38 @@ const styles = StyleSheet.create({
     fontSize: typography.sizes.xs,
     fontWeight: typography.weights.medium,
     color: colors.textSecondary,
+  },
+
+  // Verbs styles
+  verbsContainer: {
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  verbsScrollContent: {
+    gap: spacing.sm,
+    paddingRight: spacing.xxl,
+  },
+  verbChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: colors.primarySoft,
+    borderRadius: borderRadius.sm,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.primaryLighter,
+    minWidth: 80,
+    ...shadows.claySoft,
+  },
+  verbTypeText: {
+    fontSize: 11,
+    fontWeight: typography.weights.bold,
+    color: colors.textSecondary,
+    letterSpacing: 0,
+    marginBottom: 2,
+  },
+  verbText: {
+    fontSize: typography.sizes.sm,
+    fontWeight: typography.weights.bold,
+    color: colors.primary,
   },
 });
