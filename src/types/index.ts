@@ -97,6 +97,7 @@ export type WordStatus = 'PROCESSING' | 'COMPLETED';
 
 export type RootStackParamList = {
      Welcome: undefined;
+     Login: undefined;
      Home: undefined;
      Discover: undefined;
      ConversationDetail: { conversationId: string };

@@ -22,6 +22,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { theme, colors, typography, spacing, borderRadius, shadows, welcomeStyles, gradients } from '../theme';
 import { RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
+import { useAuth } from '../context/AuthContext';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -29,6 +30,7 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Welcome'>;
 
 export const WelcomeScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  const { signInGuest } = useAuth();
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -39,7 +41,7 @@ export const WelcomeScreen: React.FC = () => {
 
     setIsSubmitting(true);
     try {
-      await StorageService.saveUserName(name.trim());
+      await signInGuest(name.trim());
       // Navigate to Home after saving name
       navigation.replace('Home');
     } catch (error) {
@@ -60,12 +62,12 @@ export const WelcomeScreen: React.FC = () => {
           style={styles.backgroundImage}
           resizeMode="cover"
         >
-            <ScrollView
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              <View style={styles.content}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.content}>
               {/* Name Input with Label */}
               <View style={styles.inputContainer}>
                 <View style={styles.inputWrapper}>
@@ -112,8 +114,18 @@ export const WelcomeScreen: React.FC = () => {
                   <Ionicons name="arrow-forward" size={20} color={colors.white} style={styles.arrowIcon} />
                 )}
               </Pressable>
-              </View>
-            </ScrollView>
+
+              <TouchableOpacity
+                style={{ marginTop: spacing.xl }}
+                onPress={() => navigation.navigate('Login')}
+              >
+                <Text style={{ color: colors.welcome.textLabel, fontWeight: '600' }}>
+                  Already have an account? Log In
+                </Text>
+              </TouchableOpacity>
+
+            </View>
+          </ScrollView>
         </ImageBackground>
       </KeyboardAvoidingView>
     </SafeAreaView>

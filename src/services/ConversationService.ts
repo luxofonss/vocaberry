@@ -1,7 +1,7 @@
 import { Conversation, ConversationMessage } from '../types';
 import { StorageService } from './StorageService';
 
-const API_BASE_URL = 'https://onestudy.id.vn/v1';
+const API_BASE_URL = 'https://onestudy.id.vn/v1/api';
 
 // API Response Types
 interface ApiConversationListItem {

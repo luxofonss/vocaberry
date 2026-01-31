@@ -18,6 +18,7 @@ import { colors, typography, spacing, borderRadius, shadows } from '../theme';
 import { gradients } from '../theme/styles';
 import { RootStackParamList } from '../types';
 import { StorageService } from '../services/StorageService';
+import { useAuth } from '../context/AuthContext';
 import { LANGUAGES, AVATARS } from '../constants';
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'Settings'>;
@@ -27,6 +28,7 @@ export const SettingsScreen: React.FC = () => {
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [selectedAvatarId, setSelectedAvatarId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const { user, signOut } = useAuth();
 
   useEffect(() => {
     loadMotherLanguage();
@@ -108,6 +110,40 @@ export const SettingsScreen: React.FC = () => {
         </View>
 
         <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          {/* Section: Account */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionIcon}>🔐</Text>
+              <Text style={styles.sectionTitle}>Account</Text>
+            </View>
+            <View style={styles.accountCard}>
+              <View>
+                <Text style={styles.accountName}>
+                  {user?.isGuest ? 'Guest User' : (user?.fullName || user?.email || 'User')}
+                </Text>
+                <Text style={styles.accountStatus}>
+                  {user?.isGuest ? 'Data saved locally' : 'Account synced'}
+                </Text>
+              </View>
+
+              {(!user || user.isGuest) ? (
+                <Pressable
+                  style={({ pressed }) => [styles.actionButton, pressed && styles.actionButtonPressed]}
+                  onPress={() => navigation.navigate('Login')}
+                >
+                  <Text style={styles.actionButtonText}>Log In</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={({ pressed }) => [styles.logoutButton, pressed && styles.logoutButtonPressed]}
+                  onPress={signOut}
+                >
+                  <Ionicons name="log-out-outline" size={20} color={colors.error} />
+                </Pressable>
+              )}
+            </View>
+          </View>
+
           {/* Section: Profile Avatar */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -431,4 +467,51 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.white,
   },
+
+  // Account Section
+  accountCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: colors.cardSurface,
+    borderRadius: borderRadius.lg,
+    padding: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.shadowInnerLight,
+    ...shadows.level1,
+  },
+  accountName: {
+    fontSize: typography.sizes.md,
+    fontWeight: typography.weights.bold,
+    color: colors.textPrimary,
+    marginBottom: 2
+  },
+  accountStatus: {
+    fontSize: typography.sizes.sm,
+    color: colors.textSecondary
+  },
+  actionButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    borderRadius: borderRadius.clayButton,
+    ...shadows.clayPrimary
+  },
+  actionButtonPressed: {
+    transform: [{ scale: 0.96 }]
+  },
+  actionButtonText: {
+    color: colors.white,
+    fontWeight: '600',
+    fontSize: 14
+  },
+  logoutButton: {
+    padding: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: '#FFE5E5',
+    ...shadows.claySoft
+  },
+  logoutButtonPressed: {
+    backgroundColor: '#FFD0D0'
+  }
 });

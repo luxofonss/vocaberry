@@ -39,6 +39,7 @@ module.exports = {
     },
     plugins: [
       "expo-audio",
+      "@react-native-google-signin/google-signin",
       [
         "expo-build-properties",
         {

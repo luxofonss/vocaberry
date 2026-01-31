@@ -1,6 +1,6 @@
 import { ShadowingLesson } from '../types';
 
-const API_BASE_URL = 'https://onestudy.id.vn/v1';
+const API_BASE_URL = 'https://onestudy.id.vn/v1/api';
 
 interface ApiResponse<T> {
      meta: {

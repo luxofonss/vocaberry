@@ -5,7 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { RootStackParamList } from '../types';
-import { WelcomeScreen, HomeScreen, WordDetailScreen, ReviewScreen, SettingsScreen, SentencePracticeScreen, DiscoverScreen, ConversationDetailScreen, CreateConversationScreen, ShadowingPracticeScreen, ShadowingListScreen, NewWordsListScreen, ConversationListScreen } from '../screens';
+import { WelcomeScreen, LoginScreen, HomeScreen, WordDetailScreen, ReviewScreen, SettingsScreen, SentencePracticeScreen, DiscoverScreen, ConversationDetailScreen, CreateConversationScreen, ShadowingPracticeScreen, ShadowingListScreen, NewWordsListScreen, ConversationListScreen } from '../screens';
 import { StorageService } from '../services/StorageService';
 import { colors } from '../theme/colors';
 
@@ -54,6 +54,14 @@ export const AppNavigator: React.FC = () => {
           component={WelcomeScreen}
           options={{
             animation: 'fade',
+          }}
+        />
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
+          options={{
+            animation: 'slide_from_bottom',
+            headerShown: false
           }}
         />
         <Stack.Screen name="Home" component={HomeScreen} />

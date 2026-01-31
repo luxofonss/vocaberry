@@ -2,7 +2,7 @@ import { Word } from '../types';
 import { Platform } from 'react-native';
 
 const CLAUDE_API_KEY = process.env.EXPO_PUBLIC_CLAUDE_API_KEY || '123';
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://onestudy.id.vn/api/v1'
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://onestudy.id.vn/v1/api'
 
 export const AiService = {
      /**

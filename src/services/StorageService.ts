@@ -2,6 +2,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Word, Conversation } from '../types';
 import DatabaseService from './DatabaseService';
+import { ApiClient } from './ApiClient';
 
 const STORAGE_KEYS = {
      IS_SEEDED: 'vocaberry_is_seeded_v12', // Bumped version for mock data
@@ -97,6 +98,7 @@ export const StorageService = {
       */
      addWord: async (newWord: Word): Promise<Word[]> => {
           await DatabaseService.saveWord(newWord);
+          ApiClient.syncWord(newWord); // Fire and forget
           return await DatabaseService.getAllWords();
      },
 
@@ -134,6 +136,7 @@ export const StorageService = {
 
           word.nextReviewDate = nextReview.toISOString().split('T')[0];
           await DatabaseService.saveWord(word);
+          ApiClient.syncWord(word); // Fire and forget
      },
 
      /**
@@ -495,6 +498,7 @@ export const StorageService = {
 
                await AsyncStorage.setItem(STORAGE_KEYS.PRACTICE_STATS, JSON.stringify(updatedStats));
                if (type === 'word') await StorageService.saveLastPracticeTime();
+               ApiClient.syncStats(updatedStats); // Fire and forget
           } catch (e) {
                console.error('[StorageService] Failed to update practice stats', e);
           }
@@ -518,6 +522,7 @@ export const StorageService = {
                localCreatedAt: new Date().toISOString(),
           };
           await DatabaseService.saveSentence(newSentence);
+          ApiClient.syncSentence(newSentence); // Fire and forget
           return await DatabaseService.getAllSentences();
      },
 
@@ -535,6 +540,7 @@ export const StorageService = {
                // totalScore acts as sum of scores, average would be totalScore / practiceCount
                sentence.totalScore = (sentence.totalScore || 0) + score;
                await DatabaseService.saveSentence(sentence);
+               ApiClient.syncSentence(sentence); // Fire and forget
           }
           // Also update global stats
           await StorageService.updatePracticeStats(1, 'sentence');
@@ -577,6 +583,7 @@ export const StorageService = {
                          lastPracticedAt: new Date().toISOString(),
                     };
                     await DatabaseService.saveConversation(newPracticing);
+                    ApiClient.syncConversation(newPracticing); // Fire and forget
                }
                return await DatabaseService.getAllConversations();
           } catch (e) {
@@ -612,6 +619,17 @@ export const StorageService = {
           } catch (e) {
                console.error('[StorageService] Failed to increment conversation practice', e);
                return [];
+          }
+     },
+
+     /**
+      * Overwrite practice stats (used by SyncService)
+      */
+     setPracticeStats: async (stats: any): Promise<void> => {
+          try {
+               await AsyncStorage.setItem(STORAGE_KEYS.PRACTICE_STATS, JSON.stringify(stats));
+          } catch (e) {
+               console.error('[StorageService] Failed to set practice stats', e);
           }
      }
 };

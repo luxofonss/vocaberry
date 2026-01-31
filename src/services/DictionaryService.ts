@@ -21,8 +21,8 @@ import { isValidImageUrl, isWordLoading } from '../utils/imageUtils';
 // ============================================
 
 const POLLING_CONFIG = {
-     MIN_INTERVAL_MS: 4000,  // Minimum 4 seconds
-     MAX_INTERVAL_MS: 10000, // Maximum 10 seconds
+     MIN_INTERVAL_MS: 8000,  // Minimum 4 seconds
+     MAX_INTERVAL_MS: 15000, // Maximum 10 seconds
      TIMEOUT_MS: 60000,      // Stop polling after 60 seconds
      MAX_RETRIES: 3,         // Retry up to 3 times on failure
      RETRY_DELAY_MS: 2000,   // Wait 2 seconds before retry

@@ -15,7 +15,7 @@ interface ApiConfig {
 }
 
 const config: ApiConfig = {
-  baseUrl: process.env.EXPO_PUBLIC_API_URL || 'https://onestudy.id.vn/v1',
+  baseUrl: process.env.EXPO_PUBLIC_API_URL || 'https://onestudy.id.vn/v1/api',
   timeout: 30000, // 30 seconds
 };
 
@@ -121,6 +121,19 @@ const isSuccessCode = (code: number): boolean => {
 // API Client
 // ============================================
 
+import * as SecureStore from 'expo-secure-store';
+
+// ... (existing imports)
+
+// Helper to get auth headers
+const getAuthHeaders = async () => {
+  const token = await SecureStore.getItemAsync('accessToken');
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': token ? `Bearer ${token}` : '',
+  };
+};
+
 export const ApiClient = {
   /**
    * Get current configuration
@@ -138,166 +151,183 @@ export const ApiClient = {
   /**
    * Lookup a word from the server dictionary
    * POST /dictionary/lookup
-   * 
-   * @param word - The word to lookup
-   * @returns LookupResponse with word data and status
-   * @throws Error with descriptive message on failure
-   * 
-   * Requirements: 1.1, 1.3, 1.4, 1.5
    */
   lookupWord: async (word: string): Promise<LookupResponse> => {
     const url = `${config.baseUrl}/dictionary/lookup`;
-
     try {
       console.log(`[ApiClient] 🔍 Looking up word: "${word}"`);
-
       const response = await fetchWithTimeout(
         url,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ word: word.trim().toLowerCase() }),
         },
         config.timeout
       );
 
-      const rawData: RawApiResponse<LookupData> = await response.json();
+      const text = await response.text();
+      let rawData: RawApiResponse<LookupData>;
 
-      // Validate response structure - must have meta
-      if (!rawData || !rawData.meta) {
-        throw new Error('Invalid response format from server: missing meta');
+      try {
+        rawData = JSON.parse(text);
+      } catch (e) {
+        throw new Error(`JSON Parse error: ${e.message}. Status: ${response.status}. Body: ${text.substring(0, 100)}`);
       }
 
-      const { meta, data } = rawData;
-
-      // Check if request failed based on meta.code
-      if (!isSuccessCode(meta.code)) {
-        throw handleApiError(null, `lookupWord("${word}")`, meta);
-      }
-
-      // Success but no data
-      if (!data || !data.word) {
-        throw new Error(`No word data returned for "${word}"`);
-      }
-
-      console.log(`[ApiClient] ✅ Lookup successful, status: ${data.status}, requestId: ${meta.requestId}`);
-
-      return {
-        success: true,
-        data,
-        meta,
-      };
+      if (!rawData || !rawData.meta) throw new Error('Invalid response format: missing meta');
+      if (!isSuccessCode(rawData.meta.code)) throw handleApiError(null, `lookupWord("${word}")`, rawData.meta);
+      if (!rawData.data || !rawData.data.word) throw new Error(`No word data returned for "${word}"`);
+      return { success: true, data: rawData.data, meta: rawData.meta };
     } catch (error) {
-      if (error instanceof Error && error.message.startsWith('[')) {
-        // Already formatted error from handleApiError with meta
-        throw error;
-      }
       throw handleApiError(error, `lookupWord("${word}")`);
     }
   },
 
   /**
-   * Get the current status of a word (for polling during processing)
-   * GET /dictionary/:word
-   * 
-   * @param word - The word to check status for
-   * @returns LookupResponse with current word data and status
-   * @throws Error with descriptive message on failure
-   * 
-   * Requirements: 1.2
+   * Get the current status of a word
    */
   getWordStatus: async (word: string): Promise<LookupResponse> => {
     const encodedWord = encodeURIComponent(word.trim().toLowerCase());
     const url = `${config.baseUrl}/dictionary/${encodedWord}`;
     try {
-      console.log(`[ApiClient] 🔄 Checking status for word: "${word}"`);
-
-      const response = await fetchWithTimeout(
-        url,
-        {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        },
-        config.timeout
-      );
-
+      const response = await fetchWithTimeout(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } }, config.timeout);
       const rawData: RawApiResponse<LookupData> = await response.json();
-
-      // Validate response structure - must have meta
-      if (!rawData || !rawData.meta) {
-        throw new Error('Invalid response format from server: missing meta');
-      }
-
-      const { meta, data } = rawData;
-
-      // Check if request failed based on meta.code
-      if (!isSuccessCode(meta.code)) {
-        throw handleApiError(null, `getWordStatus("${word}")`, meta);
-      }
-
-      // Success but no data
-      if (!data || !data.word) {
-        throw new Error(`No word data returned for "${word}"`);
-      }
-
-      console.log(`[ApiClient] ✅ Status check successful, status: ${data.status}, requestId: ${meta.requestId}`);
-
-      return {
-        success: true,
-        data,
-        meta,
-      };
+      if (!rawData || !rawData.meta) throw new Error('Invalid response format');
+      if (!isSuccessCode(rawData.meta.code)) throw handleApiError(null, `getWordStatus`, rawData.meta);
+      return { success: true, data: rawData.data!, meta: rawData.meta };
     } catch (error) {
-      if (error instanceof Error && error.message.startsWith('[')) {
-        // Already formatted error from handleApiError with meta
-        throw error;
-      }
       throw handleApiError(error, `getWordStatus("${word}")`);
     }
   },
 
   /**
    * Get paginated dictionary words
-   * GET /dictionary?page=0&size=5
-   * 
-   * @param page - Page index (0-based)
-   * @param size - Page size
-   * @returns List of dictionary words
    */
   getDictionaryWords: async (page: number = 0, size: number = 5): Promise<any> => {
     const url = `${config.baseUrl}/dictionary?page=${page}&size=${size}`;
     try {
-      console.log(`[ApiClient] 📚 Fetching dictionary words: page=${page}, size=${size}`);
-
-      const response = await fetchWithTimeout(
-        url,
-        {
-          method: 'GET',
-          headers: {
-            'Accept': '*/*',
-            'Content-Type': 'application/json',
-          },
-        },
-        config.timeout
-      );
-
+      const response = await fetchWithTimeout(url, { method: 'GET', headers: { 'Accept': '*/*', 'Content-Type': 'application/json' } }, config.timeout);
       const rawData = await response.json();
-
-      if (!rawData || !rawData.meta) {
-        throw new Error('Invalid response format from server: missing meta');
-      }
-
-      if (!isSuccessCode(rawData.meta.code)) {
-        throw handleApiError(null, 'getDictionaryWords', rawData.meta);
-      }
-
+      if (!isSuccessCode(rawData.meta.code)) throw handleApiError(null, 'getDictionaryWords', rawData.meta);
       return rawData;
     } catch (error) {
       throw handleApiError(error, 'getDictionaryWords');
     }
+  },
+
+  /**
+   * Sync Push: Upload local data to server
+   * POST /api/sync/push
+   */
+  syncPush: async (data: any): Promise<any> => {
+    const url = `${config.baseUrl}/sync/push`;
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetchWithTimeout(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(data),
+      }, 60000); // Longer timeout for sync
+
+      if (!response.ok) {
+        throw new Error(`Sync Push failed: ${response.status}`);
+      }
+      return await response.json();
+    } catch (e) {
+      console.warn('[ApiClient] Sync Push failed', e);
+      throw e;
+    }
+  },
+
+  /**
+   * Sync Pull: Download server data
+   * GET /api/sync/pull
+   */
+  syncPull: async (): Promise<any> => {
+    const url = `${config.baseUrl}/sync/pull`;
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetchWithTimeout(url, {
+        method: 'GET',
+        headers,
+      }, 60000);
+
+      if (!response.ok) {
+        throw new Error(`Sync Pull failed: ${response.status}`);
+      }
+      return await response.json();
+    } catch (e) {
+      // Silent fail acceptable for background pull?
+      console.warn('[ApiClient] Sync Pull failed', e);
+      throw e;
+    }
+  },
+
+  /**
+   * Sync a single word (Fire and Forget)
+   * POST /api/sync/word
+   */
+  syncWord: async (word: any): Promise<void> => {
+    const url = `${config.baseUrl}/sync/word`;
+    try {
+      const headers = await getAuthHeaders();
+      // Fire and forget, don't await response strictly but catch error
+      fetchWithTimeout(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ word }),
+      }, 10000).catch(e => console.warn('[ApiClient] Sync word failed', e));
+    } catch (e) {
+      // Ignore
+    }
+  },
+
+  /**
+   * Sync stats (Fire and Forget)
+   * POST /api/sync/stats
+   */
+  syncStats: async (stats: any): Promise<void> => {
+    const url = `${config.baseUrl}/sync/stats`;
+    try {
+      const headers = await getAuthHeaders();
+      fetchWithTimeout(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ stats }),
+      }, 10000).catch(e => console.warn('[ApiClient] Sync stats failed', e));
+    } catch (e) {
+      // Ignore
+    }
+  },
+
+  /**
+    * Sync sentence (Fire and Forget)
+    */
+  syncSentence: async (sentence: any): Promise<void> => {
+    const url = `${config.baseUrl}/sync/sentence`;
+    try {
+      const headers = await getAuthHeaders();
+      fetchWithTimeout(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ sentence }),
+      }, 10000).catch(e => console.warn('[ApiClient] Sync sentence failed', e));
+    } catch (e) { }
+  },
+
+  /**
+   * Sync conversation (Fire and Forget)
+   */
+  syncConversation: async (conversation: any): Promise<void> => {
+    const url = `${config.baseUrl}/sync/conversation`;
+    try {
+      const headers = await getAuthHeaders();
+      fetchWithTimeout(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ conversation }),
+      }, 10000).catch(e => console.warn('[ApiClient] Sync conversation failed', e));
+    } catch (e) { }
   },
 };
