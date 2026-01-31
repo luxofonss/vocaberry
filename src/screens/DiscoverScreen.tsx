@@ -270,26 +270,32 @@ export const DiscoverScreen: React.FC = () => {
                     }
                     ListHeaderComponent={
                          <View style={styles.headerComponents}>
-                              {/* Shadowing Section */}
+                              {/* IPA Pronunciation Section */}
                               <View style={styles.sectionContainer}>
                                    <View style={styles.sectionHeaderRow}>
                                         <View style={styles.titleRow}>
-                                             <View style={[styles.iconBox, { backgroundColor: '#DCFCE7' }]}>
-                                                  <Ionicons name="videocam" size={18} color="#15803D" />
+                                             <View style={[styles.iconBox, { backgroundColor: '#F5E6FF' }]}>
+                                                  <Ionicons name="mic-outline" size={18} color="#A855F7" />
                                              </View>
-                                             <Text style={styles.sectionTitle}>Shadowing</Text>
+                                             <Text style={styles.sectionTitle}>IPA Pronunciation</Text>
                                         </View>
-                                        <TouchableOpacity onPress={() => navigation.navigate('ShadowingList')}>
-                                             <Text style={styles.seeAllText}>See All</Text>
-                                        </TouchableOpacity>
                                    </View>
-                                   <ScrollView
-                                        horizontal
-                                        showsHorizontalScrollIndicator={false}
-                                        contentContainerStyle={styles.horizontalScroll}
+                                   <TouchableOpacity
+                                        style={styles.ipaBanner}
+                                        onPress={() => navigation.navigate('IpaPractice')}
+                                        activeOpacity={0.9}
                                    >
-                                        {shadowingLessons.slice(0, 6).map(lesson => renderShadowingCard(lesson))}
-                                   </ScrollView>
+                                        <View style={styles.ipaBannerContent}>
+                                             <Text style={styles.ipaBannerTitle}>Master your IPA symbols</Text>
+                                             <Text style={styles.ipaBannerSubtitle}>44 phonemes with video & AI feedback</Text>
+                                        </View>
+                                        <View style={styles.ipaBannerIcons}>
+                                             <Text style={styles.ipaSymbolPreview}>æ</Text>
+                                             <View style={styles.ipaPlayBtn}>
+                                                  <Ionicons name="play" size={16} color={colors.white} />
+                                             </View>
+                                        </View>
+                                   </TouchableOpacity>
                               </View>
 
                               {/* New Words Section */}
@@ -324,32 +330,26 @@ export const DiscoverScreen: React.FC = () => {
                                    />
                               </View>
 
-                              {/* IPA Pronunciation Section */}
+                              {/* Shadowing Section */}
                               <View style={styles.sectionContainer}>
                                    <View style={styles.sectionHeaderRow}>
                                         <View style={styles.titleRow}>
-                                             <View style={[styles.iconBox, { backgroundColor: '#F5E6FF' }]}>
-                                                  <Ionicons name="mic-outline" size={18} color="#A855F7" />
+                                             <View style={[styles.iconBox, { backgroundColor: '#DCFCE7' }]}>
+                                                  <Ionicons name="videocam" size={18} color="#15803D" />
                                              </View>
-                                             <Text style={styles.sectionTitle}>IPA Pronunciation</Text>
+                                             <Text style={styles.sectionTitle}>Shadowing</Text>
                                         </View>
+                                        <TouchableOpacity onPress={() => navigation.navigate('ShadowingList')}>
+                                             <Text style={styles.seeAllText}>See All</Text>
+                                        </TouchableOpacity>
                                    </View>
-                                   <TouchableOpacity
-                                        style={styles.ipaBanner}
-                                        onPress={() => navigation.navigate('IpaPractice')}
-                                        activeOpacity={0.9}
+                                   <ScrollView
+                                        horizontal
+                                        showsHorizontalScrollIndicator={false}
+                                        contentContainerStyle={styles.horizontalScroll}
                                    >
-                                        <View style={styles.ipaBannerContent}>
-                                             <Text style={styles.ipaBannerTitle}>Master your IPA symbols</Text>
-                                             <Text style={styles.ipaBannerSubtitle}>44 phonemes with video & AI feedback</Text>
-                                        </View>
-                                        <View style={styles.ipaBannerIcons}>
-                                             <Text style={styles.ipaSymbolPreview}>æ</Text>
-                                             <View style={styles.ipaPlayBtn}>
-                                                  <Ionicons name="play" size={16} color={colors.white} />
-                                             </View>
-                                        </View>
-                                   </TouchableOpacity>
+                                        {shadowingLessons.slice(0, 6).map(lesson => renderShadowingCard(lesson))}
+                                   </ScrollView>
                               </View>
 
                               {/* Conversations Section */}
@@ -424,13 +424,13 @@ const styles = StyleSheet.create({
           marginBottom: spacing.xs,
      },
      sectionContainer: {
-          marginBottom: 28,
+          marginBottom: 20,
      },
      sectionHeaderRow: {
           flexDirection: 'row',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: 14,
+          marginBottom: 10,
      },
      titleRow: {
           flexDirection: 'row',
@@ -462,7 +462,7 @@ const styles = StyleSheet.create({
 
      // Shadowing Video Card Styles
      shadowingCard: {
-          width: 260,
+          width: 220,
           marginRight: 16,
           backgroundColor: colors.white,
           borderRadius: 16,
@@ -610,7 +610,7 @@ const styles = StyleSheet.create({
      ipaBanner: {
           backgroundColor: '#A855F7',
           borderRadius: 16,
-          padding: 20,
+          padding: 16,
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'space-between',
