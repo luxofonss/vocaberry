@@ -21,6 +21,7 @@ import { Word, RootStackParamList, Meaning } from '../types';
 import { StorageService } from '../services/StorageService';
 import { DatabaseService } from '../services/DatabaseService';
 import { DictionaryService } from '../services/DictionaryService';
+import { TranslateService } from '../services/TranslateService';
 import { SpeakButton, ClickableText, WordPreviewModal, ImageSearchModal, ImageViewerModal, SkeletonLoader, CameraIcon, BackIcon, TrashIcon, MicroIcon, TargetIcon, CheckIcon } from '../components';
 import * as ImagePicker from 'expo-image-picker';
 import { EventBus } from '../services/EventBus';
@@ -89,6 +90,11 @@ export const WordDetailScreen: React.FC = () => {
   const [viewingImageType, setViewingImageType] = useState<'main' | 'meaning' | null>(null);
   const [viewingMeaningId, setViewingMeaningId] = useState<string | undefined>(undefined);
   const [isWordSaved, setIsWordSaved] = useState(false);
+
+  // Translation State
+  const [translatedWord, setTranslatedWord] = useState<string | null>(null);
+  const [translatedMeanings, setTranslatedMeanings] = useState<Record<string, { definition?: string, example?: string }>>({});
+  const [isTranslating, setIsTranslating] = useState(false);
 
   useEffect(() => {
     loadWord();
@@ -450,6 +456,49 @@ export const WordDetailScreen: React.FC = () => {
     navigation.navigate('SentencePractice', { customText: word.word });
   }, [word, navigation]);
 
+  const handleTranslateAll = useCallback(async () => {
+    if (!word) return;
+
+    // Toggle off if already translated
+    if (translatedWord || Object.keys(translatedMeanings).length > 0) {
+      setTranslatedWord(null);
+      setTranslatedMeanings({});
+      return;
+    }
+
+    setIsTranslating(true);
+    try {
+      const motherLang = await StorageService.getMotherLanguage() || 'vi';
+
+      // Translate main word
+      const tWord = await TranslateService.translate(word.word, 'en', motherLang);
+      setTranslatedWord(tWord);
+
+      // Translate meanings
+      const newTranslatedMeanings: Record<string, { definition?: string, example?: string }> = {};
+
+      // Use Promise.all for faster translation
+      await Promise.all(word.meanings.map(async (m) => {
+        const tDef = await TranslateService.translate(m.definition, 'en', motherLang);
+        let tEx = null;
+        if (m.example) {
+          tEx = await TranslateService.translate(m.example, 'en', motherLang);
+        }
+        newTranslatedMeanings[m.id] = {
+          definition: tDef || undefined,
+          example: tEx || undefined
+        };
+      }));
+
+      setTranslatedMeanings(newTranslatedMeanings);
+    } catch (error) {
+      console.error('[WordDetail] Translation failed:', error);
+      Alert.alert('Error', 'Could not translate at this time.');
+    } finally {
+      setIsTranslating(false);
+    }
+  }, [word, translatedWord, translatedMeanings]);
+
   // --- RENDERING ---
 
   const renderMeaningSlide = ({ item }: { item: Meaning }) => (
@@ -464,7 +513,7 @@ export const WordDetailScreen: React.FC = () => {
           </View>
           <View style={styles.phoneticContainer}>
             <Text style={styles.phoneticText}>{item.phonetic || word?.phonetic || DEFAULTS.phonetic}</Text>
-            <SpeakButton audioUrl={word?.audioUrl} text={word?.word || ''} size="small" isLoading={isImageLoading} />
+            <SpeakButton audioUrl={word?.audioUrl} text={word?.word || ''} size="small" />
           </View>
         </View>
 
@@ -475,6 +524,11 @@ export const WordDetailScreen: React.FC = () => {
           onWordPress={handleWordPress}
           style={styles.definitionText}
         />
+        {translatedMeanings[item.id]?.definition && (
+          <Text style={styles.translatedDefinitionText}>
+            {translatedMeanings[item.id].definition}
+          </Text>
+        )}
 
         {item.example && (
           <View style={styles.exampleCard}>
@@ -504,13 +558,28 @@ export const WordDetailScreen: React.FC = () => {
               </TouchableOpacity>
             )}
             <View style={styles.exampleContent}>
-              <View style={styles.exampleTextRow}>
-                <ClickableText
-                  text={`"${item.example}"`}
-                  onWordPress={handleWordPress}
-                  style={styles.exampleText}
-                />
-                <SpeakButton audioUrl={item.exampleAudioUrl} text={item.example} size="small" />
+              <View style={styles.exampleTextContainer}>
+                <View style={styles.exampleTextRow}>
+                  <ClickableText
+                    text={`"${item.example}"`}
+                    onWordPress={handleWordPress}
+                    style={styles.exampleText}
+                  />
+                  <View style={styles.exampleActions}>
+                    <SpeakButton audioUrl={item.exampleAudioUrl} text={item.example} size="small" />
+                    <TouchableOpacity
+                      style={styles.practiceExampleBtn}
+                      onPress={() => navigation.navigate('SentencePractice', { customText: item.example })}
+                    >
+                      <Ionicons name="mic-outline" size={16} color={colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                {translatedMeanings[item.id]?.example && (
+                  <Text style={styles.translatedExampleText}>
+                    {translatedMeanings[item.id].example}
+                  </Text>
+                )}
               </View>
             </View>
           </View>
@@ -538,7 +607,15 @@ export const WordDetailScreen: React.FC = () => {
                       onWordPress={handleWordPress}
                       style={styles.userExampleText}
                     />
-                    <SpeakButton audioUrl={userExample.audioUrl} text={userExample.text} size="small" />
+                    <View style={styles.exampleActions}>
+                      <SpeakButton audioUrl={userExample.audioUrl} text={userExample.text} size="small" />
+                      <TouchableOpacity
+                        style={styles.practiceExampleBtn}
+                        onPress={() => navigation.navigate('SentencePractice', { customText: userExample.text })}
+                      >
+                        <Ionicons name="mic-outline" size={16} color={colors.primary} />
+                      </TouchableOpacity>
+                    </View>
                   </View>
                 </View>
               </View>
@@ -560,10 +637,6 @@ export const WordDetailScreen: React.FC = () => {
 
   const displayImageUrl = word ? getDisplayImageUrl(word) : '';
 
-  const isImageLoading = useMemo(() => {
-    if (!word) return false;
-    return isWordLoading(word);
-  }, [word]);
 
   // Create a reversed copy for display so newest/user-added meanings usually show first
   const displayedMeanings = displayWord.meanings;
@@ -580,17 +653,35 @@ export const WordDetailScreen: React.FC = () => {
           </View>
           <View style={{ flex: 1 }}>
             <View style={styles.wordTitleRow}>
-              <Text style={styles.wordTitle}>{displayWord.word}</Text>
+              <View>
+                <Text style={styles.wordTitle}>{displayWord.word}</Text>
+                {translatedWord && (
+                  <Text style={styles.translatedWordTitle}>{translatedWord}</Text>
+                )}
+              </View>
             </View>
           </View>
-          {!isWordSaved && !loading && (
+          <View style={styles.headerRightActions}>
             <TouchableOpacity
-              style={styles.addButton}
-              onPress={handleAddToLibrary}
+              style={[styles.translateButton, (translatedWord || isTranslating) && styles.translateButtonActive]}
+              onPress={handleTranslateAll}
+              disabled={isTranslating}
             >
-              <Ionicons name="add-circle" size={28} color={colors.primary} />
+              <Ionicons
+                name={isTranslating ? "sync" : "language"}
+                size={18}
+                color={(translatedWord || isTranslating) ? 'white' : colors.primary}
+              />
             </TouchableOpacity>
-          )}
+            {!isWordSaved && !loading && (
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={handleAddToLibrary}
+              >
+                <Ionicons name="add-circle" size={28} color={colors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         <View style={styles.fixedHeader}>
@@ -785,6 +876,23 @@ const styles = StyleSheet.create({
   headerImage: { width: '100%', height: '100%' },
   wordTitleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, marginBottom: 0 },
   wordTitle: { fontSize: typography.sizes.xxl, fontWeight: typography.weights.extraBold, color: colors.textPrimary, letterSpacing: -0.4 },
+  translatedWordTitle: { fontSize: typography.sizes.md, fontWeight: typography.weights.semibold, color: colors.primary, marginTop: -2 },
+  translateButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  translateButtonActive: {
+    backgroundColor: colors.primary,
+  },
+  headerRightActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingRight: spacing.sm,
+  },
   paginationColumn: { paddingTop: 4, paddingBottom: 4 },
   paginationContainer: { display: 'flex', flexDirection: 'row', justifyContent: 'center', gap: 6 },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.borderMedium },
@@ -804,7 +912,8 @@ const styles = StyleSheet.create({
   phoneticText: { fontSize: typography.sizes.base, fontWeight: typography.weights.medium, color: colors.textSecondary, fontStyle: 'italic', opacity: 0.7 },
   slideDivider: { height: 1, backgroundColor: colors.borderLight, marginBottom: spacing.sm, opacity: 0.3 },
 
-  definitionText: { fontSize: typography.sizes.md, color: colors.textPrimary, lineHeight: 20, fontWeight: typography.weights.semibold, marginBottom: spacing.md },
+  definitionText: { fontSize: typography.sizes.md, color: colors.textPrimary, lineHeight: 20, fontWeight: typography.weights.semibold, marginBottom: spacing.xs },
+  translatedDefinitionText: { fontSize: typography.sizes.base, color: colors.primary, lineHeight: 18, marginBottom: spacing.md, opacity: 0.9 },
   // Claymorphism example card - floating 3D clay tile
   exampleCard: {
     padding: 4,
@@ -823,8 +932,25 @@ const styles = StyleSheet.create({
   },
   exampleImage: { width: '100%', height: '100%' },
   exampleContent: { padding: spacing.lg, paddingTop: spacing.md },
+  exampleTextContainer: { flex: 1 },
   exampleTextRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.sm, alignItems: 'center' },
   exampleText: { fontSize: typography.sizes.base, fontStyle: 'italic', color: colors.textSecondary, lineHeight: 20, flex: 1 },
+  exampleActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  practiceExampleBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: colors.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.primaryLighter,
+  },
+  translatedExampleText: { fontSize: typography.sizes.sm, color: colors.primary, marginTop: 4, opacity: 0.8 },
 
   // Claymorphism action bar - floating 3D clay container
   actionBarSafe: {

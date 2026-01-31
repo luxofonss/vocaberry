@@ -417,9 +417,15 @@ export const SentencePracticeScreen: React.FC = () => {
                setResult(null);
                setUserAudioUri(null);
           } else {
-               setShowReview(true);
+               // If coming from WordDetail (using customText), go back directly
+               const { customText } = route.params || {};
+               if (customText) {
+                    navigation.goBack();
+               } else {
+                    setShowReview(true);
+               }
           }
-     }, [currentIndex, sentences]);
+     }, [currentIndex, sentences, route.params, navigation]);
 
      const handlePlayNative = useCallback(async () => {
           console.log('[SentencePracticeScreen] 🔊 handlePlayNative triggered');
