@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors, spacing, borderRadius, shadows } from '../theme';
 import { getPronunciationColor } from '../utils/pronunciationUtils';
@@ -49,7 +50,13 @@ export const PronunciationDetailView: React.FC<PronunciationDetailViewProps> = (
      onClose,
      compact = false
 }) => {
+     const navigation = useNavigation<any>();
      const [expandedWord, setExpandedWord] = React.useState<string | null>(null);
+
+     const handlePhonemePress = (phoneme: string) => {
+          // Navigate to IpaPractice with the phoneme parameter
+          navigation.navigate('IpaPractice', { initialPhoneme: phoneme });
+     };
 
      const getErrorTypeColor = (errorType: string) => {
           switch (errorType) {
@@ -121,15 +128,19 @@ export const PronunciationDetailView: React.FC<PronunciationDetailViewProps> = (
                                         <Text style={styles.ipaSlash}>/</Text>
                                         {word.syllables.map((syllable, sIdx) =>
                                              syllable.phonemes?.map((phoneme, pIdx) => (
-                                                  <Text
+                                                  <TouchableOpacity
                                                        key={`${sIdx}-${pIdx}`}
-                                                       style={[
-                                                            styles.ipaPhoneme,
-                                                            { color: getPronunciationColor(phoneme.accuracyScore) }
-                                                       ]}
+                                                       onPress={() => handlePhonemePress(phoneme.phoneme)}
                                                   >
-                                                       {phoneme.phoneme}
-                                                  </Text>
+                                                       <Text
+                                                            style={[
+                                                                 styles.ipaPhoneme,
+                                                                 { color: getPronunciationColor(phoneme.accuracyScore) }
+                                                            ]}
+                                                       >
+                                                            {phoneme.phoneme}
+                                                       </Text>
+                                                  </TouchableOpacity>
                                              ))
                                         )}
                                         <Text style={styles.ipaSlash}>/</Text>
@@ -178,26 +189,34 @@ export const PronunciationDetailView: React.FC<PronunciationDetailViewProps> = (
                                              {/* Row 1: Expected */}
                                              <View style={styles.phonemeTableRow}>
                                                   <Text style={styles.phonemeTableLabel}>Expected:</Text>
-                                                  <View style={styles.phonemeTableCells}>
+                                                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.phonemeTableCells}>
                                                        {word.syllables.map((syllable, sIdx) =>
                                                             syllable.phonemes?.map((phoneme, pIdx) => (
-                                                                 <View key={`${sIdx}-${pIdx}`} style={styles.phonemeTableCell}>
+                                                                 <TouchableOpacity
+                                                                      key={`${sIdx}-${pIdx}`}
+                                                                      style={styles.phonemeTableCell}
+                                                                      onPress={() => handlePhonemePress(phoneme.phoneme)}
+                                                                 >
                                                                       <Text style={[styles.phonemeTableText, { color: getPronunciationColor(phoneme.accuracyScore) }]}>
                                                                            /{phoneme.phoneme}/
                                                                       </Text>
-                                                                 </View>
+                                                                 </TouchableOpacity>
                                                             ))
                                                        )}
-                                                  </View>
+                                                  </ScrollView>
                                              </View>
 
                                              {/* Row 2: Actual */}
                                              <View style={styles.phonemeTableRow}>
                                                   <Text style={styles.phonemeTableLabel}>Actual:</Text>
-                                                  <View style={styles.phonemeTableCells}>
+                                                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.phonemeTableCells}>
                                                        {word.syllables.map((syllable, sIdx) =>
                                                             syllable.phonemes?.map((phoneme, pIdx) => (
-                                                                 <View key={`${sIdx}-${pIdx}`} style={styles.phonemeTableCell}>
+                                                                 <TouchableOpacity
+                                                                      key={`${sIdx}-${pIdx}`}
+                                                                      style={styles.phonemeTableCell}
+                                                                      onPress={() => handlePhonemePress(phoneme.phoneme)}
+                                                                 >
                                                                       <Text style={[
                                                                            styles.phonemeTableText,
                                                                            {
@@ -208,26 +227,30 @@ export const PronunciationDetailView: React.FC<PronunciationDetailViewProps> = (
                                                                       ]}>
                                                                            /{phoneme.actualPhoneme || phoneme.phoneme}/
                                                                       </Text>
-                                                                 </View>
+                                                                 </TouchableOpacity>
                                                             ))
                                                        )}
-                                                  </View>
+                                                  </ScrollView>
                                              </View>
 
                                              {/* Row 3: Scores */}
                                              <View style={styles.phonemeTableRow}>
                                                   <Text style={styles.phonemeTableLabel}>Score:</Text>
-                                                  <View style={styles.phonemeTableCells}>
+                                                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.phonemeTableCells}>
                                                        {word.syllables.map((syllable, sIdx) =>
                                                             syllable.phonemes?.map((phoneme, pIdx) => (
-                                                                 <View key={`${sIdx}-${pIdx}`} style={styles.phonemeTableCell}>
+                                                                 <TouchableOpacity
+                                                                      key={`${sIdx}-${pIdx}`}
+                                                                      style={styles.phonemeTableCell}
+                                                                      onPress={() => handlePhonemePress(phoneme.phoneme)}
+                                                                 >
                                                                       <Text style={[styles.phonemeTableScore, { color: getPronunciationColor(phoneme.accuracyScore) }]}>
                                                                            {Math.round(phoneme.accuracyScore)}
                                                                       </Text>
-                                                                 </View>
+                                                                 </TouchableOpacity>
                                                             ))
                                                        )}
-                                                  </View>
+                                                  </ScrollView>
                                              </View>
                                         </View>
                                    </View>
@@ -621,43 +644,43 @@ const styles = StyleSheet.create({
           fontWeight: '800',
      },
      phonemeTable: {
-          gap: 2,
+          gap: 4,
      },
      phonemeTableRow: {
           flexDirection: 'row',
           alignItems: 'center',
-          minHeight: 22,
+          minHeight: 32,
      },
      phonemeTableLabel: {
-          fontSize: 9,
-          fontWeight: '600',
+          fontSize: 10,
+          fontWeight: '700',
           color: colors.textSecondary,
-          width: 52,
+          width: 60,
           textTransform: 'uppercase',
           letterSpacing: 0.5,
      },
      phonemeTableCells: {
           flexDirection: 'row',
-          flex: 1,
-          gap: 3,
+          gap: 4,
+          paddingRight: 10,
      },
      phonemeTableCell: {
-          flex: 1,
+          minWidth: 40,
+          height: 32,
           alignItems: 'center',
           justifyContent: 'center',
-          paddingVertical: 2,
-          paddingHorizontal: 2,
-          backgroundColor: '#F8F9FE',
-          borderRadius: 3,
+          paddingHorizontal: 4,
+          backgroundColor: '#F1F5F9',
+          borderRadius: 6,
      },
      phonemeTableText: {
-          fontSize: 11,
-          fontWeight: '600',
+          fontSize: 13,
+          fontWeight: '700',
           fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
           textAlign: 'center',
      },
      phonemeTableScore: {
-          fontSize: 11,
+          fontSize: 12,
           fontWeight: '800',
           textAlign: 'center',
      },

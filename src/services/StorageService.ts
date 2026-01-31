@@ -12,6 +12,7 @@ const STORAGE_KEYS = {
      LAST_PRACTICE_TIME: 'vocaberry_last_practice_time', // Timestamp of last practice session
      LAST_NOTIFICATION_SHOWN: 'vocaberry_last_notification_shown', // Timestamp of last notification shown
      PRACTICE_STATS: 'vocaberry_practice_stats', // Practice statistics (JSON)
+     IPA_RESULTS: 'vocaberry_ipa_results', // IPA practice results (JSON map: id -> result)
 };
 
 // Helper to generate Google TTS URL
@@ -619,6 +620,32 @@ export const StorageService = {
           } catch (e) {
                console.error('[StorageService] Failed to increment conversation practice', e);
                return [];
+          }
+     },
+
+     /**
+      * Saves a result for an IPA phoneme.
+      */
+     saveIpaResult: async (id: string, result: any): Promise<void> => {
+          try {
+               const results = await StorageService.getIpaResults();
+               results[id] = result;
+               await AsyncStorage.setItem(STORAGE_KEYS.IPA_RESULTS, JSON.stringify(results));
+          } catch (e) {
+               console.error('[StorageService] Failed to save IPA result', e);
+          }
+     },
+
+     /**
+      * Gets all saved IPA practice results.
+      */
+     getIpaResults: async (): Promise<Record<string, any>> => {
+          try {
+               const resultsJson = await AsyncStorage.getItem(STORAGE_KEYS.IPA_RESULTS);
+               return resultsJson ? JSON.parse(resultsJson) : {};
+          } catch (e) {
+               console.error('[StorageService] Failed to get IPA results', e);
+               return {};
           }
      },
 

@@ -324,6 +324,34 @@ export const DiscoverScreen: React.FC = () => {
                                    />
                               </View>
 
+                              {/* IPA Pronunciation Section */}
+                              <View style={styles.sectionContainer}>
+                                   <View style={styles.sectionHeaderRow}>
+                                        <View style={styles.titleRow}>
+                                             <View style={[styles.iconBox, { backgroundColor: '#F5E6FF' }]}>
+                                                  <Ionicons name="mic-outline" size={18} color="#A855F7" />
+                                             </View>
+                                             <Text style={styles.sectionTitle}>IPA Pronunciation</Text>
+                                        </View>
+                                   </View>
+                                   <TouchableOpacity
+                                        style={styles.ipaBanner}
+                                        onPress={() => navigation.navigate('IpaPractice')}
+                                        activeOpacity={0.9}
+                                   >
+                                        <View style={styles.ipaBannerContent}>
+                                             <Text style={styles.ipaBannerTitle}>Master your IPA symbols</Text>
+                                             <Text style={styles.ipaBannerSubtitle}>44 phonemes with video & AI feedback</Text>
+                                        </View>
+                                        <View style={styles.ipaBannerIcons}>
+                                             <Text style={styles.ipaSymbolPreview}>æ</Text>
+                                             <View style={styles.ipaPlayBtn}>
+                                                  <Ionicons name="play" size={16} color={colors.white} />
+                                             </View>
+                                        </View>
+                                   </TouchableOpacity>
+                              </View>
+
                               {/* Conversations Section */}
                               <View style={styles.sectionContainer}>
                                    <View style={styles.sectionHeaderRow}>
@@ -576,6 +604,51 @@ const styles = StyleSheet.create({
           fontWeight: '800',
           textTransform: 'uppercase',
           color: '#059669',
+     },
+
+     // IPA Banner Styles
+     ipaBanner: {
+          backgroundColor: '#A855F7',
+          borderRadius: 16,
+          padding: 20,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          ...shadows.clayMedium,
+     },
+     ipaBannerContent: {
+          flex: 1,
+     },
+     ipaBannerTitle: {
+          fontSize: 18,
+          fontWeight: 'bold',
+          color: colors.white,
+          marginBottom: 4,
+     },
+     ipaBannerSubtitle: {
+          fontSize: 13,
+          color: 'rgba(255, 255, 255, 0.8)',
+          fontWeight: '500',
+     },
+     ipaBannerIcons: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+     },
+     ipaSymbolPreview: {
+          fontSize: 32,
+          fontWeight: '900',
+          color: 'rgba(255, 255, 255, 0.3)',
+     },
+     ipaPlayBtn: {
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          backgroundColor: 'rgba(255, 255, 255, 0.2)',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderWidth: 1,
+          borderColor: 'rgba(255, 255, 255, 0.4)',
      },
 
      // Empty State

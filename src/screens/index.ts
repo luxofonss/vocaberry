@@ -14,3 +14,4 @@ export { ShadowingListScreen } from './ShadowingListScreen';
 export { NewWordsListScreen } from './NewWordsListScreen';
 export { ConversationListScreen } from './ConversationListScreen';
 export { LoginScreen } from './LoginScreen';
+export { IpaPracticeScreen } from './IpaPracticeScreen';

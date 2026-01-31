@@ -5,7 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { RootStackParamList } from '../types';
-import { WelcomeScreen, LoginScreen, HomeScreen, WordDetailScreen, ReviewScreen, SettingsScreen, SentencePracticeScreen, DiscoverScreen, ConversationDetailScreen, CreateConversationScreen, ShadowingPracticeScreen, ShadowingListScreen, NewWordsListScreen, ConversationListScreen } from '../screens';
+import { WelcomeScreen, LoginScreen, HomeScreen, WordDetailScreen, ReviewScreen, SettingsScreen, SentencePracticeScreen, DiscoverScreen, ConversationDetailScreen, CreateConversationScreen, ShadowingPracticeScreen, ShadowingListScreen, NewWordsListScreen, ConversationListScreen, IpaPracticeScreen } from '../screens';
 import { StorageService } from '../services/StorageService';
 import { colors } from '../theme/colors';
 
@@ -142,6 +142,14 @@ export const AppNavigator: React.FC = () => {
         <Stack.Screen
           name="ConversationList"
           component={ConversationListScreen}
+          options={{
+            animation: 'slide_from_right',
+            headerShown: false
+          }}
+        />
+        <Stack.Screen
+          name="IpaPractice"
+          component={IpaPracticeScreen}
           options={{
             animation: 'slide_from_right',
             headerShown: false

@@ -130,6 +130,7 @@ export type RootStackParamList = {
           // Add other optional fields if needed
           [key: string]: any;
      };
+     IpaPractice: { initialPhoneme?: string };
 };
 
 export interface Sentence {
