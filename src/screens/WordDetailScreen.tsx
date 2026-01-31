@@ -1142,34 +1142,36 @@ const styles = StyleSheet.create({
 
   // Verbs styles
   verbsContainer: {
-    marginTop: spacing.md,
-    marginBottom: spacing.sm,
+    marginTop: spacing.xs,
+    marginBottom: spacing.md,
   },
   verbsScrollContent: {
-    gap: spacing.sm,
     paddingRight: spacing.xxl,
+    gap: spacing.sm,
   },
   verbChip: {
-    paddingHorizontal: 14,
+    paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: colors.primarySoft,
-    borderRadius: borderRadius.sm,
-    alignItems: 'center',
+    backgroundColor: '#F8F9FA', // Very light clean gray
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: colors.primaryLighter,
-    minWidth: 80,
-    ...shadows.claySoft,
+    borderColor: '#E9ECEF',
+    minWidth: 100,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
   },
   verbTypeText: {
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: typography.weights.bold,
     color: colors.textSecondary,
-    letterSpacing: 0,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
     marginBottom: 2,
+    opacity: 0.8,
   },
   verbText: {
     fontSize: typography.sizes.sm,
     fontWeight: typography.weights.bold,
-    color: colors.primary,
+    color: colors.textPrimary,
   },
 });
