@@ -23,6 +23,7 @@ import { colors, shadows, spacing, typography, borderRadius } from '../theme';
 import { RootStackParamList } from '../types';
 import { AiService } from '../services/AiService';
 import { StorageService } from '../services/StorageService';
+import { SpeechService } from '../services/SpeechService';
 import { PronunciationDetailView } from '../components/PronunciationDetailView';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -116,6 +117,8 @@ const IpaPracticeItem = React.memo(({
           if (isVisible && !hasAutoPlayed) {
                // Auto play once when it becomes the active slide
                if (videoRef.current) {
+                    videoRef.current.setVolumeAsync(1.0);
+                    videoRef.current.setIsMutedAsync(false);
                     videoRef.current.playFromPositionAsync(0);
                     setHasAutoPlayed(true);
                }
@@ -172,6 +175,7 @@ const IpaPracticeItem = React.memo(({
                                    isLooping={false}
                                    useNativeControls={false}
                                    volume={1.0}
+                                   isMuted={false}
                                    onPlaybackStatusUpdate={status => setStatus(status)}
                                    onLoadStart={() => setIsVideoLoading(true)}
                                    onLoad={() => setIsVideoLoading(false)}
@@ -234,7 +238,16 @@ const IpaPracticeItem = React.memo(({
 
                <View style={styles.recordInstructionSection}>
                     <Text style={styles.instructionTitle}>Pronounce this word:</Text>
-                    <Text style={styles.instructionWord}>{item.example}</Text>
+                    <TouchableOpacity
+                         style={styles.wordAndSpeakRow}
+                         onPress={() => SpeechService.speak(item.example)}
+                         activeOpacity={0.7}
+                    >
+                         <Text style={styles.instructionWord}>{item.example}</Text>
+                         <View style={styles.smallSpeakBtn}>
+                              <Ionicons name="volume-medium-outline" size={24} color={colors.primary} />
+                         </View>
+                    </TouchableOpacity>
                     <Text style={styles.instructionPhonetic}>{item.phonetic}</Text>
                </View>
 
@@ -272,6 +285,35 @@ export const IpaPracticeScreen: React.FC = () => {
      const audioRecorder = useRef<Audio.Recording | null>(null);
      const flatListRef = useRef<FlatList>(null);
      const pulseAnim = useRef(new Animated.Value(1)).current;
+     const successSound = useRef<Audio.Sound | null>(null);
+     const errorSound = useRef<Audio.Sound | null>(null);
+
+     // -- Load Sound Effects --
+     useEffect(() => {
+          const loadSounds = async () => {
+               try {
+                    const { sound: success } = await Audio.Sound.createAsync(
+                         { uri: 'https://assets.mixkit.co/active_storage/sfx/2000/2000-preview.mp3' },
+                         { shouldPlay: false, volume: 1.0 }
+                    );
+                    successSound.current = success;
+
+                    const { sound: error } = await Audio.Sound.createAsync(
+                         { uri: 'https://assets.mixkit.co/active_storage/sfx/2001/2001-preview.mp3' },
+                         { shouldPlay: false, volume: 1.0 }
+                    );
+                    errorSound.current = error;
+               } catch (error) {
+                    console.log('Failed to load sound effects:', error);
+               }
+          };
+          loadSounds();
+
+          return () => {
+               successSound.current?.unloadAsync();
+               errorSound.current?.unloadAsync();
+          };
+     }, []);
 
      useEffect(() => {
           setupAudio();
@@ -294,7 +336,7 @@ export const IpaPracticeScreen: React.FC = () => {
      const setupAudio = async () => {
           try {
                await Audio.setAudioModeAsync({
-                    allowsRecordingIOS: true,
+                    allowsRecordingIOS: false, // Default to false for better video volume
                     playsInSilentModeIOS: true,
                     interruptionModeIOS: InterruptionModeIOS.DoNotMix,
                     shouldDuckAndroid: true,
@@ -320,6 +362,17 @@ export const IpaPracticeScreen: React.FC = () => {
           pulseAnim.stopAnimation();
           pulseAnim.setValue(1);
      }, [pulseAnim]);
+
+     const playSoundFeedback = useCallback(async (isCorrect: boolean) => {
+          try {
+               const sound = isCorrect ? successSound.current : errorSound.current;
+               if (sound) {
+                    await sound.replayAsync();
+               }
+          } catch (e) {
+               console.log('Error playing sound:', e);
+          }
+     }, []);
 
      const startRecording = async () => {
           try {
@@ -389,6 +442,10 @@ export const IpaPracticeScreen: React.FC = () => {
                     }));
                     // Persist result
                     await StorageService.saveIpaResult(currentItem.id, newResult);
+
+                    // Play sound based on accuracy (threshold 80% for single phoneme)
+                    // Using 80 as single phoneme might be stricter than whole sentence
+                    playSoundFeedback(newResult.pronScore >= 80);
                }
           } catch (e) {
                console.error('Analysis error:', e);
@@ -588,19 +645,21 @@ const styles = StyleSheet.create({
      },
      headerTextContainer: {
           flex: 1,
-          marginLeft: 12,
+          alignItems: 'center',
+          justifyContent: 'center',
      },
      headerTitle: {
-          fontSize: 26,
+          fontSize: 24,
           fontWeight: '900',
           color: colors.primaryDark,
-          flex: 1,
           textAlign: 'center',
+          lineHeight: 30,
      },
      headerSubtitle: {
           fontSize: 13,
           color: colors.textSecondary,
           fontWeight: '600',
+          marginTop: 2,
      },
      headerIconContainer: {
           marginLeft: 'auto',
@@ -764,6 +823,20 @@ const styles = StyleSheet.create({
           fontStyle: 'italic',
           marginTop: 4,
      },
+     wordAndSpeakRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          marginVertical: 4,
+     },
+     smallSpeakBtn: {
+          width: 40,
+          height: 40,
+          borderRadius: 20,
+          backgroundColor: 'rgba(124, 58, 237, 0.08)',
+          alignItems: 'center',
+          justifyContent: 'center',
+     },
      // Video Controls Styles
      videoControlsBar: {
           flexDirection: 'row',
@@ -830,8 +903,8 @@ const styles = StyleSheet.create({
           width: '100%',
           backgroundColor: 'white',
           borderRadius: 24,
-          paddingVertical: 20,
-          paddingHorizontal: 0, // Remove horizontal padding for child analysis view to take full width
+          paddingVertical: 12,
+          paddingHorizontal: 12,
           ...shadows.subtle,
      },
      footer: {

@@ -167,20 +167,20 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
 
     useEffect(() => {
         if (isLookingUp) {
-            // Reset khi bắt đầu
+            // Reset when starting
             setThinkingIndex(0);
-            thinkingFadeAnim.setValue(1); // Set ban đầu là 1 để text đầu tiên hiện lên luôn
+            thinkingFadeAnim.setValue(1); // Set initial to 1 so first text appears immediately
 
-            // Đổi text mỗi 1 giây
+            // Change text every 1 second
             const interval = setInterval(() => {
-                // Fade out trước khi đổi text
+                // Fade out before changing text
                 Animated.timing(thinkingFadeAnim, {
                     toValue: 0,
                     duration: 300,
                     useNativeDriver: true,
                 }).start(() => {
                     setThinkingIndex(prev => (prev + 1) % thinkingTexts.length);
-                    // Fade in sau khi đổi text
+                    // Fade in after changing text
                     Animated.timing(thinkingFadeAnim, {
                         toValue: 1,
                         duration: 300,
@@ -578,7 +578,7 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({
                                     </TouchableOpacity>
                                     {isLookingUp && !imageUri && (
                                         <Text style={styles.helperText}>
-                                            💡 Tip: Bạn có thể upload ảnh ngay bây giờ, ảnh AI sẽ không override ảnh bạn chọn
+                                            💡 Tip: You can upload a photo now; the AI image will not override your selection
                                         </Text>
                                     )}
 

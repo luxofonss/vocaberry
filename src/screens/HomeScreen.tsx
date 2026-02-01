@@ -76,6 +76,7 @@ export const HomeScreen: React.FC = () => {
   const [isConversationSearchActive, setIsConversationSearchActive] = useState(false);
   const notificationAnim = useRef(new Animated.Value(-150)).current;
   const autoDismissTimer = useRef<NodeJS.Timeout | null>(null);
+  const reminderDelayTimer = useRef<NodeJS.Timeout | null>(null);
 
   // Mock suggested sentences from system
   const [suggestedSentences] = useState<string[]>([
@@ -129,7 +130,11 @@ export const HomeScreen: React.FC = () => {
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [])
+      return () => {
+        if (reminderDelayTimer.current) clearTimeout(reminderDelayTimer.current);
+        if (autoDismissTimer.current) clearTimeout(autoDismissTimer.current);
+      };
+    }, [loadData])
   );
 
   const loadData = useCallback(async () => {
@@ -148,28 +153,32 @@ export const HomeScreen: React.FC = () => {
 
       const shouldShow = await StorageService.shouldShowPracticeNotification();
 
+      if (reminderDelayTimer.current) clearTimeout(reminderDelayTimer.current);
+
       if (shouldShow && leastViewed.length > 0) {
-        const lastPractice = await StorageService.getLastPracticeTime();
-        const minutesSince = lastPractice ? Math.floor((Date.now() - lastPractice) / (60 * 1000)) : 0;
-        const notification = getNotificationByTime(minutesSince, leastViewed.length);
+        reminderDelayTimer.current = setTimeout(async () => {
+          const lastPractice = await StorageService.getLastPracticeTime();
+          const minutesSince = lastPractice ? Math.floor((Date.now() - lastPractice) / (60 * 1000)) : 0;
+          const notification = getNotificationByTime(minutesSince, leastViewed.length);
 
-        setShowNotification(true);
-        setNotificationData(notification);
+          setShowNotification(true);
+          setNotificationData(notification);
 
-        await StorageService.saveLastNotificationShown();
+          await StorageService.saveLastNotificationShown();
 
-        Animated.spring(notificationAnim, {
-          toValue: 0,
-          useNativeDriver: true,
-          tension: ANIMATION.spring.tension,
-          friction: ANIMATION.spring.friction,
-        }).start();
+          Animated.spring(notificationAnim, {
+            toValue: 0,
+            useNativeDriver: true,
+            tension: ANIMATION.spring.tension,
+            friction: ANIMATION.spring.friction,
+          }).start();
 
-        // Auto-dismiss after 15s
-        if (autoDismissTimer.current) clearTimeout(autoDismissTimer.current);
-        autoDismissTimer.current = setTimeout(() => {
-          handleNotificationDismiss();
-        }, 15000);
+          // Auto-dismiss after 15s
+          if (autoDismissTimer.current) clearTimeout(autoDismissTimer.current);
+          autoDismissTimer.current = setTimeout(() => {
+            handleNotificationDismiss();
+          }, 15000);
+        }, 10000);
       } else {
         setShowNotification(false);
         notificationAnim.setValue(-150);
