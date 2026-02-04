@@ -224,6 +224,7 @@ export const ApiClient = {
     const url = `${config.baseUrl}/sync/push`;
     try {
       const headers = await getAuthHeaders();
+      console.log("headers", headers)
       const response = await fetchWithTimeout(url, {
         method: 'POST',
         headers,

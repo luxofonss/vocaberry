@@ -38,23 +38,33 @@ export const LoginScreen: React.FC = () => {
      const [password, setPassword] = useState('');
      const [confirmPassword, setConfirmPassword] = useState('');
      const [loading, setLoading] = useState(false);
+     const [showPassword, setShowPassword] = useState(false);
 
      const handleSubmit = async () => {
           if (!email || !password) {
                Alert.alert('Error', 'Please fill in all fields');
                return;
           }
+
+          // Email format validation
+          const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+          if (!emailRegex.test(email.trim())) {
+               Alert.alert('Error', 'Please enter a valid email address');
+               return;
+          }
+
           if (!isLogin && password !== confirmPassword) {
                Alert.alert('Error', 'Passwords do not match');
                return;
           }
 
           setLoading(true);
+          const trimmedEmail = email.trim();
           try {
                if (isLogin) {
-                    await signInEmail(email, password);
+                    await signInEmail(trimmedEmail, password);
                } else {
-                    await signUpEmail(email, password);
+                    await signUpEmail(trimmedEmail, password);
                }
 
                // Sync local data to server to merge guest progress
@@ -128,11 +138,18 @@ export const LoginScreen: React.FC = () => {
                                                   placeholderTextColor={colors.welcome.textPlaceholder}
                                                   value={password}
                                                   onChangeText={setPassword}
-                                                  secureTextEntry
+                                                  secureTextEntry={!showPassword}
                                              />
-                                             <View style={styles.inputIcon}>
-                                                  <Ionicons name="lock-closed-outline" size={20} color={colors.welcome.buttonPurpleEnd} />
-                                             </View>
+                                             <TouchableOpacity
+                                                  style={styles.inputIcon}
+                                                  onPress={() => setShowPassword(!showPassword)}
+                                             >
+                                                  <Ionicons
+                                                       name={showPassword ? "eye-outline" : "eye-off-outline"}
+                                                       size={20}
+                                                       color={colors.welcome.buttonPurpleEnd}
+                                                  />
+                                             </TouchableOpacity>
                                         </View>
                                    </View>
 
@@ -145,11 +162,18 @@ export const LoginScreen: React.FC = () => {
                                                        placeholderTextColor={colors.welcome.textPlaceholder}
                                                        value={confirmPassword}
                                                        onChangeText={setConfirmPassword}
-                                                       secureTextEntry
+                                                       secureTextEntry={!showPassword}
                                                   />
-                                                  <View style={styles.inputIcon}>
-                                                       <Ionicons name="shield-checkmark-outline" size={20} color={colors.welcome.buttonPurpleEnd} />
-                                                  </View>
+                                                  <TouchableOpacity
+                                                       style={styles.inputIcon}
+                                                       onPress={() => setShowPassword(!showPassword)}
+                                                  >
+                                                       <Ionicons
+                                                            name={showPassword ? "eye-outline" : "eye-off-outline"}
+                                                            size={20}
+                                                            color={colors.welcome.buttonPurpleEnd}
+                                                       />
+                                                  </TouchableOpacity>
                                              </View>
                                         </View>
                                    )}

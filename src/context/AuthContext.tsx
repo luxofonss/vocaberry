@@ -37,6 +37,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                          // Actually AuthService.initGuestSession handles the check too.
                          const guestMock = await AuthService.initGuestSession();
                          setUser(guestMock);
+                    } else {
+                         // If no session, initialize as guest immediately
+                         const newGuest = await AuthService.initGuestSession();
+                         setUser(newGuest);
                     }
                } catch (e) {
                     console.error('Failed to load auth session', e);

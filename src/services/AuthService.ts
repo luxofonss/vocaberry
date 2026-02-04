@@ -6,7 +6,7 @@ import { Platform } from 'react-native';
 // import { GoogleSignin } from '@react-native-google-signin/google-signin';
 // import appleAuth from '@invertase/react-native-apple-authentication';
 
-const API_BASE = ApiClient.getConfig().baseUrl.replace('/v1', '/api/auth'); // Assuming /api/auth is parallel to /v1 or relative. The doc says /api/auth/*
+const API_BASE = ApiClient.getConfig().baseUrl; // e.g., https://onestudy.id.vn/v1/api
 
 // Interfaces
 export interface User {
@@ -40,9 +40,7 @@ class AuthService {
      }
 
      private async getBaseUrl() {
-          const config = ApiClient.getConfig();
-          const url = new URL(config.baseUrl);
-          return `${url.protocol}//${url.host}`;
+          return API_BASE;
      }
 
      async initGuestSession(name?: string): Promise<User> {
@@ -54,30 +52,35 @@ class AuthService {
                // We need to return the user object. Since we don't store the full user object, 
                // we might mock it or fetch it.
                return {
-                    id: guestId,
+                    id: guestId || '',
+                    fullName: name || 'Guest',
+                    isGuest: true
+               };
+          }
+
+          const guestIdSecure = await SecureStore.getItemAsync('userId');
+          if (guestIdSecure && existingToken) {
+               return {
+                    id: guestIdSecure,
                     fullName: name || 'Guest',
                     isGuest: true
                };
           }
 
           // Call backend to create guest
-          const baseUrl = await this.getBaseUrl();
           try {
-               const response = await fetch(`${baseUrl}/api/auth/guest`, {
+               const response = await fetch(`${API_BASE}/auth/guest`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    // If the backend accepts a name for the guest, send it. The doc doesn't explicitly say so but it's common.
-                    // The doc says: POST /api/auth/guest -> returns { userId, accessToken }
                     body: JSON.stringify({})
                });
 
                if (response.ok) {
                     const data = await response.json();
                     await this.saveTokens(data);
-                    await AsyncStorage.setItem('guestId', data.user.id);
-                    if (name) {
-                         // Determine if we should update the name separately or if the backend supports it locally
-                         // For now, continue to use StorageService for local name preference
+                    if (data.user && data.user.id) {
+                         await SecureStore.setItemAsync('userId', data.user.id);
+                         await AsyncStorage.setItem('guestId', data.user.id); // For backward compatibility if needed
                     }
                     return data.user;
                } else {
@@ -120,13 +123,13 @@ class AuthService {
                  if (!idToken) throw new Error('No ID token obtained from Google');
   
                  const guestId = await AsyncStorage.getItem('guestId');
-                 const baseUrl = await this.getBaseUrl();
-  
-                 const response = await fetch(`${baseUrl}/api/auth/google`, {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ idToken, guestId })
-                 });
+                  const baseUrl = await this.getBaseUrl();
+   
+                  const response = await fetch(`${baseUrl}/auth/google`, {
+                       method: 'POST',
+                       headers: { 'Content-Type': 'application/json' },
+                       body: JSON.stringify({ idToken, guestId })
+                  });
   
                  if (!response.ok) {
                       const error = await response.json();
@@ -169,17 +172,17 @@ class AuthService {
                 }
  
                 const guestId = await AsyncStorage.getItem('guestId');
-                const baseUrl = await this.getBaseUrl();
- 
-                const response = await fetch(`${baseUrl}/api/auth/apple`, {
-                     method: 'POST',
-                     headers: { 'Content-Type': 'application/json' },
-                     body: JSON.stringify({
-                          identityToken,
-                          appleUserId: user,
-                          guestId
-                     })
-                });
+                 const baseUrl = await this.getBaseUrl();
+  
+                 const response = await fetch(`${baseUrl}/auth/apple`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                           identityToken,
+                           appleUserId: user,
+                           guestId
+                      })
+                 });
  
                 if (!response.ok) {
                      const error = await response.json();
@@ -202,15 +205,21 @@ class AuthService {
           const guestId = await AsyncStorage.getItem('guestId');
           const baseUrl = await this.getBaseUrl();
 
-          const response = await fetch(`${baseUrl}/api/auth/email/signup`, {
+          const response = await fetch(`${baseUrl}/auth/email/signup`, {
                method: 'POST',
                headers: { 'Content-Type': 'application/json' },
                body: JSON.stringify({ email, password, guestId })
           });
 
           if (!response.ok) {
-               const errorData = await response.json().catch(() => ({}));
-               throw new Error(errorData.message || 'Signup failed');
+               try {
+                    const errorData = await response.json();
+                    const message = errorData.meta?.message || errorData.message || 'Signup failed';
+                    throw new Error(message);
+               } catch (e: any) {
+                    if (e.message && !e.message.includes('JSON')) throw e;
+                    throw new Error('Signup failed');
+               }
           }
 
           const data = await response.json();
@@ -221,27 +230,21 @@ class AuthService {
 
      async loginWithEmail(email: string, password: string): Promise<User> {
           const baseUrl = await this.getBaseUrl();
-          const response = await fetch(`${baseUrl}/api/auth/email/login`, {
+          const response = await fetch(`${baseUrl}/auth/email/login`, {
                method: 'POST',
                headers: { 'Content-Type': 'application/json' },
                body: JSON.stringify({ email, password })
           });
 
           if (!response.ok) {
-               console.error('[AuthService] Login error:', response.status, response.statusText);
-               let errorMessage = 'Invalid credentials';
                try {
-                    const errorText = await response.text();
-                    try {
-                         const errorJson = JSON.parse(errorText);
-                         errorMessage = errorJson.message || errorMessage;
-                    } catch {
-                         if (errorText) errorMessage = errorText;
-                    }
-               } catch (e) {
-                    // ignore parsing error
+                    const errorData = await response.json();
+                    const message = errorData.meta?.message || errorData.message || 'Login failed';
+                    throw new Error(message);
+               } catch (e: any) {
+                    if (e.message && !e.message.includes('JSON')) throw e;
+                    throw new Error('Login failed');
                }
-               throw new Error(errorMessage);
           }
 
           const data = await response.json();
@@ -255,7 +258,7 @@ class AuthService {
 
           if (accessToken) {
                try {
-                    await fetch(`${baseUrl}/api/auth/logout`, {
+                    await fetch(`${baseUrl}/auth/logout`, {
                          method: 'POST',
                          headers: { 'Authorization': `Bearer ${accessToken}` }
                     });
@@ -275,6 +278,9 @@ class AuthService {
           }
           if (data.refreshToken) {
                await SecureStore.setItemAsync('refreshToken', data.refreshToken);
+          }
+          if (data.user && data.user.id) {
+               await SecureStore.setItemAsync('userId', data.user.id);
           }
      }
 
