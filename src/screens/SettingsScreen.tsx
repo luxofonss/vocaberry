@@ -1,14 +1,7 @@
 // Settings Screen - User Settings
 
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  ScrollView,
-  Image,
-} from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Image, Alert, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -28,7 +21,7 @@ export const SettingsScreen: React.FC = () => {
   const [selectedLanguage, setSelectedLanguage] = useState<string | null>(null);
   const [selectedAvatarId, setSelectedAvatarId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const { user, signOut } = useAuth();
+  const { user, signOut, deleteAccount } = useAuth();
 
   useEffect(() => {
     loadMotherLanguage();
@@ -82,6 +75,30 @@ export const SettingsScreen: React.FC = () => {
     }
   }, []);
 
+  const handleDeleteAccount = useCallback(async () => {
+    Alert.alert(
+      'Delete Account',
+      'Are you sure you want to permanently delete your account and all associated data? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteAccount();
+              // After deletion, user is reverted to a new guest session.
+              // We might want to show a success message or just navigate.
+              Alert.alert('Account Deleted', 'Your account and data have been removed.');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to delete account');
+            }
+          }
+        }
+      ]
+    );
+  }, [deleteAccount]);
+
   const handleGoBack = useCallback(() => {
     navigation.goBack();
   }, [navigation]);
@@ -134,12 +151,20 @@ export const SettingsScreen: React.FC = () => {
                   <Text style={styles.actionButtonText}>Log In</Text>
                 </Pressable>
               ) : (
-                <Pressable
-                  style={({ pressed }) => [styles.logoutButton, pressed && styles.logoutButtonPressed]}
-                  onPress={signOut}
-                >
-                  <Ionicons name="log-out-outline" size={20} color={colors.error} />
-                </Pressable>
+                <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+                  <Pressable
+                    style={({ pressed }) => [styles.deleteButton, pressed && styles.deleteButtonPressed]}
+                    onPress={handleDeleteAccount}
+                  >
+                    <Ionicons name="trash-outline" size={20} color={colors.error} />
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [styles.logoutButton, pressed && styles.logoutButtonPressed]}
+                    onPress={signOut}
+                  >
+                    <Ionicons name="log-out-outline" size={20} color={colors.error} />
+                  </Pressable>
+                </View>
               )}
             </View>
           </View>
@@ -357,6 +382,8 @@ const styles = StyleSheet.create({
   },
   languageList: {
     gap: spacing.sm,
+    paddingHorizontal: spacing.xs, // Add extra space for shadows
+    paddingVertical: spacing.xs,
   },
   // Claymorphism language item - compact floating 3D clay tile
   languageItem: {
@@ -364,17 +391,24 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: spacing.sm,
     paddingHorizontal: spacing.md,
-    backgroundColor: colors.cardSurface,
+    backgroundColor: colors.white,
     borderRadius: borderRadius.lg,
-    borderWidth: 0,
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
+    ...Platform.select({
+      ios: {
+        borderTopWidth: 1,
+        borderTopColor: colors.shadowInnerLight,
+      },
+      android: {
+        borderWidth: 0,
+      }
+    }),
     ...shadows.claySoft,
   },
   // Selected language item - primary colored shadow
   languageItemSelected: {
-    backgroundColor: colors.primarySoft,
-    borderTopColor: colors.primaryLighter,
+    backgroundColor: Platform.OS === 'android' ? '#F0E7FF' : colors.primarySoft, // Solid light purple for Android
+    borderWidth: Platform.OS === 'android' ? 1.5 : 1,
+    borderColor: colors.primaryLighter,
     ...shadows.clayPrimary,
   },
   // Language item pressed state - compressed clay effect
@@ -391,12 +425,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
-    borderBottomWidth: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    ...shadows.subtle,
+    ...Platform.select({
+      ios: {
+        borderTopWidth: 1,
+        borderTopColor: colors.shadowInnerLight,
+        ...shadows.subtle,
+      },
+      android: {
+        borderWidth: 0,
+        elevation: 2,
+      }
+    }),
   },
   languageFlag: {
     fontSize: 20,
@@ -421,10 +460,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.4)',
-    borderBottomWidth: 0,
-    borderLeftWidth: 0,
-    borderRightWidth: 0,
-    ...shadows.subtle,
+    elevation: Platform.OS === 'android' ? 0 : 2, // Disable elevation on Android
   },
   // Avatar Picker Styles
   avatarList: {
@@ -476,8 +512,15 @@ const styles = StyleSheet.create({
     backgroundColor: colors.cardSurface,
     borderRadius: borderRadius.lg,
     padding: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.shadowInnerLight,
+    ...Platform.select({
+      ios: {
+        borderTopWidth: 1,
+        borderTopColor: colors.shadowInnerLight,
+      },
+      android: {
+        borderWidth: 0,
+      }
+    }),
     ...shadows.level1,
   },
   accountName: {
@@ -513,5 +556,16 @@ const styles = StyleSheet.create({
   },
   logoutButtonPressed: {
     backgroundColor: '#FFD0D0'
+  },
+  deleteButton: {
+    padding: spacing.sm,
+    borderRadius: borderRadius.lg,
+    backgroundColor: '#FFE5E5',
+    ...shadows.claySoft,
+    borderColor: 'rgba(255, 0, 0, 0.1)',
+    borderWidth: 1,
+  },
+  deleteButtonPressed: {
+    backgroundColor: '#FFCCCC'
   }
 });

@@ -267,9 +267,39 @@ class AuthService {
                }
           }
 
+          await this.clearLocalSession();
+     }
+
+     async deleteAccount(): Promise<void> {
+          const accessToken = await SecureStore.getItemAsync('accessToken');
+          const baseUrl = await this.getBaseUrl();
+
+          if (accessToken) {
+               const response = await fetch(`${baseUrl}/auth/account`, {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${accessToken}` }
+               });
+
+               if (!response.ok) {
+                    try {
+                         const errorData = await response.json();
+                         throw new Error(errorData.meta?.message || 'Delete account failed');
+                    } catch (e) {
+                         throw new Error('Could not delete account. Please try again later.');
+                    }
+               }
+          }
+
+          await this.clearLocalSession();
+     }
+
+     private async clearLocalSession(): Promise<void> {
           await SecureStore.deleteItemAsync('accessToken');
           await SecureStore.deleteItemAsync('refreshToken');
+          await SecureStore.deleteItemAsync('userId');
           await AsyncStorage.removeItem('guestId');
+          // Clear any other local user-related storage if necessary
+          await AsyncStorage.removeItem('userName');
      }
 
      private async saveTokens(data: any): Promise<void> {

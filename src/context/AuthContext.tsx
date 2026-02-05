@@ -12,6 +12,7 @@ interface AuthContextType {
      signInGoogle: () => Promise<void>;
      signInApple: () => Promise<void>;
      signOut: () => Promise<void>;
+     deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -133,8 +134,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
      };
 
+     const deleteAccount = async () => {
+          setIsLoading(true);
+          try {
+               await AuthService.deleteAccount();
+               // Re-initialize as a new guest
+               const guest = await AuthService.initGuestSession();
+               setUser(guest);
+          } catch (error) {
+               console.error('Delete account error:', error);
+               throw error;
+          } finally {
+               setIsLoading(false);
+          }
+     };
+
      return (
-          <AuthContext.Provider value={{ user, isLoading, signInGuest, signInEmail, signUpEmail, signInGoogle, signInApple, signOut }}>
+          <AuthContext.Provider value={{
+               user,
+               isLoading,
+               signInGuest,
+               signInEmail,
+               signUpEmail,
+               signInGoogle,
+               signInApple,
+               signOut,
+               deleteAccount
+          }}>
                {children}
           </AuthContext.Provider>
      );
